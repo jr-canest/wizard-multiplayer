@@ -7,6 +7,7 @@ import { HandDisplay } from './HandDisplay';
 import { BiddingPanel } from './BiddingPanel';
 import { TrickArea } from './TrickArea';
 import { TrickStatus } from './TrickStatus';
+import { RoundScoreboard } from './RoundScoreboard';
 import { playCard } from '../lib/gameFlow';
 import { legalIndices } from '../game/legalMoves';
 
@@ -80,8 +81,12 @@ export function GameView({ room, myName }: Props) {
       )}
 
       {room.status === 'scoring' && (
+        <RoundScoreboard room={room} myName={myName} />
+      )}
+
+      {room.status === 'finished' && (
         <p className="text-navy-200 text-sm text-center py-2">
-          Round complete. Scoring screen wires up next (step 8).
+          Game over. Final scoreboard wires up next (step 9).
         </p>
       )}
 

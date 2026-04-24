@@ -9,6 +9,7 @@ import { db } from './firebase';
 import { buildDeck, deal, shuffle, totalRoundsFor } from '../game/deck';
 import { getLeadInfo, isLegalPlay } from '../game/legalMoves';
 import { winningPlayIndex } from '../game/trickWinner';
+import { calcRoundScore } from '../game/scoring';
 import type { HandDoc, LogEntry, RoomDoc, Suit } from './types';
 
 export class FlowError extends Error {
@@ -24,7 +25,8 @@ export class FlowError extends Error {
     | 'canadianRuleViolation'
     | 'notPlaying'
     | 'invalidCard'
-    | 'illegalPlay';
+    | 'illegalPlay'
+    | 'notScoring';
   constructor(code: FlowError['code']) {
     super(code);
     this.code = code;
@@ -340,5 +342,69 @@ export async function playCard(
       status: roundComplete ? 'scoring' : 'playing',
       log: [...room.log, playLog, trickWinLog],
     });
+  });
+}
+
+/**
+ * Compute per-player round deltas from bids vs. tricks won.
+ */
+export function computeRoundDeltas(
+  playerOrder: string[],
+  bids: Record<string, number>,
+  tricksWon: Record<string, number>,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const name of playerOrder) {
+    const bid = bids[name] ?? 0;
+    const won = tricksWon[name] ?? 0;
+    out[name] = calcRoundScore(bid, won);
+  }
+  return out;
+}
+
+/**
+ * Apply round deltas to cumulativeScores and either deal the next round or
+ * transition to `finished`. Idempotent — no-ops if status isn't `scoring`,
+ * so any client can call it without coordination.
+ */
+export async function scoreAndAdvance(code: string): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  const snap = await getDoc(roomRef);
+  if (!snap.exists()) throw new FlowError('notScoring');
+  const room = snap.data() as RoomDoc;
+
+  if (room.status !== 'scoring') return; // someone else already advanced
+
+  const deltas = computeRoundDeltas(room.playerOrder, room.bids, room.tricksWon);
+  const newCumulative = { ...room.cumulativeScores };
+  for (const name of room.playerOrder) {
+    newCumulative[name] = (newCumulative[name] ?? 0) + (deltas[name] ?? 0);
+  }
+
+  const scoreLog: LogEntry = {
+    t: 'roundScore',
+    round: room.currentRound,
+    scores: deltas,
+  };
+
+  const isFinalRound = room.currentRound >= room.totalRounds;
+
+  if (isFinalRound) {
+    const gameOverLog: LogEntry = {
+      t: 'gameOver',
+      finalScores: newCumulative,
+    };
+    await updateDoc(roomRef, {
+      cumulativeScores: newCumulative,
+      status: 'finished',
+      log: [...room.log, scoreLog, gameOverLog],
+    });
+    return;
+  }
+
+  await dealNextRound(code, {
+    ...room,
+    cumulativeScores: newCumulative,
+    log: [...room.log, scoreLog],
   });
 }
