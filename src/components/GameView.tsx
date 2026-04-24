@@ -72,6 +72,22 @@ export function GameView({ room, myName }: Props) {
         <TrumpChooser code={room.code} callerName={myName} />
       )}
 
+      {showOpponents && (
+        <div className="flex items-stretch gap-2">
+          <TrumpDisplay
+            trumpCard={room.trumpCard}
+            trumpSuit={room.trumpSuit}
+            awaitingTrumpChoice={room.awaitingTrumpChoice}
+            compact
+          />
+          <TrickArea
+            plays={room.trickInProgress}
+            myName={myName}
+            isMyTurn={isMyTurn && room.status === 'playing'}
+          />
+        </div>
+      )}
+
       {room.status === 'bidding' && (
         <BiddingPanel room={room} myName={myName} />
       )}
@@ -80,30 +96,7 @@ export function GameView({ room, myName }: Props) {
         <>
           <TrickStatus room={room} myName={myName} />
           {isMyTurn && <YourTurnBanner text="Your turn — pick a card" />}
-          <div className="flex items-stretch gap-2">
-            <TrumpDisplay
-              trumpCard={room.trumpCard}
-              trumpSuit={room.trumpSuit}
-              awaitingTrumpChoice={room.awaitingTrumpChoice}
-              compact
-            />
-            <TrickArea
-              plays={room.trickInProgress}
-              myName={myName}
-              isMyTurn={isMyTurn}
-            />
-          </div>
         </>
-      )}
-
-      {(room.status === 'dealing' || room.status === 'bidding') && (
-        <div className="flex justify-center">
-          <TrumpDisplay
-            trumpCard={room.trumpCard}
-            trumpSuit={room.trumpSuit}
-            awaitingTrumpChoice={room.awaitingTrumpChoice}
-          />
-        </div>
       )}
 
       {room.status === 'scoring' && (
