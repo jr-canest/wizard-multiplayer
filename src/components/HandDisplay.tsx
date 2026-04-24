@@ -43,14 +43,13 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
   const maxFanDeg = Math.min(40, 6 * count);
   const centerIdx = (count - 1) / 2;
   const angleStep = count > 1 ? maxFanDeg / (count - 1) : 0;
-  // Tighter overlap on bigger hands so it still fits on a phone.
   const spread = count <= 5 ? 0.65 : count <= 10 ? 0.5 : 0.35;
 
   function handlePointerDown(e: React.PointerEvent, i: number) {
     if (!onPlay) return;
     const ok = legal ? legal[i] : true;
     if (!ok) return;
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    e.currentTarget.setPointerCapture(e.pointerId);
     setDrag({
       index: i,
       pointerId: e.pointerId,
@@ -73,12 +72,23 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
   function handlePointerUp(e: React.PointerEvent) {
     if (!drag || e.pointerId !== drag.pointerId) return;
     const { index, moved } = drag;
+
+    let drop: Element | null | undefined = null;
+    if (moved) {
+      // Hide the dragged node briefly so elementFromPoint returns what's
+      // underneath (the trick area) instead of the card itself.
+      const node = e.currentTarget as HTMLElement;
+      const prevVis = node.style.visibility;
+      node.style.visibility = 'hidden';
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      drop = el?.closest('[data-drop="trick"]');
+      node.style.visibility = prevVis;
+    }
+
     setDrag(null);
     if (!onPlay) return;
 
     if (moved) {
-      const el = document.elementFromPoint(e.clientX, e.clientY);
-      const drop = el?.closest('[data-drop="trick"]');
       if (drop) onPlay(index);
     } else {
       onPlay(index);
@@ -91,7 +101,7 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
 
   return (
     <div className="relative h-[180px] select-none">
-      <div className="absolute inset-x-0 bottom-0 flex justify-center items-end">
+      <div className="absolute inset-x-0 bottom-0 h-[180px]">
         {hand.map((card, i) => {
           const cardLegal = legal ? legal[i] : true;
           const showGlow = cardLegal && !!isMyTurn;
@@ -103,31 +113,33 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
             card.kind === 'standard' ? `${card.suit}${card.rank}` : card.id
           }`;
 
-          if (isDragging && drag) {
-            return (
-              <div
-                key={cardKey}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onPointerCancel={handlePointerCancel}
-                style={{
+          // Single DOM node across fan + drag states so pointer capture
+          // stays attached and drops land correctly.
+          const draggingStyle: React.CSSProperties | undefined =
+            isDragging && drag
+              ? {
                   position: 'fixed',
                   left: drag.x,
                   top: drag.y,
-                  transform: 'translate(-50%, -50%)',
+                  transform: 'translate(-50%, -55%) rotate(0deg)',
+                  transformOrigin: 'center center',
+                  transition: 'none',
                   zIndex: 1000,
-                  pointerEvents: 'none',
                   touchAction: 'none',
-                }}
-              >
-                <CardImage
-                  card={card}
-                  size="lg"
-                  className="ring-4 ring-gold-300 shadow-[0_0_30px_rgba(254,205,70,0.9)]"
-                />
-              </div>
-            );
-          }
+                  willChange: 'transform, left, top',
+                }
+              : undefined;
+
+          const fanStyle: React.CSSProperties = {
+            position: 'absolute',
+            left: '50%',
+            bottom: 0,
+            transform: `translateX(calc(-50% + ${offset}px)) rotate(${angle}deg)`,
+            transformOrigin: 'bottom center',
+            transition: 'transform 0.2s ease-out',
+            zIndex: i,
+            touchAction: 'none',
+          };
 
           return (
             <div
@@ -137,19 +149,16 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
               onPointerUp={handlePointerUp}
               onPointerCancel={handlePointerCancel}
               className={[
-                'absolute bottom-0 left-1/2 rounded-md',
+                'rounded-md',
                 cardLegal ? 'cursor-grab active:cursor-grabbing' : '',
-                showGlow
+                showGlow && !isDragging
                   ? 'ring-4 ring-gold-300 shadow-[0_0_20px_rgba(254,205,70,0.7)] animate-[pulse_2s_ease-in-out_infinite]'
                   : '',
+                isDragging
+                  ? 'ring-4 ring-gold-300 shadow-[0_0_30px_rgba(254,205,70,0.9)]'
+                  : '',
               ].join(' ')}
-              style={{
-                transform: `translateX(calc(-50% + ${offset}px)) rotate(${angle}deg)`,
-                transformOrigin: 'bottom center',
-                transition: 'transform 0.2s, box-shadow 0.2s',
-                zIndex: i,
-                touchAction: 'none',
-              }}
+              style={draggingStyle ?? fanStyle}
             >
               <CardImage card={card} size="lg" faded={!cardLegal} />
             </div>

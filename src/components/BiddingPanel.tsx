@@ -54,32 +54,32 @@ export function BiddingPanel({ room, myName }: Props) {
   const diff = totalSoFar - cardsThisRound;
   const bidSumLabel =
     diff > 0
-      ? `Overbid by ${diff}`
+      ? `Overbid ${diff}`
       : diff < 0
-        ? `Underbid by ${-diff}`
+        ? `Underbid ${-diff}`
         : 'Exact';
   const bidSumTone =
     diff > 0
-      ? 'text-rose-300 bg-rose-900/20 border-rose-700/50'
+      ? 'text-rose-300'
       : diff === 0
-        ? 'text-amber-300 bg-amber-900/20 border-amber-700/50'
-        : 'text-sky-300 bg-sky-900/20 border-sky-700/50';
+        ? 'text-amber-300'
+        : 'text-sky-300';
 
   return (
     <div className="space-y-3">
       {isMyTurn && !alreadyBid && <YourTurnBanner text="Your turn to bid" />}
 
-      <div
-        className={`rounded-lg border px-4 py-3 text-center ${bidSumTone}`}
-      >
-        <div className="text-3xl font-black tabular-nums">
-          {totalSoFar}
-          <span className="text-lg text-navy-100 font-normal"> / </span>
-          {cardsThisRound}
-        </div>
-        <div className="text-xs uppercase tracking-wider mt-0.5">
-          {bidSumLabel}
-        </div>
+      <div className="card-gold-subtle flex items-center justify-between px-3 py-1.5 text-sm">
+        <span className="text-xs uppercase tracking-wider text-navy-200">
+          Total bids
+        </span>
+        <span className="tabular-nums">
+          <strong className={bidSumTone}>{totalSoFar}</strong>
+          <span className="text-navy-400"> / {cardsThisRound}</span>
+          <span className={`ml-2 font-semibold ${bidSumTone}`}>
+            · {bidSumLabel}
+          </span>
+        </span>
       </div>
 
       <ul className="space-y-1.5">
