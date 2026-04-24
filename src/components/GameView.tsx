@@ -3,6 +3,7 @@ import { useMyHand } from '../hooks/useMyHand';
 import { TrumpDisplay } from './TrumpDisplay';
 import { TrumpChooser } from './TrumpChooser';
 import { HandDisplay } from './HandDisplay';
+import { BiddingPanel } from './BiddingPanel';
 
 type Props = {
   room: RoomSnapshot;
@@ -40,6 +41,10 @@ export function GameView({ room, myName }: Props) {
         <TrumpChooser code={room.code} callerName={myName} />
       )}
 
+      {room.status === 'bidding' && (
+        <BiddingPanel room={room} myName={myName} />
+      )}
+
       <div>
         <h3 className="text-xs uppercase tracking-wider text-navy-200 mb-2">
           Your hand ({hand?.length ?? 0})
@@ -47,9 +52,11 @@ export function GameView({ room, myName }: Props) {
         <HandDisplay hand={hand} />
       </div>
 
-      <p className="text-navy-200 text-sm text-center">
-        Bidding wires up next (step 6).
-      </p>
+      {room.status === 'playing' && (
+        <p className="text-navy-200 text-sm text-center">
+          Trick play wires up next (step 7).
+        </p>
+      )}
     </div>
   );
 }

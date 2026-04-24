@@ -9,7 +9,16 @@ import { buildDeck, deal, shuffle, totalRoundsFor } from '../game/deck';
 import type { HandDoc, LogEntry, RoomDoc, Suit } from './types';
 
 export class FlowError extends Error {
-  code: 'notHost' | 'notLobby' | 'notEnoughPlayers' | 'notDealer' | 'notAwaiting';
+  code:
+    | 'notHost'
+    | 'notLobby'
+    | 'notEnoughPlayers'
+    | 'notDealer'
+    | 'notAwaiting'
+    | 'notBidding'
+    | 'notYourTurn'
+    | 'invalidBid'
+    | 'canadianRuleViolation';
   constructor(code: FlowError['code']) {
     super(code);
     this.code = code;
@@ -138,4 +147,89 @@ export async function chooseTrumpSuit(
     status: 'bidding',
     log: updatedLog,
   });
+}
+
+/**
+ * Whether placing `bid` would violate the Canadian rule for the dealer.
+ * Returns false on round 1 (single-card round is exempt) and for non-dealers.
+ */
+export function violatesCanadianRule(args: {
+  isDealerBid: boolean;
+  canadianRule: boolean;
+  currentRound: number;
+  cardsThisRound: number;
+  otherBidsSum: number;
+  bid: number;
+}): boolean {
+  if (!args.canadianRule) return false;
+  if (!args.isDealerBid) return false;
+  if (args.currentRound === 1) return false;
+  return args.otherBidsSum + args.bid === args.cardsThisRound;
+}
+
+export async function placeBid(
+  code: string,
+  callerName: string,
+  bid: number,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  const snap = await getDoc(roomRef);
+  if (!snap.exists()) throw new FlowError('notBidding');
+  const room = snap.data() as RoomDoc;
+
+  if (room.status !== 'bidding') throw new FlowError('notBidding');
+
+  const playerCount = room.playerOrder.length;
+  const expectedName = room.playerOrder[room.currentPlayerIndex];
+  if (expectedName !== callerName) throw new FlowError('notYourTurn');
+
+  const cardsThisRound = room.currentRound;
+  if (!Number.isInteger(bid) || bid < 0 || bid > cardsThisRound) {
+    throw new FlowError('invalidBid');
+  }
+
+  const dealerName = room.playerOrder[room.dealerIndex];
+  const otherBidsSum = Object.values(room.bids).reduce((a, b) => a + b, 0);
+
+  if (
+    violatesCanadianRule({
+      isDealerBid: callerName === dealerName,
+      canadianRule: room.canadianRule,
+      currentRound: room.currentRound,
+      cardsThisRound,
+      otherBidsSum,
+      bid,
+    })
+  ) {
+    throw new FlowError('canadianRuleViolation');
+  }
+
+  const nextBids = { ...room.bids, [callerName]: bid };
+  const allBidIn = Object.keys(nextBids).length === playerCount;
+
+  const bidLog: LogEntry = {
+    t: 'bid',
+    round: room.currentRound,
+    player: callerName,
+    bid,
+  };
+
+  if (allBidIn) {
+    // Left of dealer leads the first trick.
+    await updateDoc(roomRef, {
+      bids: nextBids,
+      status: 'playing',
+      currentTrick: 1,
+      currentPlayerIndex: (room.dealerIndex + 1) % playerCount,
+      leadSuit: null,
+      trickInProgress: [],
+      log: [...room.log, bidLog],
+    });
+  } else {
+    await updateDoc(roomRef, {
+      bids: nextBids,
+      currentPlayerIndex: (room.currentPlayerIndex + 1) % playerCount,
+      log: [...room.log, bidLog],
+    });
+  }
 }
