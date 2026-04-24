@@ -8,6 +8,7 @@ import { BiddingPanel } from './BiddingPanel';
 import { TrickArea } from './TrickArea';
 import { TrickStatus } from './TrickStatus';
 import { RoundScoreboard } from './RoundScoreboard';
+import { FinalScoreboard } from './FinalScoreboard';
 import { playCard } from '../lib/gameFlow';
 import { legalIndices } from '../game/legalMoves';
 
@@ -85,9 +86,7 @@ export function GameView({ room, myName }: Props) {
       )}
 
       {room.status === 'finished' && (
-        <p className="text-navy-200 text-sm text-center py-2">
-          Game over. Final scoreboard wires up next (step 9).
-        </p>
+        <FinalScoreboard room={room} myName={myName} />
       )}
 
       <div>

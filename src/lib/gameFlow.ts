@@ -1,6 +1,9 @@
 import {
+  collection,
+  deleteDoc,
   doc,
   getDoc,
+  getDocs,
   runTransaction,
   updateDoc,
   writeBatch,
@@ -26,7 +29,8 @@ export class FlowError extends Error {
     | 'notPlaying'
     | 'invalidCard'
     | 'illegalPlay'
-    | 'notScoring';
+    | 'notScoring'
+    | 'notFinished';
   constructor(code: FlowError['code']) {
     super(code);
     this.code = code;
@@ -406,5 +410,49 @@ export async function scoreAndAdvance(code: string): Promise<void> {
     ...room,
     cumulativeScores: newCumulative,
     log: [...room.log, scoreLog],
+  });
+}
+
+/**
+ * Reset a finished room back to lobby state for the same group ("Play again").
+ * Host-only. Clears hand docs and game state, keeps players + canadianRule.
+ */
+export async function resetForNewGame(
+  code: string,
+  callerName: string,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  const snap = await getDoc(roomRef);
+  if (!snap.exists()) throw new FlowError('notFinished');
+  const room = snap.data() as RoomDoc;
+
+  if (room.status !== 'finished') throw new FlowError('notFinished');
+  if (room.hostPlayerName !== callerName) throw new FlowError('notHost');
+
+  const handsSnap = await getDocs(collection(db, 'rooms', code, 'hands'));
+  await Promise.all(handsSnap.docs.map((d) => deleteDoc(d.ref)));
+
+  const cumulativeScores: Record<string, number> = {};
+  for (const name of room.playerOrder) cumulativeScores[name] = 0;
+
+  await updateDoc(roomRef, {
+    status: 'lobby',
+    currentRound: 0,
+    currentTrick: 0,
+    totalRounds: 0,
+    dealerIndex: 0,
+    currentPlayerIndex: 0,
+    trumpCard: null,
+    trumpSuit: null,
+    awaitingTrumpChoice: false,
+    leadSuit: null,
+    bids: {},
+    tricksWon: {},
+    cumulativeScores,
+    trickInProgress: [],
+    trickHistory: [],
+    log: [],
+    historyWritten: false,
+    historyGameId: null,
   });
 }

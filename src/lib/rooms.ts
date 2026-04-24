@@ -64,6 +64,8 @@ export async function createRoom(
       trickInProgress: [],
       trickHistory: [],
       log: [],
+      historyWritten: false,
+      historyGameId: null,
     };
 
     const playerDoc: RoomPlayerDoc = {

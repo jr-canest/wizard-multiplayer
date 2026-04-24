@@ -50,6 +50,8 @@ export type RoomDoc = {
     winner: string;
   }>;
   log: LogEntry[];
+  historyWritten: boolean;
+  historyGameId: string | null;
 };
 
 export type RoomPlayerDoc = {
