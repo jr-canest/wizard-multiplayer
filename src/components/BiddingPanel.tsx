@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { placeBid, violatesCanadianRule } from '../lib/gameFlow';
 import type { RoomSnapshot } from '../hooks/useRoom';
-import { YourTurnBanner } from './YourTurnBanner';
 
 type Props = {
   room: RoomSnapshot;
@@ -67,8 +66,6 @@ export function BiddingPanel({ room, myName }: Props) {
 
   return (
     <div className="space-y-3">
-      {isMyTurn && !alreadyBid && <YourTurnBanner text="Your turn to bid" />}
-
       <div className="card-gold-subtle flex items-center justify-between px-3 py-1.5 text-sm">
         <span className="text-xs uppercase tracking-wider text-navy-200">
           Total bids
@@ -82,93 +79,54 @@ export function BiddingPanel({ room, myName }: Props) {
         </span>
       </div>
 
-      <ul className="space-y-1.5">
-        {room.playerOrder.map((name) => {
-          const bid = room.bids[name];
-          const isCurrent = name === currentName && bid === undefined;
-          const isMe = name === myName;
-          return (
-            <li
-              key={name}
-              className={`flex items-center justify-between rounded-md px-3 py-2 ${
-                isCurrent
-                  ? 'bg-gold-900/40 border border-gold-500 animate-[pulse_2s_ease-in-out_infinite]'
-                  : 'bg-navy-800/60'
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <span
-                  className={
-                    isMe ? 'font-bold text-gold-100' : 'text-navy-50'
-                  }
-                >
-                  {name}
-                  {isMe ? ' (you)' : ''}
-                </span>
-                {name === dealerName && (
-                  <span className="text-gold-300 text-sm" title="Dealer">
-                    ♛
-                  </span>
-                )}
-              </span>
-              <span className="text-sm tabular-nums">
-                {bid !== undefined ? (
-                  <span className="text-gold-100 font-bold">{bid}</span>
-                ) : isCurrent ? (
-                  <span className="text-gold-300">…</span>
-                ) : (
-                  <span className="text-navy-300">—</span>
-                )}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-
       {alreadyBid ? (
         <p className="text-sm text-navy-100 text-center">
           Your bid: <strong className="text-gold-100">{myBid}</strong>. Waiting
           for others…
         </p>
       ) : isMyTurn ? (
-        <div className="card-gold p-3">
-          <p className="text-xs uppercase tracking-wider text-navy-200 mb-2 text-center">
-            Tap your bid
-          </p>
-          <div className="flex flex-wrap gap-2 justify-center">
-            {Array.from({ length: cardsThisRound + 1 }, (_, i) => {
-              const locked = isLocked(i);
-              const submittingThis = submitting === i;
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  disabled={locked || submitting !== null}
-                  onClick={() => pick(i)}
-                  className={`min-w-[3rem] rounded-md py-2 px-3 text-lg font-bold border ${
-                    locked
-                      ? 'bg-navy-900/40 border-navy-700 text-navy-500 line-through cursor-not-allowed'
-                      : 'bg-navy-800 border-gold-600 text-gold-100 hover:bg-navy-700 active:scale-95 transition'
-                  }`}
-                >
-                  {submittingThis ? '…' : i}
-                </button>
-              );
-            })}
+        <div className="relative">
+          <div className="absolute inset-0 rounded-xl bg-gold-400/20 blur-xl animate-[pulse_1.5s_ease-in-out_infinite]" />
+          <div className="relative card-gold p-3 ring-4 ring-gold-300 shadow-[0_0_20px_rgba(254,205,70,0.7)] animate-[pulse_2s_ease-in-out_infinite]">
+            <p className="text-xs uppercase tracking-[0.25em] text-gold-200 font-bold mb-2 text-center">
+              Tap your bid
+            </p>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {Array.from({ length: cardsThisRound + 1 }, (_, i) => {
+                const locked = isLocked(i);
+                const submittingThis = submitting === i;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    disabled={locked || submitting !== null}
+                    onClick={() => pick(i)}
+                    className={`min-w-[3rem] rounded-md py-2 px-3 text-lg font-bold border ${
+                      locked
+                        ? 'bg-navy-900/40 border-navy-700 text-navy-500 line-through cursor-not-allowed'
+                        : 'bg-navy-800 border-gold-600 text-gold-100 hover:bg-navy-700 active:scale-95 transition'
+                    }`}
+                  >
+                    {submittingThis ? '…' : i}
+                  </button>
+                );
+              })}
+            </div>
+            {isDealerBid &&
+              allOthersBidIn &&
+              room.canadianRule &&
+              room.currentRound > 1 && (
+                <p className="text-xs text-navy-200 mt-2 text-center">
+                  Canadian rule: you can’t bid the value that balances the round.
+                </p>
+              )}
           </div>
-          {isDealerBid &&
-            allOthersBidIn &&
-            room.canadianRule &&
-            room.currentRound > 1 && (
-              <p className="text-xs text-navy-200 mt-2 text-center">
-                Canadian rule: you can’t bid the value that balances the round.
-              </p>
-            )}
         </div>
       ) : (
         <p className="text-sm text-navy-100 text-center">
           Waiting for{' '}
-          <strong className="text-gold-100">{currentName}</strong>…
+          <strong className="text-gold-100">{currentName}</strong>
+          {dealerName === currentName ? ' (dealer)' : ''}…
         </p>
       )}
 

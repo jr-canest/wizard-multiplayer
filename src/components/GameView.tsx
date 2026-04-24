@@ -10,7 +10,6 @@ import { TrickStatus } from './TrickStatus';
 import { RoundScoreboard } from './RoundScoreboard';
 import { FinalScoreboard } from './FinalScoreboard';
 import { Opponents } from './Opponents';
-import { YourTurnBanner } from './YourTurnBanner';
 import { playCard } from '../lib/gameFlow';
 import { legalIndices } from '../game/legalMoves';
 
@@ -93,10 +92,7 @@ export function GameView({ room, myName }: Props) {
       )}
 
       {room.status === 'playing' && (
-        <>
-          <TrickStatus room={room} myName={myName} />
-          {isMyTurn && <YourTurnBanner text="Your turn — pick a card" />}
-        </>
+        <TrickStatus room={room} myName={myName} />
       )}
 
       {room.status === 'scoring' && (
