@@ -15,46 +15,46 @@ const SUIT_COLOR: Record<Suit, string> = {
   S: 'text-navy-100',
 };
 
-const SUIT_NAME: Record<Suit, string> = {
-  H: 'Hearts',
-  D: 'Diamonds',
-  C: 'Clubs',
-  S: 'Spades',
-};
-
 type Props = {
   trumpCard: Card | null;
   trumpSuit: Suit | null;
   awaitingTrumpChoice: boolean;
+  compact?: boolean;
 };
 
-export function TrumpDisplay({ trumpCard, trumpSuit, awaitingTrumpChoice }: Props) {
+export function TrumpDisplay({
+  trumpCard,
+  trumpSuit,
+  awaitingTrumpChoice,
+  compact = false,
+}: Props) {
   return (
-    <div className="card-gold-subtle flex items-center gap-3 p-3">
-      <div className="text-xs uppercase tracking-wider text-navy-200 w-12">
+    <div
+      className={`card-gold-subtle flex flex-col items-center justify-center gap-1 ${
+        compact ? 'p-2 w-[72px]' : 'p-3 w-[84px]'
+      }`}
+    >
+      <div className="text-[10px] uppercase tracking-wider text-navy-200">
         Trump
       </div>
       {trumpCard ? (
         <CardImage card={trumpCard} size="sm" />
       ) : (
-        <div className="w-12 h-[67px] rounded-md border border-dashed border-navy-400 flex items-center justify-center text-navy-300 text-xs">
+        <div className="w-12 h-[67px] rounded-md border border-dashed border-navy-400 flex items-center justify-center text-navy-300 text-[10px]">
           none
         </div>
       )}
-      <div className="ml-2">
+      <div className="text-center">
         {awaitingTrumpChoice ? (
-          <span className="text-gold-200 text-sm font-semibold">
-            Dealer is choosing…
+          <span className="text-[10px] text-gold-300 font-semibold">
+            choosing…
           </span>
         ) : trumpSuit ? (
-          <span className={`text-2xl ${SUIT_COLOR[trumpSuit]}`}>
-            {SUIT_GLYPH[trumpSuit]}{' '}
-            <span className="text-sm align-middle text-navy-100">
-              {SUIT_NAME[trumpSuit]}
-            </span>
+          <span className={`text-xl leading-none ${SUIT_COLOR[trumpSuit]}`}>
+            {SUIT_GLYPH[trumpSuit]}
           </span>
         ) : (
-          <span className="text-navy-100 text-sm">No trump</span>
+          <span className="text-[10px] text-navy-100">no trump</span>
         )}
       </div>
     </div>

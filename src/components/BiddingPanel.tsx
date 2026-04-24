@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { placeBid, violatesCanadianRule } from '../lib/gameFlow';
 import type { RoomSnapshot } from '../hooks/useRoom';
+import { YourTurnBanner } from './YourTurnBanner';
 
 type Props = {
   room: RoomSnapshot;
@@ -50,23 +51,35 @@ export function BiddingPanel({ room, myName }: Props) {
   }
 
   const totalSoFar = otherBidsSum + (alreadyBid ? myBid : 0);
-  const totalTone =
-    totalSoFar > cardsThisRound
-      ? 'text-rose-300'
-      : totalSoFar === cardsThisRound
-        ? 'text-amber-300'
-        : 'text-sky-300';
+  const diff = totalSoFar - cardsThisRound;
+  const bidSumLabel =
+    diff > 0
+      ? `Overbid by ${diff}`
+      : diff < 0
+        ? `Underbid by ${-diff}`
+        : 'Exact';
+  const bidSumTone =
+    diff > 0
+      ? 'text-rose-300 bg-rose-900/20 border-rose-700/50'
+      : diff === 0
+        ? 'text-amber-300 bg-amber-900/20 border-amber-700/50'
+        : 'text-sky-300 bg-sky-900/20 border-sky-700/50';
 
   return (
-    <div className="card-gold p-4 space-y-4">
-      <div className="flex items-baseline justify-between">
-        <span className="text-xs uppercase tracking-wider text-navy-200">
-          Bidding
-        </span>
-        <span className="text-sm">
-          <span className={totalTone}>{totalSoFar}</span>
-          <span className="text-navy-200"> / {cardsThisRound}</span>
-        </span>
+    <div className="space-y-3">
+      {isMyTurn && !alreadyBid && <YourTurnBanner text="Your turn to bid" />}
+
+      <div
+        className={`rounded-lg border px-4 py-3 text-center ${bidSumTone}`}
+      >
+        <div className="text-3xl font-black tabular-nums">
+          {totalSoFar}
+          <span className="text-lg text-navy-100 font-normal"> / </span>
+          {cardsThisRound}
+        </div>
+        <div className="text-xs uppercase tracking-wider mt-0.5">
+          {bidSumLabel}
+        </div>
       </div>
 
       <ul className="space-y-1.5">
@@ -79,7 +92,7 @@ export function BiddingPanel({ room, myName }: Props) {
               key={name}
               className={`flex items-center justify-between rounded-md px-3 py-2 ${
                 isCurrent
-                  ? 'bg-gold-900/40 border border-gold-600'
+                  ? 'bg-gold-900/40 border border-gold-500 animate-[pulse_2s_ease-in-out_infinite]'
                   : 'bg-navy-800/60'
               }`}
             >
@@ -114,13 +127,15 @@ export function BiddingPanel({ room, myName }: Props) {
 
       {alreadyBid ? (
         <p className="text-sm text-navy-100 text-center">
-          Your bid: <strong className="text-gold-100">{myBid}</strong>. Waiting for
-          others…
+          Your bid: <strong className="text-gold-100">{myBid}</strong>. Waiting
+          for others…
         </p>
       ) : isMyTurn ? (
-        <div>
-          <p className="text-sm text-gold-200 mb-2">Your bid:</p>
-          <div className="flex flex-wrap gap-2">
+        <div className="card-gold p-3">
+          <p className="text-xs uppercase tracking-wider text-navy-200 mb-2 text-center">
+            Tap your bid
+          </p>
+          <div className="flex flex-wrap gap-2 justify-center">
             {Array.from({ length: cardsThisRound + 1 }, (_, i) => {
               const locked = isLocked(i);
               const submittingThis = submitting === i;
@@ -141,11 +156,14 @@ export function BiddingPanel({ room, myName }: Props) {
               );
             })}
           </div>
-          {isDealerBid && allOthersBidIn && room.canadianRule && room.currentRound > 1 && (
-            <p className="text-xs text-navy-200 mt-2">
-              Canadian rule: you can’t bid the value that balances the round.
-            </p>
-          )}
+          {isDealerBid &&
+            allOthersBidIn &&
+            room.canadianRule &&
+            room.currentRound > 1 && (
+              <p className="text-xs text-navy-200 mt-2 text-center">
+                Canadian rule: you can’t bid the value that balances the round.
+              </p>
+            )}
         </div>
       ) : (
         <p className="text-sm text-navy-100 text-center">
@@ -154,9 +172,7 @@ export function BiddingPanel({ room, myName }: Props) {
         </p>
       )}
 
-      {error && (
-        <p className="text-sm text-rose-300 text-center">{error}</p>
-      )}
+      {error && <p className="text-sm text-rose-300 text-center">{error}</p>}
     </div>
   );
 }

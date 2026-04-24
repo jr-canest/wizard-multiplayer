@@ -9,6 +9,8 @@ import { TrickArea } from './TrickArea';
 import { TrickStatus } from './TrickStatus';
 import { RoundScoreboard } from './RoundScoreboard';
 import { FinalScoreboard } from './FinalScoreboard';
+import { Opponents } from './Opponents';
+import { YourTurnBanner } from './YourTurnBanner';
 import { playCard } from '../lib/gameFlow';
 import { legalIndices } from '../game/legalMoves';
 
@@ -22,6 +24,10 @@ export function GameView({ room, myName }: Props) {
   const dealerName = room.playerOrder[room.dealerIndex];
   const isDealer = dealerName === myName;
   const isMyTurn = room.playerOrder[room.currentPlayerIndex] === myName;
+  const showOpponents =
+    room.status === 'dealing' ||
+    room.status === 'bidding' ||
+    room.status === 'playing';
 
   const [playError, setPlayError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -45,7 +51,7 @@ export function GameView({ room, myName }: Props) {
   }
 
   return (
-    <div className="w-full max-w-md space-y-4">
+    <div className="w-full max-w-md space-y-3">
       <div className="card-gold-subtle px-4 py-2 flex items-center justify-between text-sm">
         <span className="text-navy-100">
           Round{' '}
@@ -60,11 +66,7 @@ export function GameView({ room, myName }: Props) {
         </span>
       </div>
 
-      <TrumpDisplay
-        trumpCard={room.trumpCard}
-        trumpSuit={room.trumpSuit}
-        awaitingTrumpChoice={room.awaitingTrumpChoice}
-      />
+      {showOpponents && <Opponents room={room} myName={myName} />}
 
       {room.awaitingTrumpChoice && isDealer && (
         <TrumpChooser code={room.code} callerName={myName} />
@@ -77,8 +79,31 @@ export function GameView({ room, myName }: Props) {
       {room.status === 'playing' && (
         <>
           <TrickStatus room={room} myName={myName} />
-          <TrickArea plays={room.trickInProgress} myName={myName} />
+          {isMyTurn && <YourTurnBanner text="Your turn — pick a card" />}
+          <div className="flex items-stretch gap-2">
+            <TrumpDisplay
+              trumpCard={room.trumpCard}
+              trumpSuit={room.trumpSuit}
+              awaitingTrumpChoice={room.awaitingTrumpChoice}
+              compact
+            />
+            <TrickArea
+              plays={room.trickInProgress}
+              myName={myName}
+              isMyTurn={isMyTurn}
+            />
+          </div>
         </>
+      )}
+
+      {(room.status === 'dealing' || room.status === 'bidding') && (
+        <div className="flex justify-center">
+          <TrumpDisplay
+            trumpCard={room.trumpCard}
+            trumpSuit={room.trumpSuit}
+            awaitingTrumpChoice={room.awaitingTrumpChoice}
+          />
+        </div>
       )}
 
       {room.status === 'scoring' && (
@@ -89,24 +114,28 @@ export function GameView({ room, myName }: Props) {
         <FinalScoreboard room={room} myName={myName} />
       )}
 
-      <div>
-        <h3 className="text-xs uppercase tracking-wider text-navy-200 mb-2">
-          Your hand ({hand?.length ?? 0})
-          {room.status === 'playing' && isMyTurn && (
-            <span className="ml-2 text-gold-300">— pick a card</span>
+      {(room.status === 'bidding' ||
+        room.status === 'playing' ||
+        room.status === 'dealing') && (
+        <div>
+          <h3 className="text-xs uppercase tracking-wider text-navy-200 mb-1 text-center">
+            Your hand ({hand?.length ?? 0})
+          </h3>
+          <HandDisplay
+            hand={hand}
+            legal={legal}
+            isMyTurn={room.status === 'playing' && isMyTurn}
+            onPlay={
+              room.status === 'playing' && isMyTurn ? handlePlay : undefined
+            }
+          />
+          {playError && (
+            <p className="text-sm text-rose-300 text-center mt-1">
+              {playError}
+            </p>
           )}
-        </h3>
-        <HandDisplay
-          hand={hand}
-          legal={legal}
-          onPlay={
-            room.status === 'playing' && isMyTurn ? handlePlay : undefined
-          }
-        />
-        {playError && (
-          <p className="text-sm text-rose-300 text-center mt-1">{playError}</p>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
