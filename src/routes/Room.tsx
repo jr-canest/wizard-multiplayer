@@ -5,6 +5,7 @@ import { useAnonymousAuth } from '../hooks/useAnonymousAuth';
 import { useRoom } from '../hooks/useRoom';
 import { IdentityPrompt } from '../components/IdentityPrompt';
 import { Lobby } from '../components/Lobby';
+import { GameView } from '../components/GameView';
 import { isValidRoomCode } from '../lib/codes';
 import { joinRoom, RoomError, MAX_PLAYERS } from '../lib/rooms';
 
@@ -112,7 +113,11 @@ export function Room() {
               switch
             </button>
           </div>
-          <Lobby room={room!} players={players} myName={session.playerName} />
+          {room!.status === 'lobby' ? (
+            <Lobby room={room!} players={players} myName={session.playerName} />
+          ) : (
+            <GameView room={room!} myName={session.playerName} />
+          )}
         </>
       )}
     </div>

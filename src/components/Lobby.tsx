@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { leaveRoom, MIN_PLAYERS, MAX_PLAYERS } from '../lib/rooms';
+import { startGame } from '../lib/gameFlow';
 import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -13,9 +14,23 @@ export function Lobby({ room, players, myName }: Props) {
   const navigate = useNavigate();
   const [copying, setCopying] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
 
   const isHost = room.hostPlayerName === myName;
-  const canStart = isHost && room.playerOrder.length >= MIN_PLAYERS;
+  const canStart =
+    isHost && !starting && room.playerOrder.length >= MIN_PLAYERS;
+
+  async function handleStart() {
+    setStarting(true);
+    setStartError(null);
+    try {
+      await startGame(room.code, myName);
+    } catch (err) {
+      setStartError(err instanceof Error ? err.message : 'Failed to start.');
+      setStarting(false);
+    }
+  }
   const playersByName = new Map(players.map((p) => [p.name, p]));
 
   async function handleCopyLink() {
@@ -116,14 +131,19 @@ export function Lobby({ room, players, myName }: Props) {
       </div>
 
       {isHost ? (
-        <button
-          type="button"
-          onClick={() => alert('Game start wired up in step 5 (dealing)')}
-          disabled={!canStart}
-          className="btn-gold w-full rounded-xl py-4 text-lg"
-        >
-          Start game
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={handleStart}
+            disabled={!canStart}
+            className="btn-gold w-full rounded-xl py-4 text-lg"
+          >
+            {starting ? 'Dealing…' : 'Start game'}
+          </button>
+          {startError && (
+            <p className="text-sm text-rose-300 text-center">{startError}</p>
+          )}
+        </>
       ) : (
         <p className="text-center text-sm text-navy-100">
           Waiting for{' '}

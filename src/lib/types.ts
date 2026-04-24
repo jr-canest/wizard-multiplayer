@@ -33,9 +33,11 @@ export type RoomDoc = {
   dealerIndex: number;
   currentPlayerIndex: number;
   currentRound: number;
+  currentTrick: number;
   totalRounds: number;
   trumpCard: Card | null;
   trumpSuit: Suit | null;
+  awaitingTrumpChoice: boolean;
   leadSuit: Suit | null;
   bids: Record<string, number>;
   tricksWon: Record<string, number>;
