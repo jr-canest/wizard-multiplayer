@@ -1,9 +1,14 @@
+import { useState } from 'react';
 import type { RoomSnapshot } from '../hooks/useRoom';
 import { useMyHand } from '../hooks/useMyHand';
 import { TrumpDisplay } from './TrumpDisplay';
 import { TrumpChooser } from './TrumpChooser';
 import { HandDisplay } from './HandDisplay';
 import { BiddingPanel } from './BiddingPanel';
+import { TrickArea } from './TrickArea';
+import { TrickStatus } from './TrickStatus';
+import { playCard } from '../lib/gameFlow';
+import { legalIndices } from '../game/legalMoves';
 
 type Props = {
   room: RoomSnapshot;
@@ -14,6 +19,28 @@ export function GameView({ room, myName }: Props) {
   const hand = useMyHand(room.code, myName);
   const dealerName = room.playerOrder[room.dealerIndex];
   const isDealer = dealerName === myName;
+  const isMyTurn = room.playerOrder[room.currentPlayerIndex] === myName;
+
+  const [playError, setPlayError] = useState<string | null>(null);
+  const [playing, setPlaying] = useState(false);
+
+  const legal =
+    room.status === 'playing' && hand
+      ? legalIndices(hand, room.trickInProgress)
+      : undefined;
+
+  async function handlePlay(idx: number) {
+    if (playing) return;
+    setPlaying(true);
+    setPlayError(null);
+    try {
+      await playCard(room.code, myName, idx);
+    } catch (err) {
+      setPlayError(err instanceof Error ? err.message : 'Failed to play card.');
+    } finally {
+      setPlaying(false);
+    }
+  }
 
   return (
     <div className="w-full max-w-md space-y-4">
@@ -45,18 +72,37 @@ export function GameView({ room, myName }: Props) {
         <BiddingPanel room={room} myName={myName} />
       )}
 
+      {room.status === 'playing' && (
+        <>
+          <TrickStatus room={room} myName={myName} />
+          <TrickArea plays={room.trickInProgress} myName={myName} />
+        </>
+      )}
+
+      {room.status === 'scoring' && (
+        <p className="text-navy-200 text-sm text-center py-2">
+          Round complete. Scoring screen wires up next (step 8).
+        </p>
+      )}
+
       <div>
         <h3 className="text-xs uppercase tracking-wider text-navy-200 mb-2">
           Your hand ({hand?.length ?? 0})
+          {room.status === 'playing' && isMyTurn && (
+            <span className="ml-2 text-gold-300">— pick a card</span>
+          )}
         </h3>
-        <HandDisplay hand={hand} />
+        <HandDisplay
+          hand={hand}
+          legal={legal}
+          onPlay={
+            room.status === 'playing' && isMyTurn ? handlePlay : undefined
+          }
+        />
+        {playError && (
+          <p className="text-sm text-rose-300 text-center mt-1">{playError}</p>
+        )}
       </div>
-
-      {room.status === 'playing' && (
-        <p className="text-navy-200 text-sm text-center">
-          Trick play wires up next (step 7).
-        </p>
-      )}
     </div>
   );
 }

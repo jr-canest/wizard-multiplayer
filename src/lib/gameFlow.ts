@@ -1,11 +1,14 @@
 import {
   doc,
   getDoc,
+  runTransaction,
   updateDoc,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { buildDeck, deal, shuffle, totalRoundsFor } from '../game/deck';
+import { getLeadInfo, isLegalPlay } from '../game/legalMoves';
+import { winningPlayIndex } from '../game/trickWinner';
 import type { HandDoc, LogEntry, RoomDoc, Suit } from './types';
 
 export class FlowError extends Error {
@@ -18,7 +21,10 @@ export class FlowError extends Error {
     | 'notBidding'
     | 'notYourTurn'
     | 'invalidBid'
-    | 'canadianRuleViolation';
+    | 'canadianRuleViolation'
+    | 'notPlaying'
+    | 'invalidCard'
+    | 'illegalPlay';
   constructor(code: FlowError['code']) {
     super(code);
     this.code = code;
@@ -232,4 +238,107 @@ export async function placeBid(
       log: [...room.log, bidLog],
     });
   }
+}
+
+/**
+ * Play a card from the caller's hand. Resolves the trick when the last play
+ * lands, and transitions to `scoring` when the round's last trick resolves.
+ */
+export async function playCard(
+  code: string,
+  callerName: string,
+  cardIndex: number,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  const handRef = doc(db, 'rooms', code, 'hands', callerName);
+
+  await runTransaction(db, async (tx) => {
+    const roomSnap = await tx.get(roomRef);
+    const handSnap = await tx.get(handRef);
+    if (!roomSnap.exists() || !handSnap.exists()) {
+      throw new FlowError('notPlaying');
+    }
+    const room = roomSnap.data() as RoomDoc;
+    const hand = (handSnap.data() as HandDoc).cards;
+
+    if (room.status !== 'playing') throw new FlowError('notPlaying');
+    if (room.playerOrder[room.currentPlayerIndex] !== callerName) {
+      throw new FlowError('notYourTurn');
+    }
+    if (cardIndex < 0 || cardIndex >= hand.length) {
+      throw new FlowError('invalidCard');
+    }
+
+    const card = hand[cardIndex];
+    if (!isLegalPlay(hand, card, room.trickInProgress)) {
+      throw new FlowError('illegalPlay');
+    }
+
+    const newHand = hand.slice();
+    newHand.splice(cardIndex, 1);
+
+    const playOrder = room.trickInProgress.length;
+    const newTrick = [
+      ...room.trickInProgress,
+      { playerName: callerName, card, playOrder },
+    ];
+
+    const playLog: LogEntry = {
+      t: 'play',
+      round: room.currentRound,
+      trick: room.currentTrick,
+      player: callerName,
+      card,
+    };
+
+    tx.update(handRef, { cards: newHand });
+
+    if (newTrick.length < room.playerOrder.length) {
+      const { leadSuit } = getLeadInfo(newTrick);
+      tx.update(roomRef, {
+        trickInProgress: newTrick,
+        leadSuit,
+        currentPlayerIndex: (room.currentPlayerIndex + 1) % room.playerOrder.length,
+        log: [...room.log, playLog],
+      });
+      return;
+    }
+
+    // Trick complete — resolve.
+    const winnerIdx = winningPlayIndex(newTrick, room.trumpSuit);
+    const winnerName = newTrick[winnerIdx].playerName;
+    const winnerOrderIdx = room.playerOrder.indexOf(winnerName);
+
+    const newTricksWon = {
+      ...room.tricksWon,
+      [winnerName]: (room.tricksWon[winnerName] ?? 0) + 1,
+    };
+
+    const trickHistEntry = {
+      round: room.currentRound,
+      trickNum: room.currentTrick,
+      plays: newTrick.map((p) => ({ playerName: p.playerName, card: p.card })),
+      winner: winnerName,
+    };
+
+    const trickWinLog: LogEntry = {
+      t: 'trickWin',
+      round: room.currentRound,
+      trick: room.currentTrick,
+      winner: winnerName,
+    };
+
+    const roundComplete = room.currentTrick >= room.currentRound;
+
+    tx.update(roomRef, {
+      trickInProgress: [],
+      leadSuit: null,
+      trickHistory: [...room.trickHistory, trickHistEntry],
+      tricksWon: newTricksWon,
+      currentTrick: roundComplete ? room.currentTrick : room.currentTrick + 1,
+      currentPlayerIndex: winnerOrderIdx,
+      status: roundComplete ? 'scoring' : 'playing',
+      log: [...room.log, playLog, trickWinLog],
+    });
+  });
 }
