@@ -104,10 +104,7 @@ export function Room() {
             </span>
             <button
               type="button"
-              onClick={() => {
-                clearSession();
-                navigate('/');
-              }}
+              onClick={() => clearSession()}
               className="text-xs text-navy-200 underline underline-offset-2 hover:text-gold-200"
             >
               switch
