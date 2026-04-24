@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { IdentityPrompt } from '../components/IdentityPrompt';
+import { CreateRoomPanel } from '../components/CreateRoomPanel';
 
 export function Home() {
   const navigate = useNavigate();
@@ -40,13 +41,7 @@ export function Home() {
             </button>
           </div>
 
-          <button
-            type="button"
-            className="btn-gold w-full rounded-xl py-4 text-lg"
-            onClick={() => alert('Room creation coming in step 3')}
-          >
-            Create room
-          </button>
+          <CreateRoomPanel />
 
           <form onSubmit={handleJoin} className="card-gold p-4 space-y-3">
             <label className="block text-sm text-navy-100" htmlFor="code">
