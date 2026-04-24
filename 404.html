@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Wizard Multiplayer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // GitHub Pages doesn't know about client-side routes, so it serves 404
+      // for anything under /wizard-multiplayer/room/... on first load.
+      // Stash the intended path in ?p= and bounce to the base, where the
+      // snippet in index.html unpacks it back into history before React Router
+      // boots. Cribbed from github.com/rafgraph/spa-github-pages.
+      (function () {
+        var segmentCount = 1; // "/wizard-multiplayer" = 1 segment
+        var l = window.location;
+        l.replace(
+          l.protocol +
+            '//' +
+            l.hostname +
+            (l.port ? ':' + l.port : '') +
+            l.pathname.split('/').slice(0, 1 + segmentCount).join('/') +
+            '/?p=/' +
+            l.pathname
+              .slice(1)
+              .split('/')
+              .slice(segmentCount)
+              .join('/')
+              .replace(/&/g, '~and~') +
+            (l.search ? '&q=' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+            l.hash,
+        );
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>
