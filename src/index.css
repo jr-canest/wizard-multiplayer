@@ -78,3 +78,83 @@ button:focus-visible {
   outline: 2px solid #d4a843;
   outline-offset: 2px;
 }
+
+/* Illegal cards stay fully opaque (so adjacent cards never bleed through),
+ * just darkened a touch so the legal-card glow reads as the action signal. */
+.card-dim {
+  filter: brightness(0.55) saturate(0.9);
+}
+
+@keyframes legal-glow {
+  0%, 100% {
+    box-shadow: 0 0 12px rgba(254, 205, 70, 0.55), 0 0 0 4px rgba(254, 205, 70, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(254, 205, 70, 0.95), 0 0 0 4px rgba(254, 205, 70, 1);
+  }
+}
+
+.animate-legal-glow {
+  animation: legal-glow 1.5s ease-in-out infinite;
+  border-radius: 0.375rem;
+}
+
+/* Inner wrapper animation — only opacity/translateY/scale, so the outer
+ * wrapper's slot transform (translate + rotate) is preserved. */
+@keyframes play-in {
+  0% {
+    transform: translateY(-40px) scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(4px) scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-play-in {
+  animation: play-in 320ms cubic-bezier(0.2, 0.8, 0.3, 1.05) both;
+}
+
+@keyframes winning-pulse {
+  0%, 100% {
+    box-shadow: 0 0 18px rgba(254, 205, 70, 0.55), 0 0 0 4px rgba(254, 205, 70, 0.65);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(254, 205, 70, 0.85), 0 0 0 4px rgba(254, 205, 70, 0.95);
+  }
+}
+
+.animate-winning {
+  animation: winning-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes trick-banner {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(0.7);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.04);
+  }
+  28% {
+    transform: translate(-50%, 0) scale(1);
+  }
+  78% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(0.95);
+  }
+}
+
+.animate-trick-banner {
+  animation: trick-banner 2s ease-out forwards;
+}

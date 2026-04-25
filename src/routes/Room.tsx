@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useAnonymousAuth } from '../hooks/useAnonymousAuth';
 import { useRoom } from '../hooks/useRoom';
+import { useBotDriver } from '../hooks/useBotDriver';
 import { IdentityPrompt } from '../components/IdentityPrompt';
 import { Lobby } from '../components/Lobby';
 import { GameView } from '../components/GameView';
@@ -22,6 +23,8 @@ export function Room() {
 
   const myName = session?.playerName ?? null;
   const inRoom = !!room && !!myName && room.playerOrder.includes(myName);
+
+  useBotDriver(room, myName);
 
   // Auto-join once we have a session, an auth UID, and a real room.
   useEffect(() => {

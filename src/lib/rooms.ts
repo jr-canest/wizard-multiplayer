@@ -16,6 +16,12 @@ const SCHEMA_VERSION = 1;
 export const MIN_PLAYERS = 3;
 export const MAX_PLAYERS = 10;
 
+export const BOT_NAME_PREFIX = 'Bot-';
+export const BOT_NAMES = ['Bot-Alpha', 'Bot-Bravo', 'Bot-Charlie'] as const;
+export function isBotName(name: string): boolean {
+  return name.startsWith(BOT_NAME_PREFIX);
+}
+
 export type RoomErrorCode =
   | 'codeCollision'
   | 'roomNotFound'
@@ -34,7 +40,13 @@ export async function createRoom(
   hostName: string,
   hostAuthUid: string,
   canadianRule: boolean,
+  options: { withBots?: boolean } = {},
 ): Promise<string> {
+  const botNames = options.withBots ? [...BOT_NAMES] : [];
+  const playerOrder = [hostName, ...botNames];
+  const cumulativeScores: Record<string, number> = {};
+  for (const n of playerOrder) cumulativeScores[n] = 0;
+
   // Generate + collision-check; up to 5 attempts before bailing.
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = generateRoomCode();
@@ -48,7 +60,7 @@ export async function createRoom(
       canadianRule,
       createdAt: serverTimestamp(),
       schemaVersion: SCHEMA_VERSION,
-      playerOrder: [hostName],
+      playerOrder,
       dealerIndex: 0,
       currentPlayerIndex: 0,
       currentRound: 0,
@@ -60,7 +72,7 @@ export async function createRoom(
       leadSuit: null,
       bids: {},
       tricksWon: {},
-      cumulativeScores: { [hostName]: 0 },
+      cumulativeScores,
       trickInProgress: [],
       trickHistory: [],
       log: [],
@@ -68,7 +80,7 @@ export async function createRoom(
       historyGameId: null,
     };
 
-    const playerDoc: RoomPlayerDoc = {
+    const hostDoc: RoomPlayerDoc = {
       authUid: hostAuthUid,
       connected: true,
       lastHeartbeatAt: serverTimestamp(),
@@ -76,7 +88,16 @@ export async function createRoom(
     };
 
     await setDoc(ref, room);
-    await setDoc(doc(db, 'rooms', code, 'players', hostName), playerDoc);
+    await setDoc(doc(db, 'rooms', code, 'players', hostName), hostDoc);
+    for (const botName of botNames) {
+      const botDoc: RoomPlayerDoc = {
+        authUid: hostAuthUid,
+        connected: true,
+        lastHeartbeatAt: serverTimestamp(),
+        voteKickAgainst: null,
+      };
+      await setDoc(doc(db, 'rooms', code, 'players', botName), botDoc);
+    }
     return code;
   }
   throw new RoomError('codeCollision');

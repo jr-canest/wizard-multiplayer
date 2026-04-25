@@ -29,7 +29,7 @@ export function CardImage({
       onClick={onClick}
       className={`select-none rounded-md shadow-md ring-1 ring-black/30 ${
         SIZE_CLASSES[size]
-      } ${faded ? 'opacity-40 pointer-events-none' : ''} ${
+      } ${faded ? 'card-dim pointer-events-none' : ''} ${
         onClick ? 'cursor-pointer active:scale-95 transition-transform' : ''
       } ${className}`}
       draggable={false}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Card } from '../lib/types';
 import { CardImage } from './CardImage';
 
@@ -19,10 +19,44 @@ type DragState = {
   moved: boolean;
 };
 
+type StuckState = {
+  cardId: string;
+  x: number;
+  y: number;
+};
+
 const CARD_W = 96; // w-24
+
+function cardId(card: Card): string {
+  if (card.kind === 'standard') return `s-${card.suit}-${card.rank}`;
+  return `${card.kind}-${card.id}`;
+}
 
 export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
   const [drag, setDrag] = useState<DragState | null>(null);
+  const [stuck, setStuck] = useState<StuckState | null>(null);
+  const stuckTimerRef = useRef<number | null>(null);
+
+  // Clear stuck overlay once Firestore confirms the play (card leaves hand)
+  // or after a safety timeout if the play failed.
+  useEffect(() => {
+    if (!stuck) return;
+    if (!hand?.some((c) => cardId(c) === stuck.cardId)) {
+      setStuck(null);
+      if (stuckTimerRef.current !== null) {
+        window.clearTimeout(stuckTimerRef.current);
+        stuckTimerRef.current = null;
+      }
+    }
+  }, [hand, stuck]);
+
+  useEffect(() => {
+    return () => {
+      if (stuckTimerRef.current !== null) {
+        window.clearTimeout(stuckTimerRef.current);
+      }
+    };
+  }, []);
 
   if (!hand) {
     return (
@@ -71,26 +105,34 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
 
   function handlePointerUp(e: React.PointerEvent) {
     if (!drag || e.pointerId !== drag.pointerId) return;
-    const { index, moved } = drag;
+    const { index, moved, x, y } = drag;
 
-    let drop: Element | null | undefined = null;
+    let dropped = false;
     if (moved) {
-      // Hide the dragged node briefly so elementFromPoint returns what's
-      // underneath (the trick area) instead of the card itself.
       const node = e.currentTarget as HTMLElement;
       const prevVis = node.style.visibility;
       node.style.visibility = 'hidden';
       const el = document.elementFromPoint(e.clientX, e.clientY);
-      drop = el?.closest('[data-drop="trick"]');
+      dropped = !!el?.closest('[data-drop="trick"]');
       node.style.visibility = prevVis;
     }
 
     setDrag(null);
     if (!onPlay) return;
 
-    if (moved) {
-      if (drop) onPlay(index);
-    } else {
+    if (moved && dropped) {
+      const id = cardId(hand![index]);
+      setStuck({ cardId: id, x, y });
+      // Safety: snap back if the play didn't go through within 2.5s.
+      if (stuckTimerRef.current !== null) {
+        window.clearTimeout(stuckTimerRef.current);
+      }
+      stuckTimerRef.current = window.setTimeout(() => {
+        setStuck((s) => (s?.cardId === id ? null : s));
+        stuckTimerRef.current = null;
+      }, 2500);
+      onPlay(index);
+    } else if (!moved) {
       onPlay(index);
     }
   }
@@ -108,14 +150,16 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
           const angle = (i - centerIdx) * angleStep;
           const offset = (i - centerIdx) * CARD_W * spread;
           const isDragging = drag?.index === i && drag.moved;
+          const id = cardId(card);
+          const isStuck = stuck?.cardId === id;
 
           const cardKey = `${card.kind}-${i}-${
             card.kind === 'standard' ? `${card.suit}${card.rank}` : card.id
           }`;
 
-          // Single DOM node across fan + drag states so pointer capture
-          // stays attached and drops land correctly.
-          const draggingStyle: React.CSSProperties | undefined =
+          // Single DOM node across fan + drag + stuck states so pointer
+          // capture stays attached and drops land correctly.
+          const fixedStyle: React.CSSProperties | undefined =
             isDragging && drag
               ? {
                   position: 'fixed',
@@ -128,7 +172,18 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
                   touchAction: 'none',
                   willChange: 'transform, left, top',
                 }
-              : undefined;
+              : isStuck && stuck
+                ? {
+                    position: 'fixed',
+                    left: stuck.x,
+                    top: stuck.y,
+                    transform: 'translate(-50%, -55%)',
+                    transformOrigin: 'center center',
+                    transition: 'none',
+                    zIndex: 999,
+                    pointerEvents: 'none',
+                  }
+                : undefined;
 
           const fanStyle: React.CSSProperties = {
             position: 'absolute',
@@ -151,14 +206,12 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
               className={[
                 'rounded-md',
                 cardLegal ? 'cursor-grab active:cursor-grabbing' : '',
-                showGlow && !isDragging
-                  ? 'ring-4 ring-gold-300 shadow-[0_0_20px_rgba(254,205,70,0.7)] animate-[pulse_2s_ease-in-out_infinite]'
-                  : '',
-                isDragging
-                  ? 'ring-4 ring-gold-300 shadow-[0_0_30px_rgba(254,205,70,0.9)]'
+                showGlow && !isDragging && !isStuck ? 'animate-legal-glow' : '',
+                isDragging || isStuck
+                  ? 'ring-4 ring-gold-300 shadow-[0_0_30px_rgba(254,205,70,0.95)]'
                   : '',
               ].join(' ')}
-              style={draggingStyle ?? fanStyle}
+              style={fixedStyle ?? fanStyle}
             >
               <CardImage card={card} size="lg" faded={!cardLegal} />
             </div>

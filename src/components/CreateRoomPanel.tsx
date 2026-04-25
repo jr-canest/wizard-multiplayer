@@ -4,11 +4,14 @@ import { createRoom } from '../lib/rooms';
 import { useSession } from '../hooks/useSession';
 import { useAnonymousAuth } from '../hooks/useAnonymousAuth';
 
+const DEV_MODE_ENABLED = import.meta.env.DEV;
+
 export function CreateRoomPanel() {
   const navigate = useNavigate();
   const { session } = useSession();
   const { uid } = useAnonymousAuth();
   const [canadianRule, setCanadianRule] = useState(true);
+  const [withBots, setWithBots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,7 +20,9 @@ export function CreateRoomPanel() {
     setSubmitting(true);
     setError(null);
     try {
-      const code = await createRoom(session.playerName, uid, canadianRule);
+      const code = await createRoom(session.playerName, uid, canadianRule, {
+        withBots: DEV_MODE_ENABLED && withBots,
+      });
       navigate(`/room/${code}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create room.');
@@ -41,6 +46,23 @@ export function CreateRoomPanel() {
           className="h-5 w-5 accent-gold-300"
         />
       </label>
+
+      {DEV_MODE_ENABLED && (
+        <label className="flex items-center justify-between gap-3 rounded-md border border-dashed border-gold-700/60 px-3 py-2">
+          <span>
+            <span className="block text-sm text-gold-100">Dev: add 3 bots</span>
+            <span className="block text-xs text-navy-200">
+              Solo-test with 3 bot opponents. Visible in dev only.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            checked={withBots}
+            onChange={(e) => setWithBots(e.target.checked)}
+            className="h-5 w-5 accent-gold-300"
+          />
+        </label>
+      )}
 
       {error && (
         <p className="text-sm text-rose-300 bg-rose-900/30 border border-rose-700/50 rounded-md px-3 py-2">

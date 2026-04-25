@@ -19,28 +19,22 @@ type Props = {
   trumpCard: Card | null;
   trumpSuit: Suit | null;
   awaitingTrumpChoice: boolean;
-  compact?: boolean;
 };
 
 export function TrumpDisplay({
   trumpCard,
   trumpSuit,
   awaitingTrumpChoice,
-  compact = false,
 }: Props) {
   return (
-    <div
-      className={`card-gold-subtle flex flex-col items-center justify-center gap-1 ${
-        compact ? 'p-2 w-[72px]' : 'p-3 w-[84px]'
-      }`}
-    >
-      <div className="text-[10px] uppercase tracking-wider text-navy-200">
+    <div className="card-gold-subtle flex flex-col items-center justify-center gap-2 p-2 w-[80px] shrink-0">
+      <div className="text-[9px] uppercase tracking-wider text-navy-200">
         Trump
       </div>
       {trumpCard ? (
-        <CardImage card={trumpCard} size="sm" />
+        <CardImage card={trumpCard} size="md" />
       ) : (
-        <div className="w-12 h-[67px] rounded-md border border-dashed border-navy-400 flex items-center justify-center text-navy-300 text-[10px]">
+        <div className="w-16 h-[90px] rounded-md border border-dashed border-navy-400 flex items-center justify-center text-navy-300 text-[10px]">
           none
         </div>
       )}

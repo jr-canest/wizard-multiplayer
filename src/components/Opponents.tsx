@@ -1,5 +1,6 @@
 import type { RoomSnapshot } from '../hooks/useRoom';
 import type { Suit } from '../lib/types';
+import { playerColor } from '../lib/playerColors';
 
 const SUIT_GLYPH: Record<Suit, string> = { H: '♥', D: '♦', C: '♣', S: '♠' };
 
@@ -21,6 +22,45 @@ function estimateHandSize(room: RoomSnapshot, name: string): number {
   return Math.max(
     0,
     room.currentRound - completedThisRound - (playedInCurrent ? 1 : 0),
+  );
+}
+
+/**
+ * Color the bid/won pair by per-player state so a glance tells you who is
+ * over (rose), exactly making it (amber), or still under (sky). Tones match
+ * the global bid-total indicator at the top of the bidding panel.
+ */
+function bidWonTone(bid: number | undefined, won: number) {
+  if (bid === undefined) {
+    return (
+      <>
+        <div className="text-navy-300">
+          bid <span className="text-navy-100 font-bold tabular-nums">—</span>
+        </div>
+        <div className="text-navy-300">
+          won{' '}
+          <span className="text-navy-100 font-bold tabular-nums">{won}</span>
+        </div>
+      </>
+    );
+  }
+  const tone =
+    won > bid
+      ? { label: 'text-rose-300', value: 'text-rose-100' }
+      : won === bid
+        ? { label: 'text-amber-300', value: 'text-amber-100' }
+        : { label: 'text-sky-300', value: 'text-sky-100' };
+  return (
+    <>
+      <div className={tone.label}>
+        bid{' '}
+        <span className={`${tone.value} font-bold tabular-nums`}>{bid}</span>
+      </div>
+      <div className={tone.label}>
+        won{' '}
+        <span className={`${tone.value} font-bold tabular-nums`}>{won}</span>
+      </div>
+    </>
   );
 }
 
@@ -78,6 +118,7 @@ export function Opponents({ room, myName }: Props) {
         const bid = room.bids[name];
         const won = room.tricksWon[name] ?? 0;
         const handSize = estimateHandSize(room, name);
+        const color = playerColor(name, room.playerOrder);
         const inTrick = room.trickInProgress.find(
           (p) => p.playerName === name,
         );
@@ -92,14 +133,14 @@ export function Opponents({ room, myName }: Props) {
         return (
           <div
             key={name}
-            className={`relative card-gold-subtle px-2 py-2 flex-1 min-w-[110px] max-w-[180px] ${
+            className={`relative rounded-xl px-2 py-2 flex-1 min-w-[110px] max-w-[180px] border-2 bg-navy-900/40 ${color.border} ${
               isActive
-                ? 'border-gold-400 shadow-[0_0_12px_rgba(254,205,70,0.5)] animate-[pulse_2s_ease-in-out_infinite]'
+                ? `ring-2 ${color.ring} ${color.glow} animate-[pulse_2s_ease-in-out_infinite]`
                 : ''
             }`}
           >
             <div className="flex items-center justify-between mb-1">
-              <span className="text-sm font-semibold text-gold-100 truncate">
+              <span className={`text-sm font-semibold truncate ${color.text}`}>
                 {name}
               </span>
               {isDealer && (
@@ -110,15 +151,8 @@ export function Opponents({ room, myName }: Props) {
             </div>
             <div className="flex items-end gap-2">
               <MiniFan count={handSize} />
-              <div className="flex-1 text-right text-[11px] leading-tight">
-                <div className="text-navy-200">
-                  bid <span className="text-gold-100 font-bold">
-                    {bid ?? '—'}
-                  </span>
-                </div>
-                <div className="text-navy-200">
-                  won <span className="text-gold-100 font-bold">{won}</span>
-                </div>
+              <div className="flex-1 text-right text-[11px] leading-tight space-y-0.5">
+                {bidWonTone(bid, won)}
               </div>
             </div>
             {playedCardBrief && (
