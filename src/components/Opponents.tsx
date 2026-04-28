@@ -137,10 +137,12 @@ export function Opponents({ room, myName }: Props) {
         const position =
           startIdx !== null ? ((playerIdx - startIdx + N) % N) + 1 : null;
         // Acted this phase: bid is in (during bidding) or card is on the
-        // table (during playing). Active is never marked acted.
+        // table (during playing). Active is never marked acted. Pending is
+        // anyone in the rotation who hasn't gone yet and isn't current.
         const acted =
           !isActive &&
           ((isBidding && bid !== undefined) || (isPlaying && !!inTrick));
+        const pending = !isActive && !acted && (isBidding || isPlaying);
         const playedCardBrief = inTrick
           ? inTrick.card.kind === 'wizard'
             ? 'W'
@@ -156,7 +158,7 @@ export function Opponents({ room, myName }: Props) {
               isActive
                 ? `ring-2 ${color.ring} ${color.glow} animate-[pulse_2s_ease-in-out_infinite]`
                 : ''
-            } ${acted ? 'opacity-45' : ''}`}
+            } ${pending ? 'opacity-45' : ''}`}
           >
             <div className="flex items-center justify-between gap-1 leading-tight">
               <span className="flex items-center gap-1 min-w-0">
