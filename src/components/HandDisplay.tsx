@@ -142,8 +142,8 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
   }
 
   return (
-    <div className="relative h-[180px] select-none">
-      <div className="absolute inset-x-0 bottom-0 h-[180px]">
+    <div className="relative h-[160px] select-none">
+      <div className="absolute inset-x-0 bottom-0 h-[160px]">
         {hand.map((card, i) => {
           const cardLegal = legal ? legal[i] : true;
           const showGlow = cardLegal && !!isMyTurn;

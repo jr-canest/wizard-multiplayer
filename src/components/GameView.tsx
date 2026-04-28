@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { RoomSnapshot } from '../hooks/useRoom';
 import { useMyHand } from '../hooks/useMyHand';
+import { useWakeLock } from '../hooks/useWakeLock';
 import { TrumpDisplay } from './TrumpDisplay';
 import { TrumpChooser } from './TrumpChooser';
 import { HandDisplay } from './HandDisplay';
@@ -14,6 +15,8 @@ import { playCard } from '../lib/gameFlow';
 import { legalIndices } from '../game/legalMoves';
 import { playerColor } from '../lib/playerColors';
 
+const LAST_TRICK_HOLD_MS = 3000;
+
 type Props = {
   room: RoomSnapshot;
   myName: string;
@@ -24,10 +27,19 @@ export function GameView({ room, myName }: Props) {
   const dealerName = room.playerOrder[room.dealerIndex];
   const isDealer = dealerName === myName;
   const isMyTurn = room.playerOrder[room.currentPlayerIndex] === myName;
+
+  // Hold the round-ending trick on screen for a beat before the round
+  // scoreboard takes over. Set when status flips to 'scoring' with a fresh
+  // last trick; cleared after LAST_TRICK_HOLD_MS.
+  const [holdingRoundEnd, setHoldingRoundEnd] = useState(false);
+
   const showOpponents =
     room.status === 'dealing' ||
     room.status === 'bidding' ||
-    room.status === 'playing';
+    room.status === 'playing' ||
+    holdingRoundEnd;
+
+  useWakeLock(room.status !== 'finished');
 
   const [playError, setPlayError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -43,14 +55,29 @@ export function GameView({ room, myName }: Props) {
       lastTrickLenRef.current = len;
       return;
     }
-    if (len > lastTrickLenRef.current && room.status === 'playing') {
+    if (
+      len > lastTrickLenRef.current &&
+      (room.status === 'playing' || room.status === 'scoring')
+    ) {
       const last = room.trickHistory[len - 1];
+      const isRoundEnd = room.status === 'scoring';
+      const duration = isRoundEnd ? LAST_TRICK_HOLD_MS : 2000;
       setWinBanner({ winner: last.winner, key: len });
-      const t = window.setTimeout(() => {
+      if (isRoundEnd) setHoldingRoundEnd(true);
+      const tBanner = window.setTimeout(() => {
         setWinBanner((b) => (b?.key === len ? null : b));
-      }, 2000);
+      }, duration);
+      const tHold = isRoundEnd
+        ? window.setTimeout(
+            () => setHoldingRoundEnd(false),
+            LAST_TRICK_HOLD_MS,
+          )
+        : null;
       lastTrickLenRef.current = len;
-      return () => window.clearTimeout(t);
+      return () => {
+        window.clearTimeout(tBanner);
+        if (tHold !== null) window.clearTimeout(tHold);
+      };
     }
     lastTrickLenRef.current = len;
   }, [room.trickHistory.length, room.status]);
@@ -89,8 +116,8 @@ export function GameView({ room, myName }: Props) {
       : heldTrick ?? [];
 
   return (
-    <div className="w-full max-w-md space-y-3">
-      <div className="card-gold-subtle px-4 py-2 flex items-center justify-between text-sm">
+    <div className="w-full max-w-md space-y-2">
+      <div className="card-gold-subtle px-3 py-1.5 flex items-center justify-between text-[12px]">
         <span className="text-navy-100">
           Round{' '}
           <strong className="text-gold-100">
@@ -130,11 +157,11 @@ export function GameView({ room, myName }: Props) {
         </div>
       )}
 
-      {room.status === 'playing' && (
+      {(room.status === 'playing' || holdingRoundEnd) && (
         <TrickStatus room={room} myName={myName} />
       )}
 
-      {room.status === 'scoring' && (
+      {room.status === 'scoring' && !holdingRoundEnd && (
         <RoundScoreboard room={room} myName={myName} />
       )}
 
@@ -166,7 +193,7 @@ export function GameView({ room, myName }: Props) {
         room.status === 'playing' ||
         room.status === 'dealing') && (
         <div>
-          <h3 className="text-xs uppercase tracking-wider text-navy-200 mb-1 text-center">
+          <h3 className="text-[10px] uppercase tracking-wider text-navy-300 mb-0.5 text-center">
             Your hand ({hand?.length ?? 0})
           </h3>
           <HandDisplay

@@ -26,57 +26,49 @@ function estimateHandSize(room: RoomSnapshot, name: string): number {
 }
 
 /**
- * Color the bid/won pair by per-player state so a glance tells you who is
- * over (rose), exactly making it (amber), or still under (sky). Tones match
- * the global bid-total indicator at the top of the bidding panel.
+ * Single bid/won indicator. During bidding it's just the bid (e.g. "3").
+ * During play it becomes "won/bid" (e.g. "1/3"). Goes red if the player has
+ * exceeded their bid (impossible to make), green when exactly making it.
  */
-function bidWonTone(bid: number | undefined, won: number) {
+function bidWonChip(
+  bid: number | undefined,
+  won: number,
+  isBidding: boolean,
+) {
   if (bid === undefined) {
+    return <span className="text-navy-400 tabular-nums">—</span>;
+  }
+  if (isBidding) {
     return (
-      <>
-        <div className="text-navy-300">
-          bid <span className="text-navy-100 font-bold tabular-nums">—</span>
-        </div>
-        <div className="text-navy-300">
-          won{' '}
-          <span className="text-navy-100 font-bold tabular-nums">{won}</span>
-        </div>
-      </>
+      <span className="text-gold-100 font-bold tabular-nums">{bid}</span>
     );
   }
   const tone =
     won > bid
-      ? { label: 'text-rose-300', value: 'text-rose-100' }
+      ? 'text-rose-300'
       : won === bid
-        ? { label: 'text-amber-300', value: 'text-amber-100' }
-        : { label: 'text-sky-300', value: 'text-sky-100' };
+        ? 'text-emerald-300'
+        : 'text-gold-100';
   return (
-    <>
-      <div className={tone.label}>
-        bid{' '}
-        <span className={`${tone.value} font-bold tabular-nums`}>{bid}</span>
-      </div>
-      <div className={tone.label}>
-        won{' '}
-        <span className={`${tone.value} font-bold tabular-nums`}>{won}</span>
-      </div>
-    </>
+    <span className={`${tone} font-bold tabular-nums`}>
+      {won}/{bid}
+    </span>
   );
 }
 
 /** Tiny fan of face-down cards. Bounded so 10-card hands still look fine. */
 function MiniFan({ count }: { count: number }) {
-  const visible = Math.min(count, 6);
+  const visible = Math.min(count, 5);
   return (
-    <div className="relative h-8 w-14">
+    <div className="relative h-6 w-10 shrink-0">
       {Array.from({ length: visible }, (_, i) => {
         const centerIdx = (visible - 1) / 2;
         const angle = (i - centerIdx) * 8;
-        const offset = (i - centerIdx) * 4;
+        const offset = (i - centerIdx) * 3;
         return (
           <div
             key={i}
-            className="absolute left-1/2 bottom-0 w-5 h-7 rounded-[3px] border border-gold-700 bg-gradient-to-br from-navy-500 to-navy-800 shadow-sm"
+            className="absolute left-1/2 bottom-0 w-3.5 h-5 rounded-[2px] border border-gold-700 bg-gradient-to-br from-navy-500 to-navy-800 shadow-sm"
             style={{
               transform: `translateX(calc(-50% + ${offset}px)) rotate(${angle}deg)`,
               transformOrigin: 'bottom center',
@@ -86,7 +78,7 @@ function MiniFan({ count }: { count: number }) {
         );
       })}
       {count > visible && (
-        <span className="absolute -top-1 right-0 text-[10px] text-navy-200 bg-navy-900/80 rounded px-1">
+        <span className="absolute -top-1 right-0 text-[9px] text-navy-200 bg-navy-900/80 rounded px-0.5">
           +{count - visible}
         </span>
       )}
@@ -96,8 +88,9 @@ function MiniFan({ count }: { count: number }) {
 
 export function Opponents({ room, myName }: Props) {
   const dealerName = room.playerOrder[room.dealerIndex];
+  const isBidding = room.status === 'bidding';
   const activeName =
-    room.status === 'bidding' || room.status === 'playing'
+    isBidding || room.status === 'playing'
       ? room.playerOrder[room.currentPlayerIndex]
       : null;
 
@@ -107,8 +100,8 @@ export function Opponents({ room, myName }: Props) {
   // 3x3 grid at 9 opponents (10-player games), otherwise horizontal flow.
   const gridClass =
     opponents.length >= 7
-      ? 'grid grid-cols-3 gap-2'
-      : 'flex flex-wrap justify-center gap-2';
+      ? 'grid grid-cols-3 gap-1.5'
+      : 'flex flex-wrap justify-center gap-1.5';
 
   return (
     <div className={gridClass}>
@@ -122,6 +115,9 @@ export function Opponents({ room, myName }: Props) {
         const inTrick = room.trickInProgress.find(
           (p) => p.playerName === name,
         );
+        // Fade once a player's bid is in (during bidding) — easy glance for
+        // who we're still waiting on. Active player is never faded.
+        const dimmed = isBidding && bid !== undefined && !isActive;
         const playedCardBrief = inTrick
           ? inTrick.card.kind === 'wizard'
             ? 'W'
@@ -133,30 +129,30 @@ export function Opponents({ room, myName }: Props) {
         return (
           <div
             key={name}
-            className={`relative rounded-xl px-2 py-2 flex-1 min-w-[110px] max-w-[180px] border-2 bg-navy-900/40 ${color.border} ${
+            className={`relative rounded-lg px-1.5 py-1 flex-1 min-w-[88px] max-w-[140px] border bg-navy-900/40 ${color.border} transition-opacity ${
               isActive
                 ? `ring-2 ${color.ring} ${color.glow} animate-[pulse_2s_ease-in-out_infinite]`
                 : ''
-            }`}
+            } ${dimmed ? 'opacity-50' : ''}`}
           >
-            <div className="flex items-center justify-between mb-1">
-              <span className={`text-sm font-semibold truncate ${color.text}`}>
+            <div className="flex items-center justify-between gap-1 leading-tight">
+              <span className={`text-[12px] font-semibold truncate ${color.text}`}>
                 {name}
               </span>
               {isDealer && (
-                <span className="text-gold-300 text-xs" title="Dealer">
+                <span className="text-gold-300 text-[10px]" title="Dealer">
                   ♛
                 </span>
               )}
             </div>
-            <div className="flex items-end gap-2">
+            <div className="flex items-center gap-1.5 mt-0.5">
               <MiniFan count={handSize} />
-              <div className="flex-1 text-right text-[11px] leading-tight space-y-0.5">
-                {bidWonTone(bid, won)}
-              </div>
+              <span className="flex-1 text-right text-[13px] leading-none">
+                {bidWonChip(bid, won, isBidding)}
+              </span>
             </div>
             {playedCardBrief && (
-              <div className="absolute -top-2 -right-1 bg-gold-300 text-navy-900 text-[10px] font-bold rounded px-1 py-0.5 shadow">
+              <div className="absolute -top-1.5 -right-1 bg-gold-300 text-navy-900 text-[9px] font-bold rounded px-1 py-0.5 shadow">
                 {playedCardBrief}
               </div>
             )}

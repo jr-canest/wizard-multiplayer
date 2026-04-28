@@ -31,8 +31,17 @@ export function TrickStatus({
         ? 'text-amber-300'
         : 'text-sky-300';
 
+  const myTone =
+    myBid === undefined
+      ? 'text-gold-100'
+      : myWon > myBid
+        ? 'text-rose-300'
+        : myWon === myBid
+          ? 'text-emerald-300'
+          : 'text-gold-100';
+
   return (
-    <div className="card-gold-subtle px-3 py-2 space-y-1 text-xs">
+    <div className="card-gold-subtle px-3 py-1.5 space-y-0.5 text-xs">
       <div className="flex items-center justify-between">
         <span className="text-navy-200">
           Trick{' '}
@@ -46,19 +55,10 @@ export function TrickStatus({
       </div>
       <div className="flex items-center justify-between">
         <span className="text-navy-200">
-          You: bid{' '}
-          <strong
-            className={
-              myBid !== undefined && myWon === myBid
-                ? 'text-emerald-300'
-                : myBid !== undefined && myWon > myBid
-                  ? 'text-rose-300'
-                  : 'text-gold-100'
-            }
-          >
-            {myBid ?? '—'}
-          </strong>{' '}
-          · won <strong className="text-gold-100">{myWon}</strong>
+          You:{' '}
+          <strong className={`${myTone} tabular-nums`}>
+            {myBid === undefined ? '—' : `${myWon}/${myBid}`}
+          </strong>
         </span>
         {!isMyTurn && (
           <span className="text-navy-300">

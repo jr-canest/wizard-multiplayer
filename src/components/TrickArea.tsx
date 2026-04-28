@@ -16,7 +16,7 @@ type Props = {
 const CARD_W = 96;
 const CARD_H = 135;
 const FALLBACK_W = 280;
-const ROW_OFFSET = 58;
+const ROW_OFFSET = 44;
 
 type Slot = { x: number; y: number; rot: number };
 
@@ -141,7 +141,7 @@ export function TrickArea({
   return (
     <div
       data-drop="trick"
-      className={`card-gold-subtle flex-1 p-3 h-[360px] border-2 rounded-xl transition-shadow overflow-hidden ${dropGlow}`}
+      className={`card-gold-subtle flex-1 p-2 h-[240px] border-2 rounded-xl transition-shadow overflow-hidden ${dropGlow}`}
     >
       {plays.length === 0 ? (
         <div className="h-full flex items-center justify-center">

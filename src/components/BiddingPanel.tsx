@@ -69,7 +69,7 @@ export function BiddingPanel({ room, myName }: Props) {
 
   return (
     <div
-      className={`card-gold-subtle flex-1 p-3 h-[360px] flex flex-col gap-2 ${myTurnGlow}`}
+      className={`card-gold-subtle flex-1 p-2.5 h-[240px] flex flex-col gap-1.5 ${myTurnGlow}`}
     >
       <div className="flex items-center justify-between text-[11px]">
         <span className="uppercase tracking-wider text-navy-200">

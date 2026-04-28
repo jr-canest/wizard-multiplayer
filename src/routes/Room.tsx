@@ -65,15 +65,19 @@ export function Room() {
     );
   }
 
+  const inGame = !!room && room.status !== 'lobby';
+
   return (
-    <div className="min-h-svh flex flex-col items-center px-6 pt-8 pb-10">
-      <button
-        type="button"
-        onClick={() => navigate('/')}
-        className="self-start text-sm text-navy-200 mb-4"
-      >
-        ← Back
-      </button>
+    <div className="min-h-svh flex flex-col items-center px-4 pt-3 pb-3">
+      {!inGame && (
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="self-start text-sm text-navy-200 mb-3"
+        >
+          ← Back
+        </button>
+      )}
 
       {!session ? (
         <IdentityPrompt
@@ -100,23 +104,47 @@ export function Room() {
         <p className="text-navy-200 text-sm mt-10">Joining…</p>
       ) : (
         <>
-          <div className="w-full max-w-md card-gold-subtle px-4 py-2 mb-4 flex items-center justify-between">
-            <span className="text-sm text-navy-100">
-              Playing as{' '}
-              <strong className="text-gold-100">{session.playerName}</strong>
-            </span>
-            <button
-              type="button"
-              onClick={() => clearSession()}
-              className="text-xs text-navy-200 underline underline-offset-2 hover:text-gold-200"
-            >
-              switch
-            </button>
-          </div>
+          {!inGame && (
+            <div className="w-full max-w-md card-gold-subtle px-4 py-2 mb-3 flex items-center justify-between">
+              <span className="text-sm text-navy-100">
+                Playing as{' '}
+                <strong className="text-gold-100">{session.playerName}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => clearSession()}
+                className="text-xs text-navy-200 underline underline-offset-2 hover:text-gold-200"
+              >
+                switch
+              </button>
+            </div>
+          )}
           {room!.status === 'lobby' ? (
             <Lobby room={room!} players={players} myName={session.playerName} />
           ) : (
             <GameView room={room!} myName={session.playerName} />
+          )}
+          {inGame && (
+            <div className="mt-3 flex items-center gap-3 text-[11px] text-navy-400">
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                className="hover:text-navy-200"
+              >
+                ← back
+              </button>
+              <span className="text-navy-500">·</span>
+              <span>
+                {session.playerName}
+                <button
+                  type="button"
+                  onClick={() => clearSession()}
+                  className="ml-1.5 underline underline-offset-2 hover:text-navy-200"
+                >
+                  switch
+                </button>
+              </span>
+            </div>
           )}
         </>
       )}
