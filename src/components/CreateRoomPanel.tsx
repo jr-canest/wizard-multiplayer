@@ -4,8 +4,6 @@ import { createRoom } from '../lib/rooms';
 import { useSession } from '../hooks/useSession';
 import { useAnonymousAuth } from '../hooks/useAnonymousAuth';
 
-const DEV_MODE_ENABLED = import.meta.env.DEV;
-
 export function CreateRoomPanel() {
   const navigate = useNavigate();
   const { session } = useSession();
@@ -15,13 +13,16 @@ export function CreateRoomPanel() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const devModeEnabled =
+    import.meta.env.DEV || session?.playerName.trim().toLowerCase() === 'test';
+
   async function handleCreate() {
     if (!session || !uid || submitting) return;
     setSubmitting(true);
     setError(null);
     try {
       const code = await createRoom(session.playerName, uid, canadianRule, {
-        withBots: DEV_MODE_ENABLED && withBots,
+        withBots: devModeEnabled && withBots,
       });
       navigate(`/room/${code}`);
     } catch (err) {
@@ -47,7 +48,7 @@ export function CreateRoomPanel() {
         />
       </label>
 
-      {DEV_MODE_ENABLED && (
+      {devModeEnabled && (
         <label className="flex items-center justify-between gap-3 rounded-md border border-dashed border-gold-700/60 px-3 py-2">
           <span>
             <span className="block text-sm text-gold-100">Dev: add 3 bots</span>
