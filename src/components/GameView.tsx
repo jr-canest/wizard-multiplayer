@@ -7,7 +7,6 @@ import { TrumpChooser } from './TrumpChooser';
 import { HandDisplay } from './HandDisplay';
 import { BiddingPanel } from './BiddingPanel';
 import { TrickArea } from './TrickArea';
-import { TrickStatus } from './TrickStatus';
 import { RoundScoreboard } from './RoundScoreboard';
 import { FinalScoreboard } from './FinalScoreboard';
 import { Opponents } from './Opponents';
@@ -115,16 +114,58 @@ export function GameView({ room, myName }: Props) {
       ? room.trickInProgress
       : heldTrick ?? [];
 
+  // Bid sum status — shown in the top header during bidding/playing/hold.
+  const cardsThisRound = room.currentRound;
+  const totalBids = room.playerOrder.reduce(
+    (a, n) => a + (room.bids[n] ?? 0),
+    0,
+  );
+  const anyBids = Object.keys(room.bids).length > 0;
+  const showBidSum =
+    anyBids &&
+    (room.status === 'bidding' ||
+      room.status === 'playing' ||
+      holdingRoundEnd);
+  const diff = totalBids - cardsThisRound;
+  const bidSumLabel =
+    diff > 0 ? `Over ${diff}` : diff < 0 ? `Under ${-diff}` : 'Exact';
+  const bidSumTone =
+    diff > 0
+      ? 'text-rose-300'
+      : diff === 0
+        ? 'text-amber-300'
+        : 'text-sky-300';
+
+  // My bid/won chip for the hand label. Goes red if busted, green if exact.
+  const myBid = room.bids[myName];
+  const myWon = room.tricksWon[myName] ?? 0;
+  const myBidWonTone =
+    myBid === undefined
+      ? 'text-navy-300'
+      : myWon > myBid
+        ? 'text-rose-300'
+        : myWon === myBid
+          ? 'text-emerald-300'
+          : 'text-gold-200';
+
   return (
     <div className="w-full max-w-md space-y-2">
-      <div className="card-gold-subtle px-3 py-1.5 flex items-center justify-between text-[12px]">
-        <span className="text-navy-100">
+      <div className="card-gold-subtle px-3 py-1.5 flex items-center justify-between text-[12px] gap-2">
+        <span className="text-navy-100 whitespace-nowrap">
           Round{' '}
           <strong className="text-gold-100">
             {room.currentRound}/{room.totalRounds}
           </strong>
         </span>
-        <span className="text-navy-100">
+        {showBidSum && (
+          <span
+            className={`font-semibold tabular-nums ${bidSumTone}`}
+            title={`Total bids ${totalBids} of ${cardsThisRound}`}
+          >
+            {bidSumLabel}
+          </span>
+        )}
+        <span className="text-navy-100 whitespace-nowrap truncate">
           Dealer{' '}
           <strong className="text-gold-100">{dealerName}</strong>
           {isDealer ? ' (you)' : ''}
@@ -152,13 +193,10 @@ export function GameView({ room, myName }: Props) {
               playerOrder={room.playerOrder}
               trumpSuit={room.trumpSuit}
               isMyTurn={isMyTurn && room.status === 'playing'}
+              rotationSeed={room.currentRound}
             />
           )}
         </div>
-      )}
-
-      {(room.status === 'playing' || holdingRoundEnd) && (
-        <TrickStatus room={room} myName={myName} />
       )}
 
       {room.status === 'scoring' && !holdingRoundEnd && (
@@ -193,8 +231,13 @@ export function GameView({ room, myName }: Props) {
         room.status === 'playing' ||
         room.status === 'dealing') && (
         <div>
-          <h3 className="text-[10px] uppercase tracking-wider text-navy-300 mb-0.5 text-center">
-            Your hand ({hand?.length ?? 0})
+          <h3 className="text-[10px] uppercase tracking-wider text-navy-300 mb-0.5 text-center flex items-center justify-center gap-1.5">
+            <span>Your hand ({hand?.length ?? 0})</span>
+            {myBid !== undefined && (
+              <span className={`${myBidWonTone} font-bold normal-case tracking-normal text-[12px] tabular-nums`}>
+                · {myWon}/{myBid}
+              </span>
+            )}
           </h3>
           <HandDisplay
             hand={hand}

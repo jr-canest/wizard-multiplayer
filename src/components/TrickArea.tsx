@@ -11,10 +11,10 @@ type Props = {
   playerOrder: string[];
   trumpSuit: Suit | null;
   isMyTurn: boolean;
+  rotationSeed: number;
 };
 
 const CARD_W = 96;
-const CARD_H = 135;
 const FALLBACK_W = 280;
 const ROW_OFFSET = 44;
 
@@ -25,12 +25,19 @@ function noise(seed: number): number {
   return ((v - Math.floor(v)) - 0.5) * 2;
 }
 
-function buildSlots(playerCount: number, fanW: number): Slot[] {
+function buildSlots(
+  playerCount: number,
+  fanW: number,
+  rotationSeed: number,
+): Slot[] {
   const N = Math.max(1, playerCount);
   const useTwoRows = N >= 4;
   const topCount = useTwoRows ? Math.ceil(N / 2) : N;
   const bottomCount = useTwoRows ? N - topCount : 0;
   const maxStretch = Math.max(80, fanW - CARD_W - 8);
+  // Wider rotation range than before, varied by round so consecutive rounds
+  // don't pile cards into the same shape.
+  const seedShift = (rotationSeed % 97) * 7;
 
   function rowSlots(count: number, y: number, seedBase: number): Slot[] {
     if (count === 0) return [];
@@ -40,11 +47,11 @@ function buildSlots(playerCount: number, fanW: number): Slot[] {
         : Math.max(56, Math.min(110, maxStretch / (count - 1)));
     const center = (count - 1) / 2;
     return Array.from({ length: count }, (_, i) => {
-      const seed = seedBase + i + 1;
+      const seed = seedBase + seedShift + i + 1;
       return {
-        x: (i - center) * stepX + noise(seed) * 4,
-        y: y + noise(seed * 2) * 5,
-        rot: noise(seed * 3) * 4,
+        x: (i - center) * stepX + noise(seed) * 5,
+        y: y + noise(seed * 2) * 6,
+        rot: noise(seed * 3) * 8,
       };
     });
   }
@@ -106,6 +113,7 @@ export function TrickArea({
   playerOrder,
   trumpSuit,
   isMyTurn,
+  rotationSeed,
 }: Props) {
   const dropGlow = isMyTurn
     ? 'border-gold-400 shadow-[inset_0_0_24px_rgba(254,205,70,0.25)]'
@@ -132,11 +140,9 @@ export function TrickArea({
   }, []);
 
   const slots = useMemo(
-    () => buildSlots(playerOrder.length, fanW),
-    [playerOrder.length, fanW],
+    () => buildSlots(playerOrder.length, fanW, rotationSeed),
+    [playerOrder.length, fanW, rotationSeed],
   );
-
-  const winnerSlot = winnerIdx >= 0 ? slots[winnerIdx] : null;
 
   return (
     <div
@@ -168,19 +174,6 @@ export function TrickArea({
               />
             );
           })}
-
-          {winnerSlot && (
-            <div
-              className="absolute left-1/2 top-1/2 z-[300] pointer-events-none"
-              style={{
-                transform: `translate(calc(-50% + ${winnerSlot.x}px), calc(-50% + ${winnerSlot.y - CARD_H / 2 - 16}px))`,
-              }}
-            >
-              <span className="bg-gold-300 text-navy-900 text-[10px] font-black uppercase tracking-[0.15em] rounded px-2 py-0.5 shadow-lg whitespace-nowrap">
-                Winning
-              </span>
-            </div>
-          )}
         </div>
       )}
     </div>

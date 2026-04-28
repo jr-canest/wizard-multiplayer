@@ -25,7 +25,10 @@ type StuckState = {
   y: number;
 };
 
-const CARD_W = 96; // w-24
+// Card sizes match CardImage's size prop (lg = 96, md = 64, sm = 48). Going
+// smaller for big hands keeps every card pickable on a phone screen.
+const CARD_W_BY_SIZE = { lg: 96, md: 64, sm: 48 } as const;
+type CardSize = keyof typeof CARD_W_BY_SIZE;
 
 function cardId(card: Card): string {
   if (card.kind === 'standard') return `s-${card.suit}-${card.rank}`;
@@ -36,6 +39,21 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
   const [drag, setDrag] = useState<DragState | null>(null);
   const [stuck, setStuck] = useState<StuckState | null>(null);
   const stuckTimerRef = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerW, setContainerW] = useState(360);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => {
+      const next = el.clientWidth || 360;
+      setContainerW((prev) => (Math.abs(prev - next) < 2 ? prev : next));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Clear stuck overlay once Firestore confirms the play (card leaves hand)
   // or after a safety timeout if the play failed.
@@ -77,7 +95,18 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
   const maxFanDeg = Math.min(40, 6 * count);
   const centerIdx = (count - 1) / 2;
   const angleStep = count > 1 ? maxFanDeg / (count - 1) : 0;
-  const spread = count <= 5 ? 0.65 : count <= 10 ? 0.5 : 0.35;
+  // Drop to medium cards for big hands so they stay grabbable on phones.
+  const cardSize: CardSize = count > 8 ? 'md' : 'lg';
+  const cardW = CARD_W_BY_SIZE[cardSize];
+  // Step between card centers. Clamped so the fan never overflows the
+  // container; if cards are getting tight we still leave at least 16px
+  // exposed per card so each one has a tap target.
+  const idealStep = cardW * (count <= 5 ? 0.65 : count <= 10 ? 0.5 : 0.4);
+  const maxStep =
+    count <= 1
+      ? 0
+      : Math.max(16, (containerW - cardW - 8) / (count - 1));
+  const step = Math.min(idealStep, maxStep);
 
   function handlePointerDown(e: React.PointerEvent, i: number) {
     if (!onPlay) return;
@@ -142,13 +171,13 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
   }
 
   return (
-    <div className="relative h-[160px] select-none">
+    <div ref={containerRef} className="relative h-[160px] select-none">
       <div className="absolute inset-x-0 bottom-0 h-[160px]">
         {hand.map((card, i) => {
           const cardLegal = legal ? legal[i] : true;
           const showGlow = cardLegal && !!isMyTurn;
           const angle = (i - centerIdx) * angleStep;
-          const offset = (i - centerIdx) * CARD_W * spread;
+          const offset = (i - centerIdx) * step;
           const isDragging = drag?.index === i && drag.moved;
           const id = cardId(card);
           const isStuck = stuck?.cardId === id;
@@ -213,7 +242,7 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
               ].join(' ')}
               style={fixedStyle ?? fanStyle}
             >
-              <CardImage card={card} size="lg" faded={!cardLegal} />
+              <CardImage card={card} size={cardSize} faded={!cardLegal} />
             </div>
           );
         })}
