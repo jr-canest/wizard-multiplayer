@@ -89,10 +89,28 @@ function MiniFan({ count }: { count: number }) {
 export function Opponents({ room, myName }: Props) {
   const dealerName = room.playerOrder[room.dealerIndex];
   const isBidding = room.status === 'bidding';
+  const isPlaying = room.status === 'playing';
   const activeName =
-    isBidding || room.status === 'playing'
+    isBidding || isPlaying
       ? room.playerOrder[room.currentPlayerIndex]
       : null;
+
+  const N = room.playerOrder.length;
+
+  // First to act in the current phase, so we can number tiles in turn order.
+  // - Bidding: left of dealer.
+  // - Playing: leader of the current trick if anyone's played yet, otherwise
+  //   whoever is up next.
+  let startIdx: number | null = null;
+  if (isBidding) {
+    startIdx = (room.dealerIndex + 1) % N;
+  } else if (isPlaying) {
+    if (room.trickInProgress.length > 0) {
+      startIdx = room.playerOrder.indexOf(room.trickInProgress[0].playerName);
+    } else {
+      startIdx = room.currentPlayerIndex;
+    }
+  }
 
   const opponents = room.playerOrder.filter((n) => n !== myName);
   if (opponents.length === 0) return null;
@@ -115,9 +133,14 @@ export function Opponents({ room, myName }: Props) {
         const inTrick = room.trickInProgress.find(
           (p) => p.playerName === name,
         );
-        // Fade once a player's bid is in (during bidding) — easy glance for
-        // who we're still waiting on. Active player is never faded.
-        const dimmed = isBidding && bid !== undefined && !isActive;
+        const playerIdx = room.playerOrder.indexOf(name);
+        const position =
+          startIdx !== null ? ((playerIdx - startIdx + N) % N) + 1 : null;
+        // Acted this phase: bid is in (during bidding) or card is on the
+        // table (during playing). Active is never marked acted.
+        const acted =
+          !isActive &&
+          ((isBidding && bid !== undefined) || (isPlaying && !!inTrick));
         const playedCardBrief = inTrick
           ? inTrick.card.kind === 'wizard'
             ? 'W'
@@ -133,11 +156,27 @@ export function Opponents({ room, myName }: Props) {
               isActive
                 ? `ring-2 ${color.ring} ${color.glow} animate-[pulse_2s_ease-in-out_infinite]`
                 : ''
-            } ${dimmed ? 'opacity-50' : ''}`}
+            } ${acted ? 'opacity-45' : ''}`}
           >
             <div className="flex items-center justify-between gap-1 leading-tight">
-              <span className={`text-[12px] font-semibold truncate ${color.text}`}>
-                {name}
+              <span className="flex items-center gap-1 min-w-0">
+                {position !== null && (
+                  <span
+                    className={`text-[9px] font-bold leading-none rounded-full w-3.5 h-3.5 inline-flex items-center justify-center shrink-0 ${
+                      acted
+                        ? 'bg-emerald-500/30 text-emerald-200'
+                        : isActive
+                          ? 'bg-gold-300 text-navy-900'
+                          : 'bg-navy-700 text-navy-200'
+                    }`}
+                    title={`Turn order ${position}`}
+                  >
+                    {acted ? '✓' : position}
+                  </span>
+                )}
+                <span className={`text-[12px] font-semibold truncate ${color.text}`}>
+                  {name}
+                </span>
               </span>
               {isDealer && (
                 <span className="text-gold-300 text-[10px]" title="Dealer">
