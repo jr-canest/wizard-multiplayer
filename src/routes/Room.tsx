@@ -4,6 +4,7 @@ import { useSession } from '../hooks/useSession';
 import { useAnonymousAuth } from '../hooks/useAnonymousAuth';
 import { useRoom } from '../hooks/useRoom';
 import { useBotDriver } from '../hooks/useBotDriver';
+import { useHeartbeat } from '../hooks/useHeartbeat';
 import { IdentityPrompt } from '../components/IdentityPrompt';
 import { Lobby } from '../components/Lobby';
 import { GameView } from '../components/GameView';
@@ -25,6 +26,7 @@ export function Room() {
   const inRoom = !!room && !!myName && room.playerOrder.includes(myName);
 
   useBotDriver(room, myName);
+  useHeartbeat(code, inRoom ? myName : null);
 
   // Auto-join once we have a session, an auth UID, and a real room.
   useEffect(() => {
@@ -122,7 +124,11 @@ export function Room() {
           {room!.status === 'lobby' ? (
             <Lobby room={room!} players={players} myName={session.playerName} />
           ) : (
-            <GameView room={room!} myName={session.playerName} />
+            <GameView
+              room={room!}
+              players={players}
+              myName={session.playerName}
+            />
           )}
           {inGame && (
             <div className="mt-3 flex items-center gap-3 text-[11px] text-navy-400">

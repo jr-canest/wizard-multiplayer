@@ -1,11 +1,13 @@
-import type { RoomSnapshot } from '../hooks/useRoom';
+import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
 import type { Suit } from '../lib/types';
 import { playerColor } from '../lib/playerColors';
+import { isConnected } from '../lib/presence';
 
 const SUIT_GLYPH: Record<Suit, string> = { H: '♥', D: '♦', C: '♣', S: '♠' };
 
 type Props = {
   room: RoomSnapshot;
+  players: PlayerSnapshot[];
   myName: string;
 };
 
@@ -86,8 +88,9 @@ function MiniFan({ count }: { count: number }) {
   );
 }
 
-export function Opponents({ room, myName }: Props) {
+export function Opponents({ room, players, myName }: Props) {
   const dealerName = room.playerOrder[room.dealerIndex];
+  const playersByName = new Map(players.map((p) => [p.name, p]));
   const isBidding = room.status === 'bidding';
   const isPlaying = room.status === 'playing';
   const activeName =
@@ -136,6 +139,8 @@ export function Opponents({ room, myName }: Props) {
         const playerIdx = room.playerOrder.indexOf(name);
         const position =
           startIdx !== null ? ((playerIdx - startIdx + N) % N) + 1 : null;
+        const playerMeta = playersByName.get(name);
+        const offline = playerMeta ? !isConnected(playerMeta) : false;
         // Acted this phase: bid is in (during bidding) or card is on the
         // table (during playing). Active is never marked acted. Pending is
         // anyone in the rotation who hasn't gone yet and isn't current.
@@ -180,11 +185,19 @@ export function Opponents({ room, myName }: Props) {
                   {name}
                 </span>
               </span>
-              {isDealer && (
-                <span className="text-gold-300 text-[10px]" title="Dealer">
-                  ♛
-                </span>
-              )}
+              <span className="flex items-center gap-1 shrink-0">
+                {offline && (
+                  <span
+                    className="h-1.5 w-1.5 rounded-full bg-rose-400"
+                    title="Disconnected"
+                  />
+                )}
+                {isDealer && (
+                  <span className="text-gold-300 text-[10px]" title="Dealer">
+                    ♛
+                  </span>
+                )}
+              </span>
             </div>
             <div className="flex items-center gap-1.5 mt-0.5">
               <MiniFan count={handSize} />

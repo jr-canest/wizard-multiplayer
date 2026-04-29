@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { RoomSnapshot } from '../hooks/useRoom';
+import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
 import { useMyHand } from '../hooks/useMyHand';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { TrumpDisplay } from './TrumpDisplay';
@@ -10,6 +10,7 @@ import { TrickArea } from './TrickArea';
 import { RoundScoreboard } from './RoundScoreboard';
 import { FinalScoreboard } from './FinalScoreboard';
 import { Opponents } from './Opponents';
+import { DisconnectBanner } from './DisconnectBanner';
 import { playCard } from '../lib/gameFlow';
 import { legalIndices } from '../game/legalMoves';
 import { playerColor } from '../lib/playerColors';
@@ -18,10 +19,11 @@ const LAST_TRICK_HOLD_MS = 3000;
 
 type Props = {
   room: RoomSnapshot;
+  players: PlayerSnapshot[];
   myName: string;
 };
 
-export function GameView({ room, myName }: Props) {
+export function GameView({ room, players, myName }: Props) {
   const hand = useMyHand(room.code, myName);
   const dealerName = room.playerOrder[room.dealerIndex];
   const isDealer = dealerName === myName;
@@ -172,7 +174,11 @@ export function GameView({ room, myName }: Props) {
         </span>
       </div>
 
-      {showOpponents && <Opponents room={room} myName={myName} />}
+      {showOpponents && (
+        <Opponents room={room} players={players} myName={myName} />
+      )}
+
+      <DisconnectBanner room={room} players={players} myName={myName} />
 
       {room.awaitingTrumpChoice && isDealer && (
         <TrumpChooser code={room.code} callerName={myName} />
