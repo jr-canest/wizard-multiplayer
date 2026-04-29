@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
+import { useActiveRoom } from '../hooks/useActiveRoom';
 import { IdentityPrompt } from '../components/IdentityPrompt';
 import { CreateRoomPanel } from '../components/CreateRoomPanel';
 
 export function Home() {
   const navigate = useNavigate();
   const { session, clearSession } = useSession();
+  const { code: activeRoom, setCode: setActiveRoom } = useActiveRoom();
   const [code, setCode] = useState('');
 
   function handleJoin(e: React.FormEvent) {
@@ -40,6 +42,33 @@ export function Home() {
               switch
             </button>
           </div>
+
+          {activeRoom && (
+            <div className="card-gold p-4 space-y-2 border-2 border-gold-500/60">
+              <div className="text-xs uppercase tracking-wider text-navy-200">
+                In progress
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-2xl font-black tracking-[0.3em] text-gold-200">
+                  {activeRoom}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveRoom(null)}
+                  className="text-xs text-navy-300 underline underline-offset-2 hover:text-rose-300"
+                >
+                  forget
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate(`/room/${activeRoom}`)}
+                className="btn-gold w-full rounded-xl py-3"
+              >
+                Rejoin room
+              </button>
+            </div>
+          )}
 
           <CreateRoomPanel />
 

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { leaveRoom, MIN_PLAYERS, MAX_PLAYERS } from '../lib/rooms';
 import { startGame } from '../lib/gameFlow';
+import { setActiveRoomCode } from '../hooks/useActiveRoom';
 import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -48,6 +49,7 @@ export function Lobby({ room, players, myName }: Props) {
     setLeaving(true);
     try {
       await leaveRoom(room.code, myName);
+      setActiveRoomCode(null);
       navigate('/');
     } finally {
       setLeaving(false);

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { computeStandings, saveMultiplayerGame } from '../lib/history';
 import { resetForNewGame } from '../lib/gameFlow';
 import { isProduction } from '../lib/firebase';
+import { setActiveRoomCode } from '../hooks/useActiveRoom';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -115,7 +116,10 @@ export function FinalScoreboard({ room, myName }: Props) {
 
       <button
         type="button"
-        onClick={() => navigate('/')}
+        onClick={() => {
+          setActiveRoomCode(null);
+          navigate('/');
+        }}
         className="w-full text-sm text-navy-200 underline underline-offset-2 hover:text-gold-200"
       >
         Back to home

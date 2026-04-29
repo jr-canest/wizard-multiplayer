@@ -5,6 +5,7 @@ import { useAnonymousAuth } from '../hooks/useAnonymousAuth';
 import { useRoom } from '../hooks/useRoom';
 import { useBotDriver } from '../hooks/useBotDriver';
 import { useHeartbeat } from '../hooks/useHeartbeat';
+import { setActiveRoomCode } from '../hooks/useActiveRoom';
 import { IdentityPrompt } from '../components/IdentityPrompt';
 import { Lobby } from '../components/Lobby';
 import { GameView } from '../components/GameView';
@@ -27,6 +28,33 @@ export function Room() {
 
   useBotDriver(room, myName);
   useHeartbeat(code, inRoom ? myName : null);
+
+  // Persist the active room code so Home can offer a "Rejoin" prompt after
+  // a tab close. Clear it when we definitively can't get back in: room is
+  // gone, locked out, finished, or we got kicked from playerOrder.
+  useEffect(() => {
+    if (inRoom && room && room.status !== 'finished') {
+      setActiveRoomCode(code);
+    }
+  }, [inRoom, room, code]);
+
+  useEffect(() => {
+    if (notFound || (room && room.status === 'finished')) {
+      setActiveRoomCode(null);
+    }
+  }, [notFound, room]);
+
+  useEffect(() => {
+    if (joinError) setActiveRoomCode(null);
+  }, [joinError]);
+
+  useEffect(() => {
+    // Mid-game disappearance from playerOrder = we got kicked. Clear so
+    // Home doesn't keep offering to rejoin a room that's locked out.
+    if (room && session && !inRoom && room.status !== 'lobby') {
+      setActiveRoomCode(null);
+    }
+  }, [room, session, inRoom]);
 
   // Auto-join once we have a session, an auth UID, and a real room.
   useEffect(() => {

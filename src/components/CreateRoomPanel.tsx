@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { createRoom } from '../lib/rooms';
 import { useSession } from '../hooks/useSession';
 import { useAnonymousAuth } from '../hooks/useAnonymousAuth';
+import { setActiveRoomCode } from '../hooks/useActiveRoom';
 
 export function CreateRoomPanel() {
   const navigate = useNavigate();
@@ -24,6 +25,7 @@ export function CreateRoomPanel() {
       const code = await createRoom(session.playerName, uid, canadianRule, {
         withBots: devModeEnabled && withBots,
       });
+      setActiveRoomCode(code);
       navigate(`/room/${code}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create room.');
