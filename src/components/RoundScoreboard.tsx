@@ -1,5 +1,10 @@
 import { useState } from 'react';
-import { computeRoundDeltas, scoreAndAdvance } from '../lib/gameFlow';
+import {
+  computeRoundDeltas,
+  scoreAndAdvance,
+  voteEndEarly,
+} from '../lib/gameFlow';
+import { isBotName } from '../lib/rooms';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -10,6 +15,7 @@ type Props = {
 export function RoundScoreboard({ room, myName }: Props) {
   const [advancing, setAdvancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [voting, setVoting] = useState(false);
 
   const deltas = computeRoundDeltas(
     room.playerOrder,
@@ -36,6 +42,26 @@ export function RoundScoreboard({ room, myName }: Props) {
   }
 
   const bestDelta = Math.max(...Object.values(deltas));
+
+  // Show the end-early vote only when shrinking to "next round = last" would
+  // actually save rounds (i.e. there are 2+ rounds remaining).
+  const realPlayers = room.playerOrder.filter((n) => !isBotName(n));
+  const showEndEarly =
+    !isFinalRound && room.totalRounds - room.currentRound >= 2;
+  const votes = room.endEarlyVotes ?? [];
+  const realVotes = votes.filter((n) => realPlayers.includes(n));
+  const myVote = realVotes.includes(myName);
+  const threshold = Math.floor(realPlayers.length / 2) + 1;
+
+  async function handleEndEarly() {
+    if (voting) return;
+    setVoting(true);
+    try {
+      await voteEndEarly(room.code, myName, !myVote);
+    } finally {
+      setVoting(false);
+    }
+  }
 
   return (
     <div className="card-gold p-4 space-y-4">
@@ -124,6 +150,27 @@ export function RoundScoreboard({ room, myName }: Props) {
             ? 'Finish game'
             : 'Next round'}
       </button>
+
+      {showEndEarly && (
+        <div className="border-t border-gold-700/30 pt-3 -mt-1 space-y-1.5">
+          <button
+            type="button"
+            onClick={handleEndEarly}
+            disabled={voting}
+            className={`w-full rounded-lg py-2 text-sm font-semibold border transition ${
+              myVote
+                ? 'bg-rose-700/30 border-rose-500/60 text-rose-100'
+                : 'bg-navy-800 border-gold-700/60 text-gold-200 active:scale-[0.98]'
+            }`}
+          >
+            {myVote ? 'Cancel: end after next round' : 'Vote: end after next round'}
+          </button>
+          <p className="text-[11px] text-center text-navy-300 tabular-nums">
+            {realVotes.length}/{threshold} votes — majority makes the next
+            round the last.
+          </p>
+        </div>
+      )}
 
       {error && (
         <p className="text-sm text-rose-300 text-center">{error}</p>

@@ -15,6 +15,50 @@ import { winningPlayIndex } from '../game/trickWinner';
 import { calcRoundScore } from '../game/scoring';
 import type { HandDoc, LogEntry, RoomDoc, Suit } from './types';
 
+/**
+ * Toggle the caller's vote that the next round should be the last. When the
+ * tally reaches a majority of non-bot players, the room's totalRounds is
+ * shrunk so scoreAndAdvance ends the game after the next round.
+ */
+export async function voteEndEarly(
+  code: string,
+  callerName: string,
+  voteYes: boolean,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) return;
+    const room = snap.data() as RoomDoc;
+    if (room.status !== 'scoring') return;
+
+    const current = new Set(room.endEarlyVotes ?? []);
+    if (voteYes) current.add(callerName);
+    else current.delete(callerName);
+
+    // Threshold = majority of real (non-bot) players.
+    const realPlayers = room.playerOrder.filter(
+      (n) => !n.startsWith('Bot-'),
+    );
+    const realVotes = [...current].filter(
+      (n) => !n.startsWith('Bot-') && realPlayers.includes(n),
+    );
+    const threshold = Math.floor(realPlayers.length / 2) + 1;
+
+    if (realVotes.length >= threshold) {
+      // Shrink totalRounds so the next round is the last. Scoring of round
+      // N+1 will then see currentRound >= totalRounds and finish the game.
+      const newTotal = Math.max(room.currentRound + 1, room.currentRound);
+      tx.update(roomRef, {
+        totalRounds: newTotal,
+        endEarlyVotes: [],
+      });
+    } else {
+      tx.update(roomRef, { endEarlyVotes: [...current] });
+    }
+  });
+}
+
 export class FlowError extends Error {
   code:
     | 'notHost'

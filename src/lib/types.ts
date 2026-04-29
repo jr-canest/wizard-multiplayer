@@ -52,6 +52,9 @@ export type RoomDoc = {
   log: LogEntry[];
   historyWritten: boolean;
   historyGameId: string | null;
+  // Player names who've voted that the next round should be the last.
+  // Cleared once totalRounds is shrunk to the new last-round number.
+  endEarlyVotes?: string[];
 };
 
 export type RoomPlayerDoc = {
