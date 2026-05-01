@@ -11,7 +11,6 @@ type Props = {
   playerOrder: string[];
   trumpSuit: Suit | null;
   isMyTurn: boolean;
-  rotationSeed: number;
   myName: string;
   isLeaving?: boolean;
 };
@@ -27,19 +26,12 @@ function noise(seed: number): number {
   return ((v - Math.floor(v)) - 0.5) * 2;
 }
 
-function buildSlots(
-  playerCount: number,
-  fanW: number,
-  rotationSeed: number,
-): Slot[] {
+function buildSlots(playerCount: number, fanW: number): Slot[] {
   const N = Math.max(1, playerCount);
   const useTwoRows = N >= 4;
   const topCount = useTwoRows ? Math.ceil(N / 2) : N;
   const bottomCount = useTwoRows ? N - topCount : 0;
   const maxStretch = Math.max(80, fanW - CARD_W - 8);
-  // Wider rotation range than before, varied by round so consecutive rounds
-  // don't pile cards into the same shape.
-  const seedShift = (rotationSeed % 97) * 7;
 
   function rowSlots(count: number, y: number, seedBase: number): Slot[] {
     if (count === 0) return [];
@@ -49,7 +41,10 @@ function buildSlots(
         : Math.max(56, Math.min(110, maxStretch / (count - 1)));
     const center = (count - 1) / 2;
     return Array.from({ length: count }, (_, i) => {
-      const seed = seedBase + seedShift + i + 1;
+      // Stable per-slot seed (no round dependency) — keeps each player's
+      // spot rock-stable across rounds with a tiny per-slot jitter for
+      // visual variety.
+      const seed = seedBase + i + 1;
       return {
         x: (i - center) * stepX + noise(seed) * 5,
         y: y + noise(seed * 2) * 6,
@@ -137,7 +132,6 @@ export function TrickArea({
   playerOrder,
   trumpSuit,
   isMyTurn,
-  rotationSeed,
   myName,
   isLeaving = false,
 }: Props) {
@@ -166,9 +160,22 @@ export function TrickArea({
   }, []);
 
   const slots = useMemo(
-    () => buildSlots(playerOrder.length, fanW, rotationSeed),
-    [playerOrder.length, fanW, rotationSeed],
+    () => buildSlots(playerOrder.length, fanW),
+    [playerOrder.length, fanW],
   );
+
+  // Slot index per player, rotated so the local viewer (myName) lands at
+  // the LAST slot — bottom-rightmost in the 2-row layout, rightmost in
+  // the single-row layout. Other players keep their relative seating
+  // around the table.
+  const myIdx = playerOrder.indexOf(myName);
+  function viewerSlotIndex(playerName: string): number {
+    const seatIdx = playerOrder.indexOf(playerName);
+    if (seatIdx < 0) return 0;
+    if (myIdx < 0) return seatIdx;
+    const N = playerOrder.length;
+    return (seatIdx - myIdx - 1 + N) % N;
+  }
 
   return (
     <div
@@ -184,7 +191,11 @@ export function TrickArea({
       ) : (
         <div ref={fanRef} className="relative h-full w-full">
           {plays.map((p, i) => {
-            const slot = slots[i] ?? { x: 0, y: 0, rot: 0 };
+            // Slot is determined by the player's seat (viewer-rotated),
+            // NOT by play order. Stacking still uses play order so the
+            // most recently played card sits on top.
+            const slot =
+              slots[viewerSlotIndex(p.playerName)] ?? { x: 0, y: 0, rot: 0 };
             return (
               <TrickCard
                 // Stable per-player key — survives the source flip from

@@ -274,7 +274,6 @@ export function GameView({ room, players, myName }: Props) {
               playerOrder={room.playerOrder}
               trumpSuit={room.trumpSuit}
               isMyTurn={isMyTurn && room.status === 'playing'}
-              rotationSeed={room.currentRound}
               myName={myName}
               isLeaving={trickIsLeaving}
             />
