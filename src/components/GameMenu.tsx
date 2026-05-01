@@ -77,8 +77,11 @@ export function GameMenu({ room, myName }: Props) {
             className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[110] w-[min(92vw,360px)] card-gold p-3 space-y-3 shadow-2xl"
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs uppercase tracking-wider text-navy-200">
-                Scores · Round {room.currentRound}/{room.totalRounds}
+              <span className="text-xs uppercase tracking-wider text-gold-200">
+                Total scores
+              </span>
+              <span className="text-[11px] tabular-nums text-navy-300">
+                Round {room.currentRound}/{room.totalRounds}
               </span>
               <button
                 type="button"
@@ -120,7 +123,7 @@ export function GameMenu({ room, myName }: Props) {
                       )}
                     </span>
                     <span
-                      className={`tabular-nums font-bold ${
+                      className={`tabular-nums font-bold text-lg ${
                         score > 0
                           ? 'text-emerald-300'
                           : score < 0
