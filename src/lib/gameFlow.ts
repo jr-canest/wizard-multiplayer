@@ -13,7 +13,29 @@ import { buildDeck, deal, shuffle, totalRoundsFor } from '../game/deck';
 import { getLeadInfo, isLegalPlay } from '../game/legalMoves';
 import { winningPlayIndex } from '../game/trickWinner';
 import { calcRoundScore } from '../game/scoring';
-import type { HandDoc, LogEntry, RoomDoc, Suit } from './types';
+import type {
+  HandDoc,
+  LogEntry,
+  PendingUndo,
+  RoomDoc,
+  Suit,
+  UndoSnapshot,
+} from './types';
+
+/**
+ * Broadcast a reaction to the room. Clients display it briefly based on
+ * the timestamp (soft TTL). Overwrites any prior reaction.
+ */
+export async function postReaction(
+  code: string,
+  player: string,
+  text: string,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  await updateDoc(roomRef, {
+    lastReaction: { player, text, ts: Date.now() },
+  });
+}
 
 /**
  * Toggle the caller's vote that the next round should be the last. When the
@@ -55,6 +77,89 @@ export async function voteEndEarly(
       });
     } else {
       tx.update(roomRef, { endEarlyVotes: [...current] });
+    }
+  });
+}
+
+/**
+ * Toggle the caller's vote to advance to the next round (or finish the
+ * game on the final round). When majority of real players vote yes, the
+ * caller drives scoreAndAdvance; subsequent calls are no-ops via
+ * scoreAndAdvance's status check.
+ */
+export async function voteNextRound(
+  code: string,
+  callerName: string,
+  voteYes: boolean,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  let advance = false;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) return;
+    const room = snap.data() as RoomDoc;
+    if (room.status !== 'scoring') return;
+
+    const current = new Set(room.nextRoundVotes ?? []);
+    if (voteYes) current.add(callerName);
+    else current.delete(callerName);
+
+    const realPlayers = room.playerOrder.filter(
+      (n) => !n.startsWith('Bot-'),
+    );
+    const realVotes = [...current].filter(
+      (n) => !n.startsWith('Bot-') && realPlayers.includes(n),
+    );
+    const threshold = Math.floor(realPlayers.length / 2) + 1;
+
+    if (realVotes.length >= threshold) {
+      tx.update(roomRef, { nextRoundVotes: [] });
+      advance = true;
+    } else {
+      tx.update(roomRef, { nextRoundVotes: [...current] });
+    }
+  });
+  if (advance) await scoreAndAdvance(code);
+}
+
+/**
+ * Toggle the caller's vote to make the CURRENT round the last (mid-round
+ * vote). When majority is reached, totalRounds is shrunk to currentRound,
+ * so scoreAndAdvance for this round will finish the game.
+ */
+export async function voteEndNow(
+  code: string,
+  callerName: string,
+  voteYes: boolean,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) return;
+    const room = snap.data() as RoomDoc;
+    if (room.status !== 'bidding' && room.status !== 'playing') return;
+    // Already on/past the final round — nothing to shrink.
+    if (room.currentRound >= room.totalRounds) return;
+
+    const current = new Set(room.endNowVotes ?? []);
+    if (voteYes) current.add(callerName);
+    else current.delete(callerName);
+
+    const realPlayers = room.playerOrder.filter(
+      (n) => !n.startsWith('Bot-'),
+    );
+    const realVotes = [...current].filter(
+      (n) => !n.startsWith('Bot-') && realPlayers.includes(n),
+    );
+    const threshold = Math.floor(realPlayers.length / 2) + 1;
+
+    if (realVotes.length >= threshold) {
+      tx.update(roomRef, {
+        totalRounds: room.currentRound,
+        endNowVotes: [],
+      });
+    } else {
+      tx.update(roomRef, { endNowVotes: [...current] });
     }
   });
 }
@@ -165,6 +270,9 @@ export async function dealNextRound(code: string, prev: RoomDoc): Promise<void> 
     tricksWon,
     trickInProgress: [],
     log: [...prev.log, dealLog, trumpLog],
+    endNowVotes: [],
+    nextRoundVotes: [],
+    pendingUndo: null,
   });
 
   for (const [name, cards] of Object.entries(hands)) {
@@ -270,6 +378,26 @@ export async function placeBid(
     bid,
   };
 
+  // Snapshot of state BEFORE this bid, used by the undo flow.
+  const undoSnapshot: UndoSnapshot = {
+    bids: room.bids,
+    currentPlayerIndex: room.currentPlayerIndex,
+    trickInProgress: room.trickInProgress,
+    leadSuit: room.leadSuit,
+    status: room.status,
+    tricksWon: room.tricksWon,
+    trickHistory: room.trickHistory,
+    currentTrick: room.currentTrick,
+    log: room.log,
+  };
+  const pendingUndo: PendingUndo = {
+    kind: 'bid',
+    actor: callerName,
+    requested: false,
+    votes: [],
+    snapshot: undoSnapshot,
+  };
+
   if (allBidIn) {
     // Left of dealer leads the first trick.
     await updateDoc(roomRef, {
@@ -280,12 +408,14 @@ export async function placeBid(
       leadSuit: null,
       trickInProgress: [],
       log: [...room.log, bidLog],
+      pendingUndo,
     });
   } else {
     await updateDoc(roomRef, {
       bids: nextBids,
       currentPlayerIndex: (room.currentPlayerIndex + 1) % playerCount,
       log: [...room.log, bidLog],
+      pendingUndo,
     });
   }
 }
@@ -341,6 +471,28 @@ export async function playCard(
       card,
     };
 
+    // Snapshot state BEFORE this play, including the actor's hand so undo
+    // can put the card back.
+    const undoSnapshot: UndoSnapshot = {
+      bids: room.bids,
+      currentPlayerIndex: room.currentPlayerIndex,
+      trickInProgress: room.trickInProgress,
+      leadSuit: room.leadSuit,
+      status: room.status,
+      tricksWon: room.tricksWon,
+      trickHistory: room.trickHistory,
+      currentTrick: room.currentTrick,
+      log: room.log,
+      handCards: hand,
+    };
+    const pendingUndo: PendingUndo = {
+      kind: 'play',
+      actor: callerName,
+      requested: false,
+      votes: [],
+      snapshot: undoSnapshot,
+    };
+
     tx.update(handRef, { cards: newHand });
 
     if (newTrick.length < room.playerOrder.length) {
@@ -350,6 +502,7 @@ export async function playCard(
         leadSuit,
         currentPlayerIndex: (room.currentPlayerIndex + 1) % room.playerOrder.length,
         log: [...room.log, playLog],
+        pendingUndo,
       });
       return;
     }
@@ -389,7 +542,102 @@ export async function playCard(
       currentPlayerIndex: winnerOrderIdx,
       status: roundComplete ? 'scoring' : 'playing',
       log: [...room.log, playLog, trickWinLog],
+      pendingUndo,
     });
+  });
+}
+
+/**
+ * The actor toggles their request to undo their last bid/play. While
+ * `requested` is false only the actor sees the prompt; once true, all
+ * players see the vote and can approve/reject. Toggling cancels the
+ * request and clears any votes.
+ */
+export async function requestUndo(
+  code: string,
+  callerName: string,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) return;
+    const room = snap.data() as RoomDoc;
+    const pu = room.pendingUndo;
+    if (!pu) return;
+    if (pu.actor !== callerName) return;
+    if (!pu.requested) {
+      tx.update(roomRef, {
+        pendingUndo: { ...pu, requested: true, votes: [callerName] },
+      });
+    } else {
+      // Cancel — drop the request and reset votes.
+      tx.update(roomRef, {
+        pendingUndo: { ...pu, requested: false, votes: [] },
+      });
+    }
+  });
+}
+
+/**
+ * Toggle a non-actor's vote on a pending undo. When the tally hits a
+ * majority of real players (including the actor's own yes), restore the
+ * snapshot and clear pendingUndo.
+ */
+export async function voteUndo(
+  code: string,
+  callerName: string,
+  voteYes: boolean,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  const handRefFor = (name: string) => doc(db, 'rooms', code, 'hands', name);
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) return;
+    const room = snap.data() as RoomDoc;
+    const pu = room.pendingUndo;
+    if (!pu || !pu.requested) return;
+
+    // The actor's vote is immutable — they triggered the request. Other
+    // real players can toggle.
+    if (callerName === pu.actor) return;
+
+    const current = new Set(pu.votes);
+    if (voteYes) current.add(callerName);
+    else current.delete(callerName);
+
+    const realPlayers = room.playerOrder.filter(
+      (n) => !n.startsWith('Bot-'),
+    );
+    const realVotes = [...current].filter(
+      (n) => !n.startsWith('Bot-') && realPlayers.includes(n),
+    );
+    const threshold = Math.floor(realPlayers.length / 2) + 1;
+
+    if (realVotes.length >= threshold) {
+      // Apply the snapshot. For 'play' kind also restore the actor's hand.
+      const s = pu.snapshot;
+      const restore: Partial<RoomDoc> = {
+        bids: s.bids,
+        currentPlayerIndex: s.currentPlayerIndex,
+        trickInProgress: s.trickInProgress,
+        leadSuit: s.leadSuit,
+        status: s.status,
+        tricksWon: s.tricksWon,
+        trickHistory: s.trickHistory,
+        currentTrick: s.currentTrick,
+        log: s.log,
+        pendingUndo: null,
+      };
+      if (pu.kind === 'play' && s.handCards) {
+        tx.set(handRefFor(pu.actor), { cards: s.handCards });
+      }
+      tx.update(roomRef, restore as Record<string, unknown>);
+    } else {
+      tx.update(roomRef, {
+        pendingUndo: { ...pu, votes: [...current] },
+      });
+    }
   });
 }
 
@@ -446,6 +694,7 @@ export async function scoreAndAdvance(code: string): Promise<void> {
       cumulativeScores: newCumulative,
       status: 'finished',
       log: [...room.log, scoreLog, gameOverLog],
+      pendingUndo: null,
     });
     return;
   }

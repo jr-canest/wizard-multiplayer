@@ -30,6 +30,14 @@ type StuckState = {
 const CARD_W_BY_SIZE = { lg: 96, md: 64, sm: 48 } as const;
 type CardSize = keyof typeof CARD_W_BY_SIZE;
 
+// Wrap to two rows once a hand passes this size.
+const TWO_ROW_THRESHOLD = 6;
+// Vertical separation between the upper and lower fans when wrapped.
+const ROW_GAP = 80;
+// Constant rightward shift so the leftmost rotated card's corner clears
+// the screen edge (addressed clipping seen on phones).
+const FAN_RIGHT_NUDGE = 12;
+
 function cardId(card: Card): string {
   if (card.kind === 'standard') return `s-${card.suit}-${card.rank}`;
   return `${card.kind}-${card.id}`;
@@ -92,21 +100,44 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
   }
 
   const count = hand.length;
-  const maxFanDeg = Math.min(40, 6 * count);
-  const centerIdx = (count - 1) / 2;
-  const angleStep = count > 1 ? maxFanDeg / (count - 1) : 0;
-  // Drop to medium cards for big hands so they stay grabbable on phones.
-  const cardSize: CardSize = count > 8 ? 'md' : 'lg';
+  const useTwoRows = count > TWO_ROW_THRESHOLD;
+  // Drop to medium cards once we'd otherwise have to cram a long single row.
+  // With two rows the per-row count stays moderate so we keep lg cards.
+  const cardSize: CardSize = !useTwoRows && count > 8 ? 'md' : 'lg';
   const cardW = CARD_W_BY_SIZE[cardSize];
-  // Step between card centers. Clamped so the fan never overflows the
-  // container; if cards are getting tight we still leave at least 16px
-  // exposed per card so each one has a tap target.
-  const idealStep = cardW * (count <= 5 ? 0.65 : count <= 10 ? 0.5 : 0.4);
-  const maxStep =
-    count <= 1
-      ? 0
-      : Math.max(16, (containerW - cardW - 8) / (count - 1));
-  const step = Math.min(idealStep, maxStep);
+
+  // Split the hand into rows. Top row holds the first half (ceil); bottom
+  // row holds the rest. Each row fans independently.
+  const topCount = useTwoRows ? Math.ceil(count / 2) : count;
+  const bottomCount = useTwoRows ? count - topCount : 0;
+
+  function rowMetricsFor(rowCount: number) {
+    const maxFanDeg = Math.min(40, 6 * rowCount);
+    const centerIdx = (rowCount - 1) / 2;
+    const angleStep = rowCount > 1 ? maxFanDeg / (rowCount - 1) : 0;
+    const idealStep =
+      cardW * (rowCount <= 5 ? 0.65 : rowCount <= 10 ? 0.5 : 0.4);
+    const maxStep =
+      rowCount <= 1
+        ? 0
+        : Math.max(16, (containerW - cardW - 8) / (rowCount - 1));
+    const step = Math.min(idealStep, maxStep);
+    return { centerIdx, angleStep, step };
+  }
+
+  const topMetrics = rowMetricsFor(topCount);
+  const bottomMetrics = useTwoRows ? rowMetricsFor(bottomCount) : topMetrics;
+
+  function metricsForCard(i: number) {
+    if (!useTwoRows) return topMetrics;
+    return i < topCount ? topMetrics : bottomMetrics;
+  }
+  function rowIndex(i: number) {
+    return useTwoRows && i >= topCount ? 1 : 0;
+  }
+  function indexInRow(i: number) {
+    return useTwoRows && i >= topCount ? i - topCount : i;
+  }
 
   function handlePointerDown(e: React.PointerEvent, i: number) {
     if (!onPlay) return;
@@ -170,14 +201,26 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
     setDrag(null);
   }
 
+  const containerH = useTwoRows ? 160 + ROW_GAP : 160;
+
   return (
-    <div ref={containerRef} className="relative h-[160px] select-none">
-      <div className="absolute inset-x-0 bottom-0 h-[160px]">
+    <div
+      ref={containerRef}
+      className="relative select-none"
+      style={{ height: containerH }}
+    >
+      <div
+        className="absolute inset-x-0 bottom-0"
+        style={{ height: containerH }}
+      >
         {hand.map((card, i) => {
           const cardLegal = legal ? legal[i] : true;
           const showGlow = cardLegal && !!isMyTurn;
-          const angle = (i - centerIdx) * angleStep;
-          const offset = (i - centerIdx) * step;
+          const m = metricsForCard(i);
+          const idxInRow = indexInRow(i);
+          const angle = (idxInRow - m.centerIdx) * m.angleStep;
+          const offset = (idxInRow - m.centerIdx) * m.step;
+          const rowOffsetY = rowIndex(i) === 0 && useTwoRows ? -ROW_GAP : 0;
           const isDragging = drag?.index === i && drag.moved;
           const id = cardId(card);
           const isStuck = stuck?.cardId === id;
@@ -218,7 +261,7 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
             position: 'absolute',
             left: '50%',
             bottom: 0,
-            transform: `translateX(calc(-50% + ${offset}px)) rotate(${angle}deg)`,
+            transform: `translate(calc(-50% + ${offset + FAN_RIGHT_NUDGE}px), ${rowOffsetY}px) rotate(${angle}deg)`,
             transformOrigin: 'bottom center',
             transition: 'transform 0.2s ease-out',
             zIndex: i,

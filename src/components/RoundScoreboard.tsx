@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import {
   computeRoundDeltas,
-  scoreAndAdvance,
   voteEndEarly,
+  voteNextRound,
 } from '../lib/gameFlow';
 import { isBotName } from '../lib/rooms';
 import type { RoomSnapshot } from '../hooks/useRoom';
@@ -30,13 +30,22 @@ export function RoundScoreboard({ room, myName }: Props) {
   );
   const isFinalRound = room.currentRound >= room.totalRounds;
 
+  const realPlayers = room.playerOrder.filter((n) => !isBotName(n));
+  const threshold = Math.floor(realPlayers.length / 2) + 1;
+  const nextVotes = (room.nextRoundVotes ?? []).filter((n) =>
+    realPlayers.includes(n),
+  );
+  const myNextVote = nextVotes.includes(myName);
+
   async function handleAdvance() {
+    if (advancing) return;
     setAdvancing(true);
     setError(null);
     try {
-      await scoreAndAdvance(room.code);
+      await voteNextRound(room.code, myName, !myNextVote);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to advance.');
+      setError(err instanceof Error ? err.message : 'Failed to vote.');
+    } finally {
       setAdvancing(false);
     }
   }
@@ -45,19 +54,18 @@ export function RoundScoreboard({ room, myName }: Props) {
 
   // Show the end-early vote only when shrinking to "next round = last" would
   // actually save rounds (i.e. there are 2+ rounds remaining).
-  const realPlayers = room.playerOrder.filter((n) => !isBotName(n));
   const showEndEarly =
     !isFinalRound && room.totalRounds - room.currentRound >= 2;
-  const votes = room.endEarlyVotes ?? [];
-  const realVotes = votes.filter((n) => realPlayers.includes(n));
-  const myVote = realVotes.includes(myName);
-  const threshold = Math.floor(realPlayers.length / 2) + 1;
+  const earlyVotes = (room.endEarlyVotes ?? []).filter((n) =>
+    realPlayers.includes(n),
+  );
+  const myEarlyVote = earlyVotes.includes(myName);
 
   async function handleEndEarly() {
     if (voting) return;
     setVoting(true);
     try {
-      await voteEndEarly(room.code, myName, !myVote);
+      await voteEndEarly(room.code, myName, !myEarlyVote);
     } finally {
       setVoting(false);
     }
@@ -138,18 +146,27 @@ export function RoundScoreboard({ room, myName }: Props) {
         </tbody>
       </table>
 
-      <button
-        type="button"
-        onClick={handleAdvance}
-        disabled={advancing}
-        className="btn-gold w-full rounded-xl py-3"
-      >
-        {advancing
-          ? 'Working…'
-          : isFinalRound
-            ? 'Finish game'
-            : 'Next round'}
-      </button>
+      <div className="space-y-1.5">
+        <button
+          type="button"
+          onClick={handleAdvance}
+          disabled={advancing}
+          className={`w-full rounded-xl py-3 font-semibold border transition ${
+            myNextVote
+              ? 'bg-rose-700/30 border-rose-500/60 text-rose-100'
+              : 'btn-gold border-gold-400 active:scale-[0.99]'
+          }`}
+        >
+          {advancing
+            ? 'Working…'
+            : myNextVote
+              ? `Cancel: ${isFinalRound ? 'finish game' : 'next round'}`
+              : `Vote: ${isFinalRound ? 'finish game' : 'next round'}`}
+        </button>
+        <p className="text-[11px] text-center text-navy-300 tabular-nums">
+          {nextVotes.length}/{threshold} votes — majority {isFinalRound ? 'finishes the game' : 'starts the next round'}.
+        </p>
+      </div>
 
       {showEndEarly && (
         <div className="border-t border-gold-700/30 pt-3 -mt-1 space-y-1.5">
@@ -158,15 +175,15 @@ export function RoundScoreboard({ room, myName }: Props) {
             onClick={handleEndEarly}
             disabled={voting}
             className={`w-full rounded-lg py-2 text-sm font-semibold border transition ${
-              myVote
+              myEarlyVote
                 ? 'bg-rose-700/30 border-rose-500/60 text-rose-100'
                 : 'bg-navy-800 border-gold-700/60 text-gold-200 active:scale-[0.98]'
             }`}
           >
-            {myVote ? 'Cancel: end after next round' : 'Vote: end after next round'}
+            {myEarlyVote ? 'Cancel: end after next round' : 'Vote: end after next round'}
           </button>
           <p className="text-[11px] text-center text-navy-300 tabular-nums">
-            {realVotes.length}/{threshold} votes — majority makes the next
+            {earlyVotes.length}/{threshold} votes — majority makes the next
             round the last.
           </p>
         </div>

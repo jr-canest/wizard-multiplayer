@@ -11,6 +11,9 @@ import { RoundScoreboard } from './RoundScoreboard';
 import { FinalScoreboard } from './FinalScoreboard';
 import { Opponents } from './Opponents';
 import { DisconnectBanner } from './DisconnectBanner';
+import { Reactions, ReactionDisplay } from './Reactions';
+import { GameMenu } from './GameMenu';
+import { UndoBanner } from './UndoBanner';
 import { playCard } from '../lib/gameFlow';
 import { legalIndices } from '../game/legalMoves';
 import { playerColor } from '../lib/playerColors';
@@ -167,10 +170,13 @@ export function GameView({ room, players, myName }: Props) {
             {bidSumLabel}
           </span>
         )}
-        <span className="text-navy-100 whitespace-nowrap truncate">
-          Dealer{' '}
-          <strong className="text-gold-100">{dealerName}</strong>
-          {isDealer ? ' (you)' : ''}
+        <span className="text-navy-100 whitespace-nowrap truncate flex items-center">
+          <span>
+            Dealer{' '}
+            <strong className="text-gold-100">{dealerName}</strong>
+            {isDealer ? ' (you)' : ''}
+          </span>
+          <GameMenu room={room} myName={myName} />
         </span>
       </div>
 
@@ -179,6 +185,8 @@ export function GameView({ room, players, myName }: Props) {
       )}
 
       <DisconnectBanner room={room} players={players} myName={myName} />
+
+      <UndoBanner room={room} myName={myName} />
 
       {room.awaitingTrumpChoice && isDealer && (
         <TrumpChooser code={room.code} callerName={myName} />
@@ -192,15 +200,23 @@ export function GameView({ room, players, myName }: Props) {
             awaitingTrumpChoice={room.awaitingTrumpChoice}
           />
           {room.status === 'bidding' ? (
-            <BiddingPanel room={room} myName={myName} />
+            <div className="relative flex-1 flex">
+              <BiddingPanel room={room} myName={myName} />
+              <Reactions room={room} myName={myName} />
+              <ReactionDisplay room={room} myName={myName} />
+            </div>
           ) : (
-            <TrickArea
-              plays={displayedPlays}
-              playerOrder={room.playerOrder}
-              trumpSuit={room.trumpSuit}
-              isMyTurn={isMyTurn && room.status === 'playing'}
-              rotationSeed={room.currentRound}
-            />
+            <div className="relative flex-1 flex">
+              <TrickArea
+                plays={displayedPlays}
+                playerOrder={room.playerOrder}
+                trumpSuit={room.trumpSuit}
+                isMyTurn={isMyTurn && room.status === 'playing'}
+                rotationSeed={room.currentRound}
+              />
+              <Reactions room={room} myName={myName} />
+              <ReactionDisplay room={room} myName={myName} />
+            </div>
           )}
         </div>
       )}

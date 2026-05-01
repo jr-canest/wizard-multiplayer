@@ -97,11 +97,16 @@ const TrickCard = memo(function TrickCard({
     >
       <div className="animate-play-in">
         <div
-          className={`rounded-md ring-4 ${color.ring} ${color.glow} bg-navy-900 ${
+          className={`relative rounded-md ring-4 ${color.ring} ${color.glow} bg-navy-900 ${
             isWinning ? 'animate-winning' : ''
           }`}
         >
           <CardImage card={card} size="lg" />
+          {isWinning && (
+            <div className="absolute -top-3 -right-2 z-10 text-2xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)] animate-crown-pop pointer-events-none select-none">
+              👑
+            </div>
+          )}
         </div>
       </div>
     </div>

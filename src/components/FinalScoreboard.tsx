@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { computeStandings, saveMultiplayerGame } from '../lib/history';
 import { resetForNewGame } from '../lib/gameFlow';
+import { ScoreLineGraph } from './ScoreLineGraph';
 import {
   fetchAISummary,
   isProduction,
@@ -255,6 +256,8 @@ export function FinalScoreboard({ room, myName }: Props) {
             />
           </div>
         )}
+
+        <ScoreLineGraph room={room} />
 
         <ul className="space-y-1.5">
           {standings.map((s) => {

@@ -4,6 +4,7 @@ import { useSession } from '../hooks/useSession';
 import { useActiveRoom } from '../hooks/useActiveRoom';
 import { IdentityPrompt } from '../components/IdentityPrompt';
 import { CreateRoomPanel } from '../components/CreateRoomPanel';
+import { RecentGames } from '../components/RecentGames';
 
 export function Home() {
   const navigate = useNavigate();
@@ -95,6 +96,8 @@ export function Home() {
               Join
             </button>
           </form>
+
+          <RecentGames />
         </div>
       )}
     </div>

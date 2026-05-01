@@ -52,9 +52,53 @@ export type RoomDoc = {
   log: LogEntry[];
   historyWritten: boolean;
   historyGameId: string | null;
-  // Player names who've voted that the next round should be the last.
-  // Cleared once totalRounds is shrunk to the new last-round number.
+  // Player names who've voted that the next round should be the last
+  // (used during 'scoring' phase). Cleared once totalRounds is shrunk.
   endEarlyVotes?: string[];
+  // Player names who've voted to make the CURRENT round the last (used
+  // during 'bidding' / 'playing'). Cleared on round transition.
+  endNowVotes?: string[];
+  // Player names who've voted to advance to the next round (used during
+  // 'scoring'). Cleared once threshold triggers scoreAndAdvance.
+  nextRoundVotes?: string[];
+  // Most recent reaction broadcast by any player. Clients show it briefly
+  // based on `ts` (epoch ms, client-set — no clock-skew sensitivity since
+  // it's a soft TTL, not a correctness check).
+  lastReaction?: { player: string; text: string; ts: number } | null;
+  // The most recent undoable action: a snapshot of the state right BEFORE
+  // the last bid/play, plus voting state. Cleared when the next action
+  // happens (overwritten with that action's snapshot) or when the round
+  // is scored and the state is replaced wholesale.
+  pendingUndo?: PendingUndo | null;
+};
+
+export type UndoSnapshot = {
+  bids: Record<string, number>;
+  currentPlayerIndex: number;
+  trickInProgress: Array<{ playerName: string; card: Card; playOrder: number }>;
+  leadSuit: Suit | null;
+  status: RoomStatus;
+  tricksWon: Record<string, number>;
+  trickHistory: Array<{
+    round: number;
+    trickNum: number;
+    plays: Array<{ playerName: string; card: Card }>;
+    winner: string;
+  }>;
+  currentTrick: number;
+  log: LogEntry[];
+  // Only set for 'play' kind — the actor's hand BEFORE the play.
+  handCards?: Card[];
+};
+
+export type PendingUndo = {
+  kind: 'bid' | 'play';
+  actor: string;
+  // True once the actor has tapped their "Undo" button. Until then no one
+  // else sees a vote prompt.
+  requested: boolean;
+  votes: string[];
+  snapshot: UndoSnapshot;
 };
 
 export type RoomPlayerDoc = {
