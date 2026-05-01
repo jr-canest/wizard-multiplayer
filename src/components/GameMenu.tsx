@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { voteEndNow } from '../lib/gameFlow';
+import {
+  computeRoundDeltas,
+  voteEndNow,
+  voteNextRound,
+} from '../lib/gameFlow';
 import { isBotName } from '../lib/rooms';
 import { playerColor } from '../lib/playerColors';
 import type { RoomSnapshot } from '../hooks/useRoom';
@@ -29,6 +33,8 @@ export function GameMenu({ room, myName }: Props) {
   }, [open]);
 
   const realPlayers = room.playerOrder.filter((n) => !isBotName(n));
+  const threshold = Math.floor(realPlayers.length / 2) + 1;
+
   const canVoteEndNow =
     room.status === 'bidding' || room.status === 'playing';
   // No point voting if the next round is already the final.
@@ -37,8 +43,16 @@ export function GameMenu({ room, myName }: Props) {
   const endNowVotes = (room.endNowVotes ?? []).filter((n) =>
     realPlayers.includes(n),
   );
-  const endNowThreshold = Math.floor(realPlayers.length / 2) + 1;
   const myEndNowVote = endNowVotes.includes(myName);
+
+  // Next-round vote (during scoring). Mirrors the RoundScoreboard's vote
+  // control so the user can confirm/cast from either place.
+  const showNextRoundVote = room.status === 'scoring';
+  const isFinalRound = room.currentRound >= room.totalRounds;
+  const nextRoundVotes = (room.nextRoundVotes ?? []).filter((n) =>
+    realPlayers.includes(n),
+  );
+  const myNextRoundVote = nextRoundVotes.includes(myName);
 
   async function handleEndNow() {
     if (voting) return;
@@ -50,10 +64,33 @@ export function GameMenu({ room, myName }: Props) {
     }
   }
 
-  // Standings sorted by current cumulative score (best at top).
+  async function handleNextRound() {
+    if (voting) return;
+    setVoting(true);
+    try {
+      await voteNextRound(room.code, myName, !myNextRoundVote);
+    } finally {
+      setVoting(false);
+    }
+  }
+
+  // During scoring, cumulativeScores hasn't had this round's deltas
+  // applied yet — fold them in so the menu matches the projected totals
+  // shown on the RoundScoreboard. Outside scoring, cumulativeScores is
+  // already the live total.
+  const isScoring = room.status === 'scoring';
+  const liveDeltas = isScoring
+    ? computeRoundDeltas(room.playerOrder, room.bids, room.tricksWon)
+    : null;
+  function liveTotal(name: string): number {
+    return (
+      (room.cumulativeScores[name] ?? 0) + (liveDeltas?.[name] ?? 0)
+    );
+  }
+
+  // Standings sorted by live (post-this-round-if-scoring) score.
   const standings = [...room.playerOrder].sort(
-    (a, b) =>
-      (room.cumulativeScores[b] ?? 0) - (room.cumulativeScores[a] ?? 0),
+    (a, b) => liveTotal(b) - liveTotal(a),
   );
 
   return (
@@ -94,7 +131,7 @@ export function GameMenu({ room, myName }: Props) {
 
             <ul className="divide-y divide-gold-700/20">
               {standings.map((name, i) => {
-                const score = room.cumulativeScores[name] ?? 0;
+                const score = liveTotal(name);
                 const bid = room.bids[name];
                 const won = room.tricksWon[name] ?? 0;
                 const isMe = name === myName;
@@ -138,6 +175,25 @@ export function GameMenu({ room, myName }: Props) {
               })}
             </ul>
 
+            {showNextRoundVote && (
+              <div className="border-t border-gold-700/30 pt-3">
+                <button
+                  type="button"
+                  onClick={handleNextRound}
+                  disabled={voting}
+                  className={`w-full rounded-md py-2 text-sm font-semibold border transition tabular-nums ${
+                    myNextRoundVote
+                      ? 'bg-emerald-700/30 border-emerald-500/60 text-emerald-100'
+                      : 'bg-navy-900 border-gold-600/60 text-gold-200 active:scale-[0.98]'
+                  }`}
+                >
+                  {myNextRoundVote
+                    ? `✓ Voted · ${isFinalRound ? 'finish game' : 'next round'} ${nextRoundVotes.length}/${threshold}`
+                    : `${isFinalRound ? 'Finish game' : 'Next round'} ${nextRoundVotes.length}/${threshold}`}
+                </button>
+              </div>
+            )}
+
             {showEndNow && (
               <div className="border-t border-gold-700/30 pt-3">
                 <button
@@ -151,7 +207,7 @@ export function GameMenu({ room, myName }: Props) {
                   }`}
                 >
                   {myEndNowVote ? 'Cancel: next round is last ' : 'Next round is last '}
-                  {endNowVotes.length}/{endNowThreshold}
+                  {endNowVotes.length}/{threshold}
                 </button>
               </div>
             )}

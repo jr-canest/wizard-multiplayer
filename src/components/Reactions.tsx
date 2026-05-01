@@ -24,7 +24,7 @@ export function Reactions({ room, myName }: Props) {
   const [sending, setSending] = useState(false);
   const [anchor, setAnchor] = useState<{
     top: number;
-    right: number;
+    left: number;
   } | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -52,7 +52,7 @@ export function Reactions({ room, myName }: Props) {
         const rect = buttonRef.current.getBoundingClientRect();
         setAnchor({
           top: rect.bottom + 6,
-          right: window.innerWidth - rect.right,
+          left: rect.left,
         });
       }
       return next;
@@ -89,7 +89,7 @@ export function Reactions({ room, myName }: Props) {
             style={{
               position: 'fixed',
               top: anchor.top,
-              right: anchor.right,
+              left: anchor.left,
               zIndex: 9999,
             }}
             className="card-gold p-1.5 flex flex-col gap-1 min-w-[140px] shadow-2xl"

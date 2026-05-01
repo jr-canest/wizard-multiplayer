@@ -176,11 +176,14 @@ export function GameView({ room, players, myName }: Props) {
   return (
     <div className="w-full max-w-md space-y-2">
       <div className="card-gold-subtle px-3 py-1.5 flex items-center justify-between text-[12px] gap-2">
-        <span className="text-navy-100 whitespace-nowrap">
-          Round{' '}
-          <strong className="text-gold-100">
-            {room.currentRound}/{room.totalRounds}
-          </strong>
+        <span className="text-navy-100 whitespace-nowrap flex items-center gap-1.5">
+          <Reactions room={room} myName={myName} />
+          <span>
+            Round{' '}
+            <strong className="text-gold-100">
+              {room.currentRound}/{room.totalRounds}
+            </strong>
+          </span>
         </span>
         {showBidSum && (
           <span
@@ -196,7 +199,6 @@ export function GameView({ room, players, myName }: Props) {
             <strong className="text-gold-100">{dealerName}</strong>
             {isDealer ? ' (you)' : ''}
           </span>
-          <Reactions room={room} myName={myName} />
           <GameMenu room={room} myName={myName} />
         </span>
       </div>

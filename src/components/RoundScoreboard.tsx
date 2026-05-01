@@ -152,13 +152,15 @@ export function RoundScoreboard({ room, myName }: Props) {
         disabled={advancing}
         className={`w-full rounded-xl py-3 font-semibold border transition tabular-nums ${
           myNextVote
-            ? 'bg-rose-700/30 border-rose-500/60 text-rose-100'
+            ? 'bg-emerald-700/30 border-emerald-500/60 text-emerald-100'
             : 'btn-gold border-gold-400 active:scale-[0.99]'
         }`}
       >
         {advancing
           ? 'Working…'
-          : `${isFinalRound ? 'Finish game' : 'Next round'} ${nextVotes.length}/${threshold}`}
+          : myNextVote
+            ? `✓ Voted · ${isFinalRound ? 'finish game' : 'next round'} ${nextVotes.length}/${threshold} (tap to cancel)`
+            : `${isFinalRound ? 'Finish game' : 'Next round'} ${nextVotes.length}/${threshold}`}
       </button>
 
       {showEndEarly && (
