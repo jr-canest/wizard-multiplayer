@@ -9,42 +9,30 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
+const MEDAL_EMOJIS = ['🥇', '🥈', '🥉'];
+
+type GameResult = {
+  playerId?: string;
+  name: string;
+  score: number;
+  rank: number;
+  shamePoints?: number;
+};
+
 type GameDoc = {
   date: Timestamp | null;
   roundCount: number;
   playerCount: number;
-  results: Array<{
-    name: string;
-    score: number;
-    rank: number;
-  }>;
+  results: GameResult[];
   source?: string;
 };
 
 type GameRow = GameDoc & { id: string };
 
 function formatDate(ts: Timestamp | null): string {
-  if (!ts) return '';
+  if (!ts) return '—';
   const d = ts.toDate();
-  const now = new Date();
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-  if (sameDay) {
-    return d.toLocaleTimeString(undefined, {
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  }
-  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86_400_000);
-  if (diffDays < 7) {
-    return d.toLocaleDateString(undefined, { weekday: 'short' });
-  }
-  return d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 export function RecentGames() {
@@ -68,57 +56,82 @@ export function RecentGames() {
     return unsub;
   }, []);
 
-  if (games === null) {
-    return (
-      <div className="card-gold-subtle px-4 py-3 text-center text-xs text-navy-300">
-        Loading recent games…
-      </div>
-    );
-  }
+  if (games === null) return null;
   if (games.length === 0) return null;
 
   return (
-    <div className="card-gold-subtle p-3 space-y-2">
-      <div className="flex items-baseline justify-between">
-        <span className="text-xs uppercase tracking-wider text-navy-200">
-          Recent games
-        </span>
-        <span className="text-[10px] text-navy-400">last {games.length}</span>
+    <div className="space-y-2">
+      <div className="px-1 flex items-baseline justify-between">
+        <h2 className="text-gold-200 text-sm font-semibold">Recent games</h2>
+        <span className="text-navy-200/50 text-[11px]">last {games.length}</span>
       </div>
-      <ul className="space-y-1.5">
-        {games.map((g) => {
-          const winner =
-            g.results.find((r) => r.rank === 1) ?? g.results[0];
-          const date = formatDate(g.date);
+      <div className="space-y-3">
+        {games.map((game) => {
+          const results = [...(game.results ?? [])].sort(
+            (a, b) => a.rank - b.rank,
+          );
           return (
-            <li
-              key={g.id}
-              className="flex items-center justify-between gap-2 text-sm bg-navy-900/40 rounded-md px-2.5 py-1.5"
-            >
-              <span className="flex items-baseline gap-2 min-w-0">
-                <span className="text-gold-200 truncate font-semibold">
-                  {winner?.name ?? '—'}
+            <div key={game.id} className="card-gold p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-gold-200/70 text-xs">
+                  {formatDate(game.date)} — {game.roundCount} round
+                  {game.roundCount !== 1 ? 's' : ''}
                 </span>
-                <span className="text-navy-300 text-xs">won</span>
-                <span className="text-emerald-300 tabular-nums text-xs font-bold">
-                  {winner?.score ?? 0}
+                <span className="text-navy-200/50 text-xs">
+                  {game.playerCount} players
                 </span>
-              </span>
-              <span className="flex items-baseline gap-2 text-[11px] text-navy-300 whitespace-nowrap">
-                <span>{g.playerCount}p</span>
-                <span>·</span>
-                <span>{g.roundCount}r</span>
-                {date && (
-                  <>
-                    <span>·</span>
-                    <span>{date}</span>
-                  </>
-                )}
-              </span>
-            </li>
+              </div>
+              <div className="space-y-1">
+                {results.map((r, ri) => {
+                  const medal = ri < 3 ? MEDAL_EMOJIS[ri] : null;
+                  const shame = r.shamePoints ?? 0;
+                  return (
+                    <div
+                      key={`${r.playerId ?? r.name}-${ri}`}
+                      className="flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className={`text-xs font-bold w-6 ${
+                            ri === 0 ? 'text-gold-200' : 'text-navy-200'
+                          }`}
+                        >
+                          {medal || `${r.rank}.`}
+                        </span>
+                        <span
+                          className={`text-sm truncate ${
+                            ri === 0
+                              ? 'text-white font-medium'
+                              : 'text-gray-300'
+                          }`}
+                        >
+                          {r.name}
+                        </span>
+                        {shame > 0 && (
+                          <span className="text-red-400 text-[10px]">
+                            💀{shame > 1 ? `×${shame}` : ''}
+                          </span>
+                        )}
+                      </div>
+                      <span
+                        className={`text-sm font-semibold tabular-nums ${
+                          r.score > 0
+                            ? 'text-emerald-400'
+                            : r.score < 0
+                              ? 'text-rose-400'
+                              : 'text-navy-200'
+                        }`}
+                      >
+                        {r.score}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           );
         })}
-      </ul>
+      </div>
     </div>
   );
 }

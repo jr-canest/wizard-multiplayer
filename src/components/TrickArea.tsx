@@ -103,8 +103,15 @@ const TrickCard = memo(function TrickCard({
         >
           <CardImage card={card} size="lg" />
           {isWinning && (
-            <div className="absolute -top-3 -right-2 z-10 text-2xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.85)] animate-crown-pop pointer-events-none select-none">
-              👑
+            <div
+              className="absolute -top-3 -right-1 z-10 text-gold-300 text-2xl leading-none animate-crown-pop pointer-events-none select-none"
+              style={{
+                textShadow:
+                  '0 0 6px rgba(254,205,70,0.85), 0 2px 3px rgba(0,0,0,0.9)',
+              }}
+              title="Winning card"
+            >
+              ♛
             </div>
           )}
         </div>

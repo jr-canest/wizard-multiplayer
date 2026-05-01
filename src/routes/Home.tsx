@@ -20,11 +20,15 @@ export function Home() {
   }
 
   return (
-    <div className="min-h-svh flex flex-col items-center px-6 pt-12 pb-10">
-      <h1 className="text-5xl font-black tracking-wide text-gold-200 mb-2">
-        WIZARD
-      </h1>
-      <p className="text-navy-100 text-sm mb-10">multiplayer</p>
+    <div className="min-h-svh flex flex-col items-center px-6 pt-10 pb-10">
+      <img
+        src={`${import.meta.env.BASE_URL}wizard-logo.svg`}
+        alt="Wizard"
+        className="h-14 mb-1"
+      />
+      <p className="text-gold-100/60 text-xs tracking-[0.3em] uppercase mb-8">
+        Multiplayer
+      </p>
 
       {!session ? (
         <IdentityPrompt />

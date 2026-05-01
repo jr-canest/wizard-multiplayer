@@ -253,14 +253,46 @@ export function GameView({ room, players, myName }: Props) {
         room.status === 'playing' ||
         room.status === 'dealing') && (
         <div>
-          <h3 className="text-[10px] uppercase tracking-wider text-navy-300 mb-0.5 text-center flex items-center justify-center gap-1.5">
-            <span>Your hand ({hand?.length ?? 0})</span>
-            {myBid !== undefined && (
-              <span className={`${myBidWonTone} font-bold normal-case tracking-normal text-[12px] tabular-nums`}>
-                · {myWon}/{myBid}
-              </span>
-            )}
-          </h3>
+          {(() => {
+            const handCount = hand?.length ?? 0;
+            const isPlayingTurn = room.status === 'playing' && isMyTurn;
+            const isBiddingTurn =
+              room.status === 'bidding' &&
+              room.playerOrder[room.currentPlayerIndex] === myName &&
+              myBid === undefined;
+            const isMyActionTurn = isPlayingTurn || isBiddingTurn;
+            const turnLabel = isPlayingTurn
+              ? 'YOUR TURN — PLAY A CARD'
+              : isBiddingTurn
+                ? 'YOUR TURN — PLACE YOUR BID'
+                : null;
+
+            if (isMyActionTurn && turnLabel) {
+              return (
+                <h3 className="mb-1 text-center flex items-center justify-center gap-1.5">
+                  <span className="text-[12px] uppercase tracking-[0.2em] font-black text-gold-100 animate-pulse">
+                    {turnLabel}
+                  </span>
+                  {myBid !== undefined && (
+                    <span className={`${myBidWonTone} font-bold normal-case tracking-normal text-[12px] tabular-nums`}>
+                      · {myWon}/{myBid}
+                    </span>
+                  )}
+                </h3>
+              );
+            }
+
+            return (
+              <h3 className="text-[10px] uppercase tracking-wider text-navy-300 mb-0.5 text-center flex items-center justify-center gap-1.5">
+                <span>Your hand ({handCount})</span>
+                {myBid !== undefined && (
+                  <span className={`${myBidWonTone} font-bold normal-case tracking-normal text-[12px] tabular-nums`}>
+                    · {myWon}/{myBid}
+                  </span>
+                )}
+              </h3>
+            );
+          })()}
           <HandDisplay
             hand={hand}
             legal={legal}

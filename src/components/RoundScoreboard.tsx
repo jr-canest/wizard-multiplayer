@@ -146,27 +146,20 @@ export function RoundScoreboard({ room, myName }: Props) {
         </tbody>
       </table>
 
-      <div className="space-y-1.5">
-        <button
-          type="button"
-          onClick={handleAdvance}
-          disabled={advancing}
-          className={`w-full rounded-xl py-3 font-semibold border transition ${
-            myNextVote
-              ? 'bg-rose-700/30 border-rose-500/60 text-rose-100'
-              : 'btn-gold border-gold-400 active:scale-[0.99]'
-          }`}
-        >
-          {advancing
-            ? 'Working…'
-            : myNextVote
-              ? `Cancel: ${isFinalRound ? 'finish game' : 'next round'}`
-              : `Vote: ${isFinalRound ? 'finish game' : 'next round'}`}
-        </button>
-        <p className="text-[11px] text-center text-navy-300 tabular-nums">
-          {nextVotes.length}/{threshold} votes — majority {isFinalRound ? 'finishes the game' : 'starts the next round'}.
-        </p>
-      </div>
+      <button
+        type="button"
+        onClick={handleAdvance}
+        disabled={advancing}
+        className={`w-full rounded-xl py-3 font-semibold border transition tabular-nums ${
+          myNextVote
+            ? 'bg-rose-700/30 border-rose-500/60 text-rose-100'
+            : 'btn-gold border-gold-400 active:scale-[0.99]'
+        }`}
+      >
+        {advancing
+          ? 'Working…'
+          : `${isFinalRound ? 'Finish game' : 'Next round'} ${nextVotes.length}/${threshold}`}
+      </button>
 
       {showEndEarly && (
         <div className="border-t border-gold-700/30 pt-3 -mt-1 space-y-1.5">

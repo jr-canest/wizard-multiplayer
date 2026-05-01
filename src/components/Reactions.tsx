@@ -48,7 +48,7 @@ export function Reactions({ room, myName }: Props) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label="Send a reaction"
-        className="absolute top-1.5 right-1.5 z-30 w-8 h-8 rounded-full bg-navy-800/80 border border-gold-700/60 flex items-center justify-center text-base shadow active:scale-95 transition"
+        className="absolute bottom-1.5 right-1.5 z-[200] w-8 h-8 rounded-full bg-navy-800/85 border border-gold-700/60 flex items-center justify-center text-base shadow-lg active:scale-95 transition"
       >
         📣
       </button>
@@ -56,7 +56,7 @@ export function Reactions({ room, myName }: Props) {
       {open && (
         <div
           ref={popoverRef}
-          className="absolute top-10 right-1.5 z-40 card-gold p-1.5 flex flex-col gap-1 min-w-[120px] shadow-xl"
+          className="absolute bottom-11 right-1.5 z-[210] card-gold p-1.5 flex flex-col gap-1 min-w-[120px] shadow-xl"
         >
           {REACTIONS.map((r) => (
             <button
