@@ -33,6 +33,11 @@ export function cardImageUrl(card: Card): string {
   return `${BASE}${RANK_TO_FILENAME[card.rank]}${SUIT_TO_FILENAME[card.suit]}.jpg`;
 }
 
+/** Shared face-down card back. Used by mini-fans, deal animation, etc. */
+export function cardBackUrl(): string {
+  return `${BASE}Back.jpg`;
+}
+
 export function cardLabel(card: Card): string {
   if (card.kind === 'wizard') return 'Wizard';
   if (card.kind === 'jester') return 'Jester';
@@ -59,7 +64,11 @@ let preloaded = false;
 export function preloadCardImages(): void {
   if (preloaded || typeof window === 'undefined') return;
   preloaded = true;
-  const urls: string[] = [`${BASE}Wizard.jpg`, `${BASE}Jester.jpg`];
+  const urls: string[] = [
+    `${BASE}Wizard.jpg`,
+    `${BASE}Jester.jpg`,
+    `${BASE}Back.jpg`,
+  ];
   for (const suit of ['H', 'D', 'C', 'S'] as const) {
     for (const rank of [
       '2',

@@ -1,5 +1,5 @@
 import type { Card } from '../lib/types';
-import { cardImageUrl, cardLabel } from '../lib/cardImages';
+import { cardBackUrl, cardImageUrl, cardLabel } from '../lib/cardImages';
 
 type Props = {
   card: Card;
@@ -45,8 +45,12 @@ export function CardBack({
   className?: string;
 }) {
   return (
-    <div
-      className={`rounded-md ring-1 ring-black/40 bg-gradient-to-br from-navy-600 to-navy-800 border border-gold-700 ${
+    <img
+      src={cardBackUrl()}
+      alt=""
+      aria-hidden
+      draggable={false}
+      className={`select-none rounded-md shadow-md ring-1 ring-black/40 ${
         SIZE_CLASSES[size]
       } ${className}`}
     />
