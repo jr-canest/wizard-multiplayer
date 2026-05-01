@@ -52,6 +52,11 @@ export function GameView({ room, players, myName }: Props) {
     winner: string;
     key: number;
   } | null>(null);
+  // The trickHistory entry whose cards have already been "cleared" from
+  // the trick area. We hold the resolved trick visible from the moment
+  // the server resolves it until the win-banner timeout fires; setting
+  // this key marks "we're done holding" without remounting the cards.
+  const [trickClearedKey, setTrickClearedKey] = useState(0);
   const lastTrickLenRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -71,12 +76,16 @@ export function GameView({ room, players, myName }: Props) {
       if (isRoundEnd) setHoldingRoundEnd(true);
       const tBanner = window.setTimeout(() => {
         setWinBanner((b) => (b?.key === len ? null : b));
+        // Mid-round: clear the resolved cards once the banner is done so
+        // the trick area is empty for the next play. Round-end is handled
+        // separately — the showOpponents flag flips and the area unmounts.
+        if (!isRoundEnd) setTrickClearedKey(len);
       }, duration);
       const tHold = isRoundEnd
-        ? window.setTimeout(
-            () => setHoldingRoundEnd(false),
-            LAST_TRICK_HOLD_MS,
-          )
+        ? window.setTimeout(() => {
+            setHoldingRoundEnd(false);
+            setTrickClearedKey(len);
+          }, LAST_TRICK_HOLD_MS)
         : null;
       lastTrickLenRef.current = len;
       return () => {
@@ -119,19 +128,19 @@ export function GameView({ room, players, myName }: Props) {
     ? playerColor(winBanner.winner, room.playerOrder)
     : null;
 
-  // Hold the just-completed trick visible while we're between trickInProgress
-  // emptying and the next trick / round-scoring UI taking over. Using the
-  // latest trickHistory entry directly (instead of waiting for the winBanner
-  // effect to fire) bridges the one-render gap that previously caused every
-  // trick card to unmount and re-fire its play-in animation.
+  // Hold the just-completed trick visible from resolve until the win-banner
+  // timeout marks `trickClearedKey`. Using the latest trickHistory entry
+  // directly (rather than waiting on winBanner state) bridges the one-render
+  // gap that previously remounted every card and re-fired its play-in animation.
   const inActiveTrickPhase =
     room.status === 'playing' || room.status === 'scoring';
-  const lastTrickPlays =
-    room.trickHistory[room.trickHistory.length - 1]?.plays;
+  const lastTrickLen = room.trickHistory.length;
+  const lastTrickPlays = room.trickHistory[lastTrickLen - 1]?.plays;
   const heldTrick =
     inActiveTrickPhase &&
     room.trickInProgress.length === 0 &&
-    lastTrickPlays
+    lastTrickPlays &&
+    trickClearedKey !== lastTrickLen
       ? lastTrickPlays
       : null;
   const displayedPlays =
