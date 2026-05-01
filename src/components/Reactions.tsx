@@ -23,7 +23,7 @@ export function Reactions({ room, myName }: Props) {
   const [open, setOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [anchor, setAnchor] = useState<{
-    bottom: number;
+    top: number;
     right: number;
   } | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -51,7 +51,7 @@ export function Reactions({ room, myName }: Props) {
       if (next && buttonRef.current) {
         const rect = buttonRef.current.getBoundingClientRect();
         setAnchor({
-          bottom: window.innerHeight - rect.top + 6,
+          top: rect.bottom + 6,
           right: window.innerWidth - rect.right,
         });
       }
@@ -77,7 +77,7 @@ export function Reactions({ room, myName }: Props) {
         type="button"
         onClick={toggleOpen}
         aria-label="Send a reaction"
-        className="absolute bottom-1.5 right-1.5 z-[200] w-8 h-8 rounded-full bg-navy-800/85 border border-gold-700/60 flex items-center justify-center text-base shadow-lg active:scale-95 transition"
+        className="w-7 h-7 rounded-full bg-navy-800/80 border border-gold-700/60 flex items-center justify-center text-sm active:scale-95 transition"
       >
         📣
       </button>
@@ -88,7 +88,7 @@ export function Reactions({ room, myName }: Props) {
             ref={popoverRef}
             style={{
               position: 'fixed',
-              bottom: anchor.bottom,
+              top: anchor.top,
               right: anchor.right,
               zIndex: 9999,
             }}

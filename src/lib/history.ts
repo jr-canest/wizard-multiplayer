@@ -13,7 +13,19 @@ import {
   getDocs,
 } from 'firebase/firestore';
 import { db, isProduction } from './firebase';
+import { isBotName } from './rooms';
 import type { RoomDoc } from './types';
+
+/**
+ * Test/dev signals that should keep the game out of the shared history:
+ *   - any bot in playerOrder (only added via the dev-mode toggle)
+ *   - any player named 'test' (the dev-mode trigger name)
+ */
+function isTestGame(room: RoomDoc): boolean {
+  return room.playerOrder.some(
+    (n) => isBotName(n) || n.trim().toLowerCase() === 'test',
+  );
+}
 
 type RankedResult = {
   playerId: string;
@@ -77,6 +89,12 @@ export async function saveMultiplayerGame(
     if (room.status !== 'finished') return { go: false as const };
     if (room.historyWritten) {
       return { go: false as const, existingId: room.historyGameId };
+    }
+    // Belt-and-braces: never write test/bot games into the shared history,
+    // even when running on the production URL.
+    if (isTestGame(room)) {
+      tx.update(roomRef, { historyWritten: true });
+      return { go: false as const };
     }
     tx.update(roomRef, { historyWritten: true });
     return { go: true as const, room };

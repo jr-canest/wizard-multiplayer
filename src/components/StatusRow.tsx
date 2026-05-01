@@ -25,8 +25,16 @@ export function StatusRow({ room, myName }: Props) {
   const pu = room.pendingUndo;
   const activeReaction = useActiveReaction(room);
 
-  const showUndo =
-    pu && (room.status === 'bidding' || room.status === 'playing');
+  // Only enter the undo branch when it would actually render something
+  // to THIS viewer — otherwise an empty undo placeholder would suppress
+  // the rest of the priority chain (reactions, last-round, winning).
+  const isUndoActor = pu?.actor === myName;
+  const isUndoVoteOpen = !!pu?.requested;
+  const undoVisibleToMe =
+    !!pu &&
+    (room.status === 'bidding' || room.status === 'playing') &&
+    (isUndoVoteOpen || isUndoActor);
+  const showUndo = undoVisibleToMe;
 
   // Last-round announcements only matter while the round is being played
   // — once it's being scored or the game is over, the RoundScoreboard /

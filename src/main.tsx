@@ -5,6 +5,7 @@ import './index.css';
 import { App } from './App';
 import { Home } from './routes/Home';
 import { Room } from './routes/Room';
+import { History } from './routes/History';
 import { SessionProvider } from './hooks/useSession';
 import { preloadCardImages } from './lib/cardImages';
 
@@ -21,6 +22,7 @@ createRoot(rootEl).render(
           <Route element={<App />}>
             <Route index element={<Home />} />
             <Route path="room/:code" element={<Room />} />
+            <Route path="history" element={<History />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -119,11 +119,20 @@ export function GameView({ room, players, myName }: Props) {
     ? playerColor(winBanner.winner, room.playerOrder)
     : null;
 
-  // Hold the just-completed trick visible while the winner banner is up,
-  // so the user can see the cards along with the result.
+  // Hold the just-completed trick visible while we're between trickInProgress
+  // emptying and the next trick / round-scoring UI taking over. Using the
+  // latest trickHistory entry directly (instead of waiting for the winBanner
+  // effect to fire) bridges the one-render gap that previously caused every
+  // trick card to unmount and re-fire its play-in animation.
+  const inActiveTrickPhase =
+    room.status === 'playing' || room.status === 'scoring';
+  const lastTrickPlays =
+    room.trickHistory[room.trickHistory.length - 1]?.plays;
   const heldTrick =
-    winBanner && room.trickInProgress.length === 0
-      ? room.trickHistory[winBanner.key - 1]?.plays ?? null
+    inActiveTrickPhase &&
+    room.trickInProgress.length === 0 &&
+    lastTrickPlays
+      ? lastTrickPlays
       : null;
   const displayedPlays =
     room.trickInProgress.length > 0
@@ -181,12 +190,13 @@ export function GameView({ room, players, myName }: Props) {
             {bidSumLabel}
           </span>
         )}
-        <span className="text-navy-100 whitespace-nowrap truncate flex items-center">
+        <span className="text-navy-100 whitespace-nowrap truncate flex items-center gap-1">
           <span>
             Dealer{' '}
             <strong className="text-gold-100">{dealerName}</strong>
             {isDealer ? ' (you)' : ''}
           </span>
+          <Reactions room={room} myName={myName} />
           <GameMenu room={room} myName={myName} />
         </span>
       </div>
@@ -211,22 +221,16 @@ export function GameView({ room, players, myName }: Props) {
             awaitingTrumpChoice={room.awaitingTrumpChoice}
           />
           {room.status === 'bidding' ? (
-            <div className="relative flex-1 flex">
-              <BiddingPanel room={room} myName={myName} />
-              <Reactions room={room} myName={myName} />
-            </div>
+            <BiddingPanel room={room} myName={myName} />
           ) : (
-            <div className="relative flex-1 flex">
-              <TrickArea
-                plays={displayedPlays}
-                playerOrder={room.playerOrder}
-                trumpSuit={room.trumpSuit}
-                isMyTurn={isMyTurn && room.status === 'playing'}
-                rotationSeed={room.currentRound}
-                myName={myName}
-              />
-              <Reactions room={room} myName={myName} />
-            </div>
+            <TrickArea
+              plays={displayedPlays}
+              playerOrder={room.playerOrder}
+              trumpSuit={room.trumpSuit}
+              isMyTurn={isMyTurn && room.status === 'playing'}
+              rotationSeed={room.currentRound}
+              myName={myName}
+            />
           )}
         </div>
       )}

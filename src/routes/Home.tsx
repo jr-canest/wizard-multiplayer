@@ -102,6 +102,14 @@ export function Home() {
           </form>
 
           <RecentGames />
+
+          <button
+            type="button"
+            onClick={() => navigate('/history')}
+            className="w-full rounded-lg py-2.5 text-sm border border-gold-700/50 bg-navy-800/40 text-gold-200 active:scale-[0.99] transition"
+          >
+            Show all history
+          </button>
         </div>
       )}
     </div>
