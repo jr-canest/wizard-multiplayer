@@ -18,6 +18,7 @@ import { playCard } from '../lib/gameFlow';
 import { legalIndices } from '../game/legalMoves';
 import { playerColor } from '../lib/playerColors';
 import { sortHandWithIndex } from '../lib/sortHand';
+import type { Card } from '../lib/types';
 
 const LAST_TRICK_HOLD_MS = 3000;
 
@@ -57,7 +58,14 @@ export function GameView({ room, players, myName }: Props) {
   // the server resolves it until the win-banner timeout fires; setting
   // this key marks "we're done holding" without remounting the cards.
   const [trickClearedKey, setTrickClearedKey] = useState(0);
+  // Cards that are actively animating out after the banner. Keeps the
+  // same DOM nodes mounted (same player keys) for ~380ms while the
+  // leave animation runs, then unmounts cleanly.
+  const [leavingPlays, setLeavingPlays] = useState<
+    Array<{ playerName: string; card: Card }> | null
+  >(null);
   const lastTrickLenRef = useRef<number | null>(null);
+  const lastClearedKeyRef = useRef(0);
 
   useEffect(() => {
     const len = room.trickHistory.length;
@@ -95,6 +103,29 @@ export function GameView({ room, players, myName }: Props) {
     }
     lastTrickLenRef.current = len;
   }, [room.trickHistory.length, room.status]);
+
+  // When trickClearedKey advances past what we've animated, kick off a
+  // brief leave animation on the just-cleared trick's cards.
+  useEffect(() => {
+    if (trickClearedKey > lastClearedKeyRef.current && trickClearedKey > 0) {
+      const last = room.trickHistory[trickClearedKey - 1];
+      if (last) {
+        setLeavingPlays(last.plays);
+        const t = window.setTimeout(() => setLeavingPlays(null), 420);
+        lastClearedKeyRef.current = trickClearedKey;
+        return () => window.clearTimeout(t);
+      }
+    }
+    lastClearedKeyRef.current = trickClearedKey;
+  }, [trickClearedKey, room.trickHistory]);
+
+  // If a new trick starts while leave is in flight, abort the leave so
+  // the new cards take over immediately.
+  useEffect(() => {
+    if (room.trickInProgress.length > 0 && leavingPlays !== null) {
+      setLeavingPlays(null);
+    }
+  }, [room.trickInProgress.length, leavingPlays]);
 
   // Sort the hand by suit + rank for display. Map back to the original
   // index when calling playCard, since the server still indexes into the
@@ -146,7 +177,11 @@ export function GameView({ room, players, myName }: Props) {
   const displayedPlays =
     room.trickInProgress.length > 0
       ? room.trickInProgress
-      : heldTrick ?? [];
+      : heldTrick ?? leavingPlays ?? [];
+  const trickIsLeaving =
+    room.trickInProgress.length === 0 &&
+    heldTrick === null &&
+    leavingPlays !== null;
 
   // Bid sum status — shown in the top header during bidding/playing/hold.
   const cardsThisRound = room.currentRound;
@@ -241,6 +276,7 @@ export function GameView({ room, players, myName }: Props) {
               isMyTurn={isMyTurn && room.status === 'playing'}
               rotationSeed={room.currentRound}
               myName={myName}
+              isLeaving={trickIsLeaving}
             />
           )}
         </div>

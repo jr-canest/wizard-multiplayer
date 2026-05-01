@@ -133,6 +133,15 @@ button:focus-visible {
   animation: winning-inner 1.6s ease-in-out infinite;
 }
 
+@keyframes trick-leave {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-26px) scale(0.9); }
+}
+
+.animate-trick-leave {
+  animation: trick-leave 380ms cubic-bezier(0.4, 0, 0.7, 0.95) forwards;
+}
+
 @keyframes trick-banner {
   0% {
     opacity: 0;

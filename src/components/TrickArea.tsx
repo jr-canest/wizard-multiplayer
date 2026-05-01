@@ -13,6 +13,7 @@ type Props = {
   isMyTurn: boolean;
   rotationSeed: number;
   myName: string;
+  isLeaving?: boolean;
 };
 
 const CARD_W = 96;
@@ -71,6 +72,7 @@ type TrickCardProps = {
   zIndex: number;
   color: PlayerColor;
   isWinning: boolean;
+  isLeaving?: boolean;
 };
 
 const TrickCard = memo(function TrickCard({
@@ -81,13 +83,15 @@ const TrickCard = memo(function TrickCard({
   zIndex,
   color,
   isWinning,
+  isLeaving,
 }: TrickCardProps) {
   return (
-    // 3 wrappers, each with one job — the play-in animation lives on a
-    // dedicated middle div whose className never changes, so unrelated state
+    // 4 wrappers, each with one job — the play-in animation lives on a
+    // dedicated div whose className never changes, so unrelated state
     // (winning highlight flipping) can't restart the entrance animation.
     //   outer: slot position + z-stacking
-    //   middle: play-in animation only
+    //   leave: trick-leave animation when cleared (added via class swap)
+    //   play:  play-in animation only
     //   inner: card visuals + winning pulse toggle
     <div
       className="absolute left-1/2 top-1/2"
@@ -96,6 +100,7 @@ const TrickCard = memo(function TrickCard({
         zIndex,
       }}
     >
+      <div className={isLeaving ? 'animate-trick-leave' : ''}>
       <div className="animate-play-in">
         <div
           className={`relative rounded-md ring-2 ${color.ring} ${color.glow} bg-navy-900`}
@@ -122,6 +127,7 @@ const TrickCard = memo(function TrickCard({
           )}
         </div>
       </div>
+      </div>
     </div>
   );
 });
@@ -133,6 +139,7 @@ export function TrickArea({
   isMyTurn,
   rotationSeed,
   myName,
+  isLeaving = false,
 }: Props) {
   const dropGlow = isMyTurn
     ? 'border-gold-400 shadow-[inset_0_0_24px_rgba(254,205,70,0.25)]'
@@ -194,6 +201,7 @@ export function TrickArea({
                 zIndex={100 + i}
                 color={colorForViewer(p.playerName, myName, playerOrder)}
                 isWinning={i === winnerIdx}
+                isLeaving={isLeaving}
               />
             );
           })}
