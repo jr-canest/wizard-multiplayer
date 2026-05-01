@@ -28,7 +28,9 @@ function noise(seed: number): number {
 
 function buildSlots(playerCount: number, fanW: number): Slot[] {
   const N = Math.max(1, playerCount);
-  const useTwoRows = N >= 4;
+  // Use the 2-row layout starting at 3 players so the local viewer always
+  // sits at the bottom (matches Wizard's "you, the table" mental model).
+  const useTwoRows = N >= 3;
   const topCount = useTwoRows ? Math.ceil(N / 2) : N;
   const bottomCount = useTwoRows ? N - topCount : 0;
   const maxStretch = Math.max(80, fanW - CARD_W - 8);
@@ -53,10 +55,18 @@ function buildSlots(playerCount: number, fanW: number): Slot[] {
     });
   }
 
-  return [
-    ...rowSlots(topCount, useTwoRows ? -ROW_OFFSET : 0, 100),
-    ...rowSlots(bottomCount, ROW_OFFSET, 200),
-  ];
+  const topRow = rowSlots(topCount, useTwoRows ? -ROW_OFFSET : 0, 100);
+  const bottomRow = rowSlots(bottomCount, ROW_OFFSET, 200);
+
+  if (!useTwoRows) {
+    // Single row (N <= 2): rightmost = slot 0 (me), going left clockwise.
+    return [...topRow].reverse();
+  }
+  // Two rows: clockwise from bottom-right (me).
+  //   bottom-row reversed (right-to-left): SE → ... → SW
+  //   top-row in order (left-to-right):    NW → ... → NE
+  // So slot 0 = SE (me), slot 1 = next clockwise (player to my left), etc.
+  return [...bottomRow.reverse(), ...topRow];
 }
 
 type TrickCardProps = {
@@ -164,17 +174,18 @@ export function TrickArea({
     [playerOrder.length, fanW],
   );
 
-  // Slot index per player, rotated so the local viewer (myName) lands at
-  // the LAST slot — bottom-rightmost in the 2-row layout, rightmost in
-  // the single-row layout. Other players keep their relative seating
-  // around the table.
+  // Slot index per player. Slot 0 is the viewer (bottom-right in 2-row
+  // layouts), and remaining slots fill clockwise around the table —
+  // matching Wizard's turn order (player to your left plays first).
+  // playerOrder is the canonical clockwise seating, so player k clockwise
+  // from me sits at slot k.
   const myIdx = playerOrder.indexOf(myName);
   function viewerSlotIndex(playerName: string): number {
     const seatIdx = playerOrder.indexOf(playerName);
     if (seatIdx < 0) return 0;
     if (myIdx < 0) return seatIdx;
     const N = playerOrder.length;
-    return (seatIdx - myIdx - 1 + N) % N;
+    return (seatIdx - myIdx + N) % N;
   }
 
   return (
