@@ -28,10 +28,21 @@ export function StatusRow({ room, myName }: Props) {
   const showUndo =
     pu && (room.status === 'bidding' || room.status === 'playing');
 
+  // Last-round announcements only matter while the round is being played
+  // — once it's being scored or the game is over, the RoundScoreboard /
+  // FinalScoreboard already convey it and repeating here is redundant.
+  const inActiveRound =
+    room.status === 'bidding' ||
+    room.status === 'playing' ||
+    room.status === 'dealing';
   const isLastRound =
-    room.currentRound > 0 && room.currentRound >= room.totalRounds;
+    inActiveRound &&
+    room.currentRound > 0 &&
+    room.currentRound >= room.totalRounds;
   const nextIsLast =
-    !isLastRound && room.currentRound + 1 === room.totalRounds;
+    inActiveRound &&
+    !isLastRound &&
+    room.currentRound + 1 === room.totalRounds;
 
   const inTrick =
     room.status === 'playing' && room.trickInProgress.length > 0;
