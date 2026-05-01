@@ -13,10 +13,11 @@ import { Opponents } from './Opponents';
 import { DisconnectBanner } from './DisconnectBanner';
 import { Reactions, ReactionDisplay } from './Reactions';
 import { GameMenu } from './GameMenu';
-import { UndoBanner } from './UndoBanner';
+import { StatusRow } from './StatusRow';
 import { playCard } from '../lib/gameFlow';
 import { legalIndices } from '../game/legalMoves';
 import { playerColor } from '../lib/playerColors';
+import { sortHandWithIndex } from '../lib/sortHand';
 
 const LAST_TRICK_HOLD_MS = 3000;
 
@@ -86,17 +87,27 @@ export function GameView({ room, players, myName }: Props) {
     lastTrickLenRef.current = len;
   }, [room.trickHistory.length, room.status]);
 
-  const legal =
+  // Sort the hand by suit + rank for display. Map back to the original
+  // index when calling playCard, since the server still indexes into the
+  // unsorted Firestore array.
+  const sortedHand = hand ? sortHandWithIndex(hand) : null;
+  const displayHand = sortedHand?.map((s) => s.card) ?? null;
+  const rawLegal =
     room.status === 'playing' && hand
       ? legalIndices(hand, room.trickInProgress)
       : undefined;
+  const legal = rawLegal && sortedHand
+    ? sortedHand.map((s) => rawLegal[s.originalIndex])
+    : rawLegal;
 
-  async function handlePlay(idx: number) {
+  async function handlePlay(displayIdx: number) {
     if (playing) return;
+    if (!sortedHand) return;
+    const originalIdx = sortedHand[displayIdx]?.originalIndex ?? displayIdx;
     setPlaying(true);
     setPlayError(null);
     try {
-      await playCard(room.code, myName, idx);
+      await playCard(room.code, myName, originalIdx);
     } catch (err) {
       setPlayError(err instanceof Error ? err.message : 'Failed to play card.');
     } finally {
@@ -186,7 +197,7 @@ export function GameView({ room, players, myName }: Props) {
 
       <DisconnectBanner room={room} players={players} myName={myName} />
 
-      <UndoBanner room={room} myName={myName} />
+      <StatusRow room={room} myName={myName} />
 
       {room.awaitingTrumpChoice && isDealer && (
         <TrumpChooser code={room.code} callerName={myName} />
@@ -213,6 +224,7 @@ export function GameView({ room, players, myName }: Props) {
                 trumpSuit={room.trumpSuit}
                 isMyTurn={isMyTurn && room.status === 'playing'}
                 rotationSeed={room.currentRound}
+                myName={myName}
               />
               <Reactions room={room} myName={myName} />
               <ReactionDisplay room={room} myName={myName} />
@@ -294,7 +306,7 @@ export function GameView({ room, players, myName }: Props) {
             );
           })()}
           <HandDisplay
-            hand={hand}
+            hand={displayHand}
             legal={legal}
             isMyTurn={room.status === 'playing' && isMyTurn}
             onPlay={

@@ -31,8 +31,9 @@ export function GameMenu({ room, myName }: Props) {
   const realPlayers = room.playerOrder.filter((n) => !isBotName(n));
   const canVoteEndNow =
     room.status === 'bidding' || room.status === 'playing';
-  const onFinalRound = room.currentRound >= room.totalRounds;
-  const showEndNow = canVoteEndNow && !onFinalRound;
+  // No point voting if the next round is already the final.
+  const nextIsAlreadyLast = room.currentRound + 1 >= room.totalRounds;
+  const showEndNow = canVoteEndNow && !nextIsAlreadyLast;
   const endNowVotes = (room.endNowVotes ?? []).filter((n) =>
     realPlayers.includes(n),
   );
@@ -146,7 +147,7 @@ export function GameMenu({ room, myName }: Props) {
                       : 'bg-navy-900 border-gold-600/60 text-gold-200 active:scale-[0.98]'
                   }`}
                 >
-                  {myEndNowVote ? 'Cancel: end this round ' : 'End after this round '}
+                  {myEndNowVote ? 'Cancel: next round is last ' : 'Next round is last '}
                   {endNowVotes.length}/{endNowThreshold}
                 </button>
               </div>

@@ -106,3 +106,30 @@ export function playerColor(name: string, playerOrder: string[]): PlayerColor {
   if (idx < 0) return PALETTE[0];
   return PALETTE[idx % PALETTE.length];
 }
+
+/**
+ * Reserved for the local viewer — their own cards/tiles always render in
+ * gold so they can spot themselves at a glance regardless of seat.
+ */
+export const SELF_COLOR: PlayerColor = {
+  key: 'self-gold',
+  border: 'border-gold-300',
+  ring: 'ring-gold-300',
+  text: 'text-gold-100',
+  glow: 'shadow-[0_0_14px_rgba(254,205,70,0.6)]',
+  dot: 'bg-gold-300',
+};
+
+/**
+ * Per-viewer color: returns SELF_COLOR for the local player, palette
+ * color for everyone else. Use this for any visual that the local player
+ * sees on their own screen.
+ */
+export function colorForViewer(
+  name: string,
+  myName: string,
+  playerOrder: string[],
+): PlayerColor {
+  if (name === myName) return SELF_COLOR;
+  return playerColor(name, playerOrder);
+}

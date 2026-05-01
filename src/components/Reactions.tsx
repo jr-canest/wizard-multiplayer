@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { postReaction } from '../lib/gameFlow';
 import { playerColor } from '../lib/playerColors';
 import type { RoomSnapshot } from '../hooks/useRoom';
@@ -14,6 +15,10 @@ const TTL_MS = 3200;
 export function Reactions({ room, myName }: Props) {
   const [open, setOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  const [anchor, setAnchor] = useState<{
+    bottom: number;
+    right: number;
+  } | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -29,6 +34,23 @@ export function Reactions({ room, myName }: Props) {
     document.addEventListener('pointerdown', handleDown);
     return () => document.removeEventListener('pointerdown', handleDown);
   }, [open]);
+
+  // When opening, capture the button's viewport position so we can render
+  // the popover in a portal anchored above it. This escapes any
+  // overflow:hidden ancestors and guarantees it sits on top of everything.
+  function toggleOpen() {
+    setOpen((prev) => {
+      const next = !prev;
+      if (next && buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        setAnchor({
+          bottom: window.innerHeight - rect.top + 6,
+          right: window.innerWidth - rect.right,
+        });
+      }
+      return next;
+    });
+  }
 
   async function pick(text: string) {
     if (sending) return;
@@ -46,36 +68,44 @@ export function Reactions({ room, myName }: Props) {
       <button
         ref={buttonRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggleOpen}
         aria-label="Send a reaction"
         className="absolute bottom-1.5 right-1.5 z-[200] w-8 h-8 rounded-full bg-navy-800/85 border border-gold-700/60 flex items-center justify-center text-base shadow-lg active:scale-95 transition"
       >
         📣
       </button>
 
-      {open && (
-        <div
-          ref={popoverRef}
-          className="absolute bottom-11 right-1.5 z-[210] card-gold p-1.5 flex flex-col gap-1 min-w-[120px] shadow-xl"
-        >
-          {REACTIONS.map((r) => (
-            <button
-              key={r}
-              type="button"
-              disabled={sending}
-              onClick={() => pick(r)}
-              className="text-left px-3 py-1.5 rounded-md text-sm text-gold-100 bg-navy-800/60 hover:bg-navy-700 active:scale-[0.98] transition"
-            >
-              {r}
-            </button>
-          ))}
-        </div>
-      )}
+      {open && anchor &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            style={{
+              position: 'fixed',
+              bottom: anchor.bottom,
+              right: anchor.right,
+              zIndex: 9999,
+            }}
+            className="card-gold p-1.5 flex flex-col gap-1 min-w-[140px] shadow-2xl"
+          >
+            {REACTIONS.map((r) => (
+              <button
+                key={r}
+                type="button"
+                disabled={sending}
+                onClick={() => pick(r)}
+                className="text-left px-3 py-1.5 rounded-md text-sm text-gold-100 bg-navy-800/60 hover:bg-navy-700 active:scale-[0.98] transition"
+              >
+                {r}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
 
-export function ReactionDisplay({ room, myName }: Props) {
+export function ReactionDisplay({ room }: Props) {
   const r = room.lastReaction;
   const [now, setNow] = useState(() => Date.now());
 
@@ -92,21 +122,25 @@ export function ReactionDisplay({ room, myName }: Props) {
 
   if (!r) return null;
   if (now - r.ts > TTL_MS) return null;
-  if (r.player === myName) {
-    // Self-reactions still show, but with a softer "you said" framing.
-  }
 
   const c = playerColor(r.player, room.playerOrder);
 
-  return (
+  return createPortal(
     <div
       key={`${r.player}-${r.ts}`}
-      className="absolute left-1/2 top-2 z-30 -translate-x-1/2 pointer-events-none animate-reaction-pop"
+      style={{
+        position: 'fixed',
+        top: '14vh',
+        left: '50%',
+        zIndex: 9998,
+      }}
+      className="pointer-events-none animate-reaction-pop"
     >
-      <div className="card-gold-subtle px-3 py-1 bg-navy-900/85 backdrop-blur text-center whitespace-nowrap">
+      <div className="card-gold px-4 py-1.5 bg-navy-900/90 backdrop-blur text-center whitespace-nowrap shadow-2xl">
         <span className={`${c.text} font-bold text-sm`}>{r.player}</span>
         <span className="text-gold-100 text-sm">: {r.text}</span>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

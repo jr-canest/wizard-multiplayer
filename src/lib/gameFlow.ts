@@ -123,9 +123,10 @@ export async function voteNextRound(
 }
 
 /**
- * Toggle the caller's vote to make the CURRENT round the last (mid-round
- * vote). When majority is reached, totalRounds is shrunk to currentRound,
- * so scoreAndAdvance for this round will finish the game.
+ * Toggle the caller's vote to make the NEXT round the last (mid-round
+ * vote). When majority is reached, totalRounds is shrunk to currentRound+1,
+ * so the current round finishes naturally and one more round runs as the
+ * declared final.
  */
 export async function voteEndNow(
   code: string,
@@ -138,8 +139,8 @@ export async function voteEndNow(
     if (!snap.exists()) return;
     const room = snap.data() as RoomDoc;
     if (room.status !== 'bidding' && room.status !== 'playing') return;
-    // Already on/past the final round — nothing to shrink.
-    if (room.currentRound >= room.totalRounds) return;
+    // Next round would already be on/past the final — nothing to shrink.
+    if (room.currentRound + 1 >= room.totalRounds) return;
 
     const current = new Set(room.endNowVotes ?? []);
     if (voteYes) current.add(callerName);
@@ -155,7 +156,7 @@ export async function voteEndNow(
 
     if (realVotes.length >= threshold) {
       tx.update(roomRef, {
-        totalRounds: room.currentRound,
+        totalRounds: room.currentRound + 1,
         endNowVotes: [],
       });
     } else {
@@ -225,7 +226,12 @@ export async function dealNextRound(code: string, prev: RoomDoc): Promise<void> 
   const cardsPerPlayer = nextRound;
 
   const deck = shuffle(buildDeck());
-  const { hands, trumpCard } = deal(playerOrder, cardsPerPlayer, deck);
+  const { hands, trumpCard: dealtTrump } = deal(playerOrder, cardsPerPlayer, deck);
+
+  // House rule: the declared final round always plays without trump,
+  // regardless of how many cards remain in the deck.
+  const isFinalRound = nextRound >= totalRounds;
+  const trumpCard = isFinalRound ? null : dealtTrump;
 
   let trumpSuit: Suit | null = null;
   let awaitingTrumpChoice = false;

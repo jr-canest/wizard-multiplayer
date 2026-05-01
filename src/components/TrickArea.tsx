@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { Card, Suit } from '../lib/types';
 import { CardImage } from './CardImage';
-import { playerColor, type PlayerColor } from '../lib/playerColors';
+import { colorForViewer, type PlayerColor } from '../lib/playerColors';
 import { winningPlayIndex } from '../game/trickWinner';
 
 type Play = { playerName: string; card: Card; playOrder?: number };
@@ -12,6 +12,7 @@ type Props = {
   trumpSuit: Suit | null;
   isMyTurn: boolean;
   rotationSeed: number;
+  myName: string;
 };
 
 const CARD_W = 96;
@@ -97,21 +98,26 @@ const TrickCard = memo(function TrickCard({
     >
       <div className="animate-play-in">
         <div
-          className={`relative rounded-md ring-4 ${color.ring} ${color.glow} bg-navy-900 ${
-            isWinning ? 'animate-winning' : ''
-          }`}
+          className={`relative rounded-md ring-2 ${color.ring} ${color.glow} bg-navy-900`}
         >
           <CardImage card={card} size="lg" />
           {isWinning && (
+            <div className="absolute inset-0 rounded-md pointer-events-none animate-winning-inner z-[5]" />
+          )}
+          {isWinning && (
             <div
-              className="absolute -top-3 -right-1 z-10 text-gold-300 text-2xl leading-none animate-crown-pop pointer-events-none select-none"
-              style={{
-                textShadow:
-                  '0 0 6px rgba(254,205,70,0.85), 0 2px 3px rgba(0,0,0,0.9)',
-              }}
+              className="absolute -top-3 -right-2 z-10 w-8 h-8 rounded-full bg-black/55 backdrop-blur-[2px] flex items-center justify-center animate-crown-pop pointer-events-none select-none"
               title="Winning card"
             >
-              ♛
+              <span
+                className="text-gold-300 text-2xl leading-none"
+                style={{
+                  textShadow:
+                    '0 0 4px rgba(254,205,70,0.9), 0 1px 2px rgba(0,0,0,0.9)',
+                }}
+              >
+                ♛
+              </span>
             </div>
           )}
         </div>
@@ -126,6 +132,7 @@ export function TrickArea({
   trumpSuit,
   isMyTurn,
   rotationSeed,
+  myName,
 }: Props) {
   const dropGlow = isMyTurn
     ? 'border-gold-400 shadow-[inset_0_0_24px_rgba(254,205,70,0.25)]'
@@ -181,7 +188,7 @@ export function TrickArea({
                 // Pure play-order stacking: 1st played at the bottom of the
                 // pile, last on top. Winning is signalled by ring + badge.
                 zIndex={100 + i}
-                color={playerColor(p.playerName, playerOrder)}
+                color={colorForViewer(p.playerName, myName, playerOrder)}
                 isWinning={i === winnerIdx}
               />
             );
