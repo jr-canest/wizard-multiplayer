@@ -26,7 +26,9 @@ const firebaseConfig = {
   appId: '1:37372424805:web:383851762365e1b6f3cc8c',
 };
 
-const N = 2;
+// Default to deleting the 1 most recent game; override with --n=<count>.
+const nArg = process.argv.find((a) => a.startsWith('--n='));
+const N = nArg ? Math.max(1, parseInt(nArg.slice(4), 10)) : 1;
 const apply = process.argv.includes('--apply');
 
 const app = initializeApp(firebaseConfig);
