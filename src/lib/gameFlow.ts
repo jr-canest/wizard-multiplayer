@@ -279,6 +279,7 @@ export async function dealNextRound(code: string, prev: RoomDoc): Promise<void> 
     endNowVotes: [],
     nextRoundVotes: [],
     pendingUndo: null,
+    cumulativeScores: prev.cumulativeScores,
   });
 
   for (const [name, cards] of Object.entries(hands)) {
@@ -648,6 +649,28 @@ export async function voteUndo(
 }
 
 /**
+ * Reconstruct cumulative scores from the game log's `roundScore` entries.
+ * Authoritative source of truth — used to self-heal rooms whose
+ * cumulativeScores doc field drifted (older bug: dealNextRound didn't
+ * persist it between rounds).
+ */
+export function cumulativeScoresFromLog(
+  playerOrder: string[],
+  log: LogEntry[],
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const name of playerOrder) out[name] = 0;
+  for (const entry of log) {
+    if (entry.t === 'roundScore') {
+      for (const name of playerOrder) {
+        out[name] = (out[name] ?? 0) + (entry.scores[name] ?? 0);
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * Compute per-player round deltas from bids vs. tricks won.
  */
 export function computeRoundDeltas(
@@ -678,7 +701,10 @@ export async function scoreAndAdvance(code: string): Promise<void> {
   if (room.status !== 'scoring') return; // someone else already advanced
 
   const deltas = computeRoundDeltas(room.playerOrder, room.bids, room.tricksWon);
-  const newCumulative = { ...room.cumulativeScores };
+  // Recompute the running total from the log so we self-heal if the doc's
+  // cumulativeScores drifted (older bug). The log's roundScore entries are
+  // the authoritative ledger.
+  const newCumulative = cumulativeScoresFromLog(room.playerOrder, room.log);
   for (const name of room.playerOrder) {
     newCumulative[name] = (newCumulative[name] ?? 0) + (deltas[name] ?? 0);
   }

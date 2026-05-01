@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   computeRoundDeltas,
+  cumulativeScoresFromLog,
   voteEndNow,
   voteNextRound,
 } from '../lib/gameFlow';
@@ -74,18 +75,18 @@ export function GameMenu({ room, myName }: Props) {
     }
   }
 
-  // During scoring, cumulativeScores hasn't had this round's deltas
-  // applied yet — fold them in so the menu matches the projected totals
-  // shown on the RoundScoreboard. Outside scoring, cumulativeScores is
-  // already the live total.
+  // Compute totals from the log (authoritative) rather than the doc's
+  // cumulativeScores, which can lag in older rooms (a bug where
+  // dealNextRound didn't persist it between rounds left some games with
+  // stale zeros). During scoring, fold in the current round's deltas
+  // since the round hasn't been logged yet.
   const isScoring = room.status === 'scoring';
+  const baseCumulative = cumulativeScoresFromLog(room.playerOrder, room.log);
   const liveDeltas = isScoring
     ? computeRoundDeltas(room.playerOrder, room.bids, room.tricksWon)
     : null;
   function liveTotal(name: string): number {
-    return (
-      (room.cumulativeScores[name] ?? 0) + (liveDeltas?.[name] ?? 0)
-    );
+    return (baseCumulative[name] ?? 0) + (liveDeltas?.[name] ?? 0);
   }
 
   // Standings sorted by live (post-this-round-if-scoring) score.

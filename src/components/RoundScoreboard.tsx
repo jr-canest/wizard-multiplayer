@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   computeRoundDeltas,
+  cumulativeScoresFromLog,
   voteEndEarly,
   voteNextRound,
 } from '../lib/gameFlow';
@@ -22,11 +23,17 @@ export function RoundScoreboard({ room, myName }: Props) {
     room.bids,
     room.tricksWon,
   );
+  // Authoritative cumulative comes from the log — older rooms can have
+  // stale zeros in the doc (dealNextRound didn't persist between rounds).
+  const baseCumulative = cumulativeScoresFromLog(
+    room.playerOrder,
+    room.log,
+  );
   const sorted = [...room.playerOrder].sort(
     (a, b) =>
-      (room.cumulativeScores[b] ?? 0) +
+      (baseCumulative[b] ?? 0) +
       (deltas[b] ?? 0) -
-      ((room.cumulativeScores[a] ?? 0) + (deltas[a] ?? 0)),
+      ((baseCumulative[a] ?? 0) + (deltas[a] ?? 0)),
   );
   const isFinalRound = room.currentRound >= room.totalRounds;
 
@@ -97,7 +104,7 @@ export function RoundScoreboard({ room, myName }: Props) {
             const bid = room.bids[name] ?? 0;
             const won = room.tricksWon[name] ?? 0;
             const delta = deltas[name] ?? 0;
-            const total = (room.cumulativeScores[name] ?? 0) + delta;
+            const total = (baseCumulative[name] ?? 0) + delta;
             const isMe = name === myName;
             const isWinner = delta === bestDelta && delta > 0;
             return (
