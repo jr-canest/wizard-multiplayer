@@ -9,7 +9,14 @@ type Props = {
   myName: string;
 };
 
-const REACTIONS = ['ouch', 'brutal', 'no mercy', 'hahaha', 'impressive'];
+const REACTIONS = [
+  'ouch',
+  'take your time',
+  'no mercy',
+  'hahaha',
+  'impressive',
+  'respect the game',
+];
 const TTL_MS = 3200;
 
 export function Reactions({ room, myName }: Props) {
@@ -105,42 +112,44 @@ export function Reactions({ room, myName }: Props) {
   );
 }
 
-export function ReactionDisplay({ room }: Props) {
+/**
+ * Whether `room.lastReaction` is still within the TTL window. Used by
+ * StatusRow to slot the reaction banner into the row.
+ */
+export function useActiveReaction(
+  room: RoomSnapshot,
+): { player: string; text: string; ts: number } | null {
   const r = room.lastReaction;
-  const [now, setNow] = useState(() => Date.now());
+  const [, setTick] = useState(0);
 
-  // Tick once when a fresh reaction arrives so the banner clears at TTL
-  // even if no other room update lands. We re-arm with a single timeout
-  // per reaction to avoid a constant interval.
   useEffect(() => {
     if (!r) return;
     const remaining = r.ts + TTL_MS - Date.now();
     if (remaining <= 0) return;
-    const id = window.setTimeout(() => setNow(Date.now()), remaining + 30);
+    const id = window.setTimeout(() => setTick((n) => n + 1), remaining + 30);
     return () => window.clearTimeout(id);
   }, [r?.ts]);
 
   if (!r) return null;
-  if (now - r.ts > TTL_MS) return null;
+  if (Date.now() - r.ts > TTL_MS) return null;
+  return r;
+}
 
+export function ReactionInline({
+  room,
+}: {
+  room: RoomSnapshot;
+}) {
+  const r = useActiveReaction(room);
+  if (!r) return null;
   const c = playerColor(r.player, room.playerOrder);
-
-  return createPortal(
+  return (
     <div
       key={`${r.player}-${r.ts}`}
-      style={{
-        position: 'fixed',
-        top: '14vh',
-        left: '50%',
-        zIndex: 9998,
-      }}
-      className="pointer-events-none animate-reaction-pop"
+      className="flex-1 rounded-md bg-navy-900/70 border border-gold-700/50 px-3 py-1 flex items-center justify-center gap-1 animate-reaction-inline whitespace-nowrap"
     >
-      <div className="card-gold px-4 py-1.5 bg-navy-900/90 backdrop-blur text-center whitespace-nowrap shadow-2xl">
-        <span className={`${c.text} font-bold text-sm`}>{r.player}</span>
-        <span className="text-gold-100 text-sm">: {r.text}</span>
-      </div>
-    </div>,
-    document.body,
+      <span className={`${c.text} font-bold text-sm`}>{r.player}</span>
+      <span className="text-gold-100 text-sm">: {r.text}</span>
+    </div>
   );
 }

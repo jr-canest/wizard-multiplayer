@@ -6,6 +6,9 @@ import { App } from './App';
 import { Home } from './routes/Home';
 import { Room } from './routes/Room';
 import { SessionProvider } from './hooks/useSession';
+import { preloadCardImages } from './lib/cardImages';
+
+preloadCardImages();
 
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('#root not found');

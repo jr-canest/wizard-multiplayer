@@ -3,6 +3,7 @@ import { requestUndo, voteUndo } from '../lib/gameFlow';
 import { isBotName } from '../lib/rooms';
 import { colorForViewer } from '../lib/playerColors';
 import { winningPlayIndex } from '../game/trickWinner';
+import { ReactionInline, useActiveReaction } from './Reactions';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -22,6 +23,7 @@ type Props = {
 export function StatusRow({ room, myName }: Props) {
   const [busy, setBusy] = useState(false);
   const pu = room.pendingUndo;
+  const activeReaction = useActiveReaction(room);
 
   const showUndo =
     pu && (room.status === 'bidding' || room.status === 'playing');
@@ -64,6 +66,8 @@ export function StatusRow({ room, myName }: Props) {
           onRequest={handleRequestUndo}
           onVote={handleVoteUndo}
         />
+      ) : activeReaction ? (
+        <ReactionInline room={room} />
       ) : isLastRound ? (
         <Banner
           tone="rose"

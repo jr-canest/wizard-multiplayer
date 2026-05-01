@@ -11,7 +11,7 @@ import { RoundScoreboard } from './RoundScoreboard';
 import { FinalScoreboard } from './FinalScoreboard';
 import { Opponents } from './Opponents';
 import { DisconnectBanner } from './DisconnectBanner';
-import { Reactions, ReactionDisplay } from './Reactions';
+import { Reactions } from './Reactions';
 import { GameMenu } from './GameMenu';
 import { StatusRow } from './StatusRow';
 import { playCard } from '../lib/gameFlow';
@@ -214,7 +214,6 @@ export function GameView({ room, players, myName }: Props) {
             <div className="relative flex-1 flex">
               <BiddingPanel room={room} myName={myName} />
               <Reactions room={room} myName={myName} />
-              <ReactionDisplay room={room} myName={myName} />
             </div>
           ) : (
             <div className="relative flex-1 flex">
@@ -227,7 +226,6 @@ export function GameView({ room, players, myName }: Props) {
                 myName={myName}
               />
               <Reactions room={room} myName={myName} />
-              <ReactionDisplay room={room} myName={myName} />
             </div>
           )}
         </div>

@@ -189,3 +189,15 @@ button:focus-visible {
 .animate-reaction-pop {
   animation: reaction-pop 3.2s ease-out forwards;
 }
+
+@keyframes reaction-inline {
+  0% { opacity: 0; transform: translateY(-4px) scale(0.96); }
+  18% { opacity: 1; transform: translateY(0) scale(1.02); }
+  28% { transform: translateY(0) scale(1); }
+  88% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(-2px) scale(0.98); }
+}
+
+.animate-reaction-inline {
+  animation: reaction-inline 3.2s ease-out forwards;
+}

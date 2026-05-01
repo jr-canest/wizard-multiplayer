@@ -156,7 +156,8 @@ export function FinalScoreboard({ room, myName }: Props) {
       .catch(() => setSavingState('error'));
   }, [room.code, room.historyWritten, room.historyGameId]);
 
-  // AI commentary. Fallback shows immediately; AI replaces when it lands.
+  // AI commentary. Show "Generating recap…" while we wait so the
+  // deterministic fallback never flashes in for a beat first.
   const fallbackSummary = useMemo(
     () => getFallbackSummary(room),
     // Compute once at mount; the room data is final once status === finished.
@@ -164,7 +165,11 @@ export function FinalScoreboard({ room, myName }: Props) {
     [],
   );
   const [aiSummary, setAiSummary] = useState<string | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
+  // Initialize true when we're going to attempt the API call so we never
+  // render the fallback before the effect kicks off.
+  const [aiLoading, setAiLoading] = useState(
+    () => isProduction() && room.playerOrder.length >= 2,
+  );
   const aiFetchedRef = useRef(false);
 
   useEffect(() => {
@@ -195,7 +200,9 @@ export function FinalScoreboard({ room, myName }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const summary = aiSummary || fallbackSummary;
+  // While loading, hide the fallback. Only fall back if the AI request
+  // finished without a result (failed/null).
+  const displayedSummary = aiSummary ?? (aiLoading ? null : fallbackSummary);
 
   async function handlePlayAgain() {
     setResetting(true);
@@ -227,7 +234,7 @@ export function FinalScoreboard({ room, myName }: Props) {
           </div>
         </div>
 
-        {summary && (
+        {(aiLoading || displayedSummary) && (
           <div
             className={`bg-navy-700/60 border border-gold-700/30 rounded-xl px-4 py-3 text-center relative ${
               aiLoading ? 'wm-summary-shimmer' : ''
@@ -242,18 +249,38 @@ export function FinalScoreboard({ room, myName }: Props) {
                 0%, 100% { box-shadow: inset 0 0 0 1px rgba(254,205,70,0.0); }
                 50% { box-shadow: inset 0 0 0 1px rgba(254,205,70,0.45); }
               }
+              @keyframes wm-summary-loading-dots {
+                0%, 20% { opacity: 0.3; }
+                50% { opacity: 1; }
+                100% { opacity: 0.3; }
+              }
               .wm-summary-shimmer {
                 animation: wm-summary-shimmer-pulse 1.4s ease-in-out infinite;
               }
               .wm-summary-text {
                 animation: wm-summary-fade-in 0.5s ease-out;
               }
+              .wm-summary-dot {
+                animation: wm-summary-loading-dots 1.4s ease-in-out infinite;
+                display: inline-block;
+              }
+              .wm-summary-dot:nth-child(2) { animation-delay: 0.2s; }
+              .wm-summary-dot:nth-child(3) { animation-delay: 0.4s; }
             `}</style>
-            <p
-              key={summary}
-              className="wm-summary-text text-gold-100 text-sm leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: summary }}
-            />
+            {aiLoading ? (
+              <p className="text-gold-100/70 text-sm italic">
+                Generating recap
+                <span className="wm-summary-dot">.</span>
+                <span className="wm-summary-dot">.</span>
+                <span className="wm-summary-dot">.</span>
+              </p>
+            ) : (
+              <p
+                key={displayedSummary}
+                className="wm-summary-text text-gold-100 text-sm leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: displayedSummary ?? '' }}
+              />
+            )}
           </div>
         )}
 

@@ -180,7 +180,11 @@ export function TrickArea({
             const slot = slots[i] ?? { x: 0, y: 0, rot: 0 };
             return (
               <TrickCard
-                key={p.playOrder ?? `${p.playerName}-${i}`}
+                // Stable per-player key — survives the source flip from
+                // trickInProgress (has playOrder) to held trickHistory
+                // entry (no playOrder), which previously remounted every
+                // card and re-fired the play-in animation on all of them.
+                key={p.playerName}
                 card={p.card}
                 slotX={slot.x}
                 slotY={slot.y}

@@ -48,3 +48,39 @@ export function cardLabel(card: Card): string {
             : String(card.rank);
   return `${rankName}${card.suit}`;
 }
+
+let preloaded = false;
+
+/**
+ * Kick off background preloads of every card sprite. Once the browser has
+ * cached them, the `<img>` swap when a card lands in the trick is instant
+ * and never flashes the navy fallback. Idempotent.
+ */
+export function preloadCardImages(): void {
+  if (preloaded || typeof window === 'undefined') return;
+  preloaded = true;
+  const urls: string[] = [`${BASE}Wizard.jpg`, `${BASE}Jester.jpg`];
+  for (const suit of ['H', 'D', 'C', 'S'] as const) {
+    for (const rank of [
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+      '7',
+      '8',
+      '9',
+      '10',
+      'J',
+      'Q',
+      'K',
+      'A',
+    ] as const) {
+      urls.push(`${BASE}${rank}${suit}.jpg`);
+    }
+  }
+  for (const url of urls) {
+    const img = new Image();
+    img.src = url;
+  }
+}
