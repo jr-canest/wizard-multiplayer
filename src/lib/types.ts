@@ -65,6 +65,16 @@ export type RoomDoc = {
   // based on `ts` (epoch ms, client-set — no clock-skew sensitivity since
   // it's a soft TTL, not a correctness check).
   lastReaction?: { player: string; text: string; ts: number } | null;
+  // Host-chosen cap on rounds. null = play the maximum allowed by the
+  // deck for this player count. Clamped at startGame.
+  chosenTotalRounds?: number | null;
+  // Shared AI recap (or fallback) for the finished game. The first client
+  // to claim writes it; everyone else reads it via subscription so the
+  // recap is identical across viewers.
+  aiSummary?: string | null;
+  // Set by the first client to claim the AI fetch so others wait instead
+  // of duplicating the request. Cleared on resetForNewGame.
+  aiSummaryRequested?: boolean;
   // The most recent undoable action: a snapshot of the state right BEFORE
   // the last bid/play, plus voting state. Cleared when the next action
   // happens (overwritten with that action's snapshot) or when the round

@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { computeStandings, saveMultiplayerGame } from '../lib/history';
-import { resetForNewGame } from '../lib/gameFlow';
+import {
+  claimAiSummary,
+  resetForNewGame,
+  setSharedAiSummary,
+} from '../lib/gameFlow';
 import { ScoreLineGraph } from './ScoreLineGraph';
 import {
   fetchAISummary,
@@ -156,49 +160,53 @@ export function FinalScoreboard({ room, myName }: Props) {
       .catch(() => setSavingState('error'));
   }, [room.code, room.historyWritten, room.historyGameId]);
 
-  // AI commentary. Show "Generating recap…" while we wait so the
-  // deterministic fallback never flashes in for a beat first.
+  // AI commentary. The recap lives on the room doc so every player sees
+  // the same text. The first client to open the FinalScoreboard claims
+  // the fetch via a Firestore transaction; everyone else waits for the
+  // field to land via the room subscription.
   const fallbackSummary = useMemo(
     () => getFallbackSummary(room),
     // Compute once at mount; the room data is final once status === finished.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
-  const [aiSummary, setAiSummary] = useState<string | null>(null);
-  // Initialize true when we're going to attempt the API call so we never
-  // render the fallback before the effect kicks off.
-  const [aiLoading, setAiLoading] = useState(
-    () => isProduction() && room.playerOrder.length >= 2,
-  );
-  const aiFetchedRef = useRef(false);
+  const aiClaimAttempted = useRef(false);
+  const aiSummary = room.aiSummary ?? null;
+  const aiClaimed = !!room.aiSummaryRequested;
+  // Loading until the shared field lands (either we win the claim and
+  // write it, or another client did). Only relevant in production.
+  const aiLoading =
+    isProduction() &&
+    room.playerOrder.length >= 2 &&
+    aiSummary === null;
 
   useEffect(() => {
-    if (aiFetchedRef.current) return;
+    if (aiClaimAttempted.current) return;
+    if (aiSummary) return; // already shared
+    if (aiClaimed) return; // someone else is fetching
     if (standings.length < 2) return;
     if (!isProduction()) return;
-    aiFetchedRef.current = true;
-    setAiLoading(true);
-    const payload = buildAISummaryPayload(room);
-    fetchAISummary(payload)
-      .then((s) => {
-        if (!s) return;
-        setAiSummary(s);
-        // Persist onto the game doc so re-opens of finished games skip the
-        // API. gameId may not be resolved yet — retry briefly.
-        const persist = (retries = 5): void => {
-          if (gameIdRef.current) {
-            updateDoc(doc(db, 'games', gameIdRef.current), { summary: s })
-              .catch(() => {});
-          } else if (retries > 0) {
-            window.setTimeout(() => persist(retries - 1), 400);
-          }
-        };
-        persist();
-      })
-      .finally(() => setAiLoading(false));
-    // Only on first mount of a finished room.
+    aiClaimAttempted.current = true;
+    claimAiSummary(room.code).then(async (won) => {
+      if (!won) return;
+      const s = await fetchAISummary(buildAISummaryPayload(room));
+      if (!s) return;
+      // Share with everyone via the room doc.
+      await setSharedAiSummary(room.code, s).catch(() => {});
+      // Best-effort persist onto the game doc so re-opens of the finished
+      // game can show the recap without re-calling the API.
+      const persist = (retries = 5): void => {
+        if (gameIdRef.current) {
+          updateDoc(doc(db, 'games', gameIdRef.current), { summary: s })
+            .catch(() => {});
+        } else if (retries > 0) {
+          window.setTimeout(() => persist(retries - 1), 400);
+        }
+      };
+      persist();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [aiSummary, aiClaimed]);
 
   // While loading, hide the fallback. Only fall back if the AI request
   // finished without a result (failed/null).

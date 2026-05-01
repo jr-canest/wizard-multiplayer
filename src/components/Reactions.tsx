@@ -12,10 +12,10 @@ type Props = {
 const REACTIONS = [
   'ouch',
   'take your time',
+  'skip skip skip',
   'no mercy',
-  'hahaha',
-  'impressive',
   'respect the game',
+  'why???',
 ];
 const TTL_MS = 3200;
 

@@ -20,7 +20,10 @@ export function BiddingPanel({ room, myName }: Props) {
   const myBid = room.bids[myName];
   const alreadyBid = myBid !== undefined;
 
-  const otherBidsSum = Object.values(room.bids).reduce((a, b) => a + b, 0);
+  // Sum of every bid that's been placed so far (including mine if I've
+  // already bid). For the canadian-rule check we only need it pre-bid,
+  // when it equals the sum of the other players' bids.
+  const totalBidsSoFar = Object.values(room.bids).reduce((a, b) => a + b, 0);
   const isDealerBid = myName === dealerName;
   const allOthersBidIn =
     Object.keys(room.bids).length === playerCount - 1 && !alreadyBid;
@@ -33,7 +36,9 @@ export function BiddingPanel({ room, myName }: Props) {
       canadianRule: room.canadianRule,
       currentRound: room.currentRound,
       cardsThisRound,
-      otherBidsSum,
+      // I haven't bid yet (alreadyBid is false above), so totalBidsSoFar
+      // is the others' sum.
+      otherBidsSum: totalBidsSoFar,
       bid: value,
     });
   }
@@ -50,7 +55,9 @@ export function BiddingPanel({ room, myName }: Props) {
     }
   }
 
-  const totalSoFar = otherBidsSum + (alreadyBid ? myBid : 0);
+  // totalBidsSoFar already includes myBid when alreadyBid is true —
+  // the previous version added myBid again, double-counting it.
+  const totalSoFar = totalBidsSoFar;
   const diff = totalSoFar - cardsThisRound;
   const bidSumLabel =
     diff > 0 ? `Over ${diff}` : diff < 0 ? `Under ${-diff}` : 'Exact';

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { leaveRoom, MIN_PLAYERS, MAX_PLAYERS } from '../lib/rooms';
-import { startGame } from '../lib/gameFlow';
+import { setChosenTotalRounds, startGame } from '../lib/gameFlow';
+import { totalRoundsFor } from '../game/deck';
 import { setActiveRoomCode } from '../hooks/useActiveRoom';
 import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
 
@@ -21,6 +22,17 @@ export function Lobby({ room, players, myName }: Props) {
   const isHost = room.hostPlayerName === myName;
   const canStart =
     isHost && !starting && room.playerOrder.length >= MIN_PLAYERS;
+  const maxRounds = totalRoundsFor(room.playerOrder.length);
+  const chosenRounds = room.chosenTotalRounds ?? null;
+  // Clamp the displayed selection so it never exceeds the current cap.
+  const displayedChosen =
+    chosenRounds && chosenRounds > maxRounds ? maxRounds : chosenRounds;
+
+  async function handleRoundsChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const v = e.target.value;
+    const next = v === '' ? null : parseInt(v, 10);
+    await setChosenTotalRounds(room.code, myName, next);
+  }
 
   async function handleStart() {
     setStarting(true);
@@ -134,6 +146,33 @@ export function Lobby({ room, players, myName }: Props) {
 
       {isHost ? (
         <>
+          <div className="card-gold p-3 space-y-1">
+            <label
+              htmlFor="rounds"
+              className="flex items-center justify-between text-sm"
+            >
+              <span className="text-gold-100 font-semibold">Rounds</span>
+              <select
+                id="rounds"
+                value={displayedChosen === null ? '' : String(displayedChosen)}
+                onChange={handleRoundsChange}
+                className="rounded-md bg-navy-800 border border-gold-700/60 px-2 py-1 text-gold-100 text-sm"
+              >
+                <option value="">
+                  Auto · max {maxRounds}
+                </option>
+                {Array.from({ length: maxRounds }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="text-[11px] text-navy-200">
+              You can always vote to end sooner.
+            </p>
+          </div>
+
           <button
             type="button"
             onClick={handleStart}
@@ -147,11 +186,21 @@ export function Lobby({ room, players, myName }: Props) {
           )}
         </>
       ) : (
-        <p className="text-center text-sm text-navy-100">
-          Waiting for{' '}
-          <strong className="text-gold-100">{room.hostPlayerName}</strong> to
-          start…
-        </p>
+        <>
+          <div className="text-center text-xs text-navy-200">
+            Rounds:{' '}
+            <strong className="text-gold-100">
+              {displayedChosen === null
+                ? `auto (max ${maxRounds})`
+                : displayedChosen}
+            </strong>
+          </div>
+          <p className="text-center text-sm text-navy-100">
+            Waiting for{' '}
+            <strong className="text-gold-100">{room.hostPlayerName}</strong> to
+            start…
+          </p>
+        </>
       )}
 
       <button

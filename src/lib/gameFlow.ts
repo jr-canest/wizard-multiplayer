@@ -188,6 +188,26 @@ export class FlowError extends Error {
 }
 
 /**
+ * Host-only setter (lobby only) for the chosen round cap. null = let the
+ * game play to the maximum allowed by the deck for the seat count.
+ */
+export async function setChosenTotalRounds(
+  code: string,
+  callerName: string,
+  rounds: number | null,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) return;
+    const room = snap.data() as RoomDoc;
+    if (room.hostPlayerName !== callerName) return;
+    if (room.status !== 'lobby') return;
+    tx.update(roomRef, { chosenTotalRounds: rounds });
+  });
+}
+
+/**
  * Host kicks off round 1: shuffle, deal, flip trump, write hands + room.
  *
  * If trump is a wizard, status stays `dealing` with `awaitingTrumpChoice`
@@ -203,7 +223,11 @@ export async function startGame(code: string, callerName: string): Promise<void>
   if (room.status !== 'lobby') throw new FlowError('notLobby');
   if (room.playerOrder.length < 3) throw new FlowError('notEnoughPlayers');
 
-  const totalRounds = totalRoundsFor(room.playerOrder.length);
+  const maxRounds = totalRoundsFor(room.playerOrder.length);
+  // Honor the host's chosen cap, clamped to [1, maxRounds].
+  const chosen = room.chosenTotalRounds;
+  const totalRounds =
+    chosen && chosen > 0 ? Math.min(chosen, maxRounds) : maxRounds;
   await dealNextRound(code, {
     ...room,
     totalRounds,
@@ -779,5 +803,37 @@ export async function resetForNewGame(
     log: [],
     historyWritten: false,
     historyGameId: null,
+    aiSummary: null,
+    aiSummaryRequested: false,
   });
+}
+
+/**
+ * Atomically claim the right to fetch the AI summary for this room.
+ * Returns true if the caller won the claim and should fetch + write the
+ * result via setSharedAiSummary. Returns false if someone already
+ * claimed (or if the summary is already populated, or the room isn't
+ * finished yet).
+ */
+export async function claimAiSummary(code: string): Promise<boolean> {
+  const roomRef = doc(db, 'rooms', code);
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) return false;
+    const room = snap.data() as RoomDoc;
+    if (room.status !== 'finished') return false;
+    if (room.aiSummary) return false;
+    if (room.aiSummaryRequested) return false;
+    tx.update(roomRef, { aiSummaryRequested: true });
+    return true;
+  });
+}
+
+/** Write the shared AI summary onto the room (visible to all clients). */
+export async function setSharedAiSummary(
+  code: string,
+  summary: string,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  await updateDoc(roomRef, { aiSummary: summary });
 }
