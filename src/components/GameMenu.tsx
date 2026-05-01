@@ -196,20 +196,27 @@ export function GameMenu({ room, myName }: Props) {
             )}
 
             {showEndNow && (
-              <div className="border-t border-gold-700/30 pt-3">
+              <div className="border-t border-gold-700/30 pt-3 space-y-1">
                 <button
                   type="button"
                   onClick={handleEndNow}
                   disabled={voting}
                   className={`w-full rounded-md py-2 text-sm font-semibold border transition tabular-nums ${
                     myEndNowVote
-                      ? 'bg-rose-700/30 border-rose-500/60 text-rose-100'
+                      ? 'bg-emerald-700/30 border-emerald-500/60 text-emerald-100'
                       : 'bg-navy-900 border-gold-600/60 text-gold-200 active:scale-[0.98]'
                   }`}
                 >
-                  {myEndNowVote ? 'Cancel: next round is last ' : 'Next round is last '}
-                  {endNowVotes.length}/{threshold}
+                  {myEndNowVote
+                    ? `✓ Voted — next round is last (${endNowVotes.length}/${threshold}) · tap to undo`
+                    : `Vote: next round is last (${endNowVotes.length}/${threshold})`}
                 </button>
+                {endNowVotes.length > 0 && !myEndNowVote && (
+                  <p className="text-[11px] text-center text-amber-200">
+                    {endNowVotes.length} player
+                    {endNowVotes.length === 1 ? ' wants' : 's want'} to end after the next round.
+                  </p>
+                )}
               </div>
             )}
           </div>

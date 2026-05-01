@@ -52,6 +52,20 @@ export function StatusRow({ room, myName }: Props) {
     !isLastRound &&
     room.currentRound + 1 === room.totalRounds;
 
+  // In-progress end-now vote (mid-round, threshold not yet met).
+  const realPlayers = room.playerOrder.filter((n) => !isBotName(n));
+  const endNowThreshold = Math.floor(realPlayers.length / 2) + 1;
+  const endNowVotes = (room.endNowVotes ?? []).filter((n) =>
+    realPlayers.includes(n),
+  );
+  const endNowVoteInProgress =
+    inActiveRound &&
+    !isLastRound &&
+    !nextIsLast &&
+    endNowVotes.length > 0 &&
+    endNowVotes.length < endNowThreshold;
+  const myEndNowVote = endNowVotes.includes(myName);
+
   const inTrick =
     room.status === 'playing' && room.trickInProgress.length > 0;
 
@@ -94,6 +108,11 @@ export function StatusRow({ room, myName }: Props) {
         />
       ) : nextIsLast ? (
         <Banner tone="amber" text="Next round will be the last" />
+      ) : endNowVoteInProgress ? (
+        <Banner
+          tone="amber"
+          text={`Vote in progress: end after next round ${endNowVotes.length}/${endNowThreshold}${myEndNowVote ? ' · ✓ you' : ''}`}
+        />
       ) : inTrick ? (
         <WinningContent room={room} myName={myName} />
       ) : (
