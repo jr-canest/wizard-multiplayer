@@ -301,15 +301,16 @@ export function GameView({ room, players, myName }: Props) {
         </div>
       )}
 
-      {/* Bidding panel slots in below the table when bidding. */}
-      {room.status === 'bidding' && (
-        <BiddingPanel room={room} myName={myName} />
-      )}
-
+      {/* Action area between table and hand. Fixed min-height so the
+          hand never shifts as the BiddingPanel or turn callout swap in
+          and out. */}
       {(room.status === 'bidding' ||
         room.status === 'playing' ||
         room.status === 'dealing') && (
-        <div>
+        <div className="min-h-[88px] flex flex-col justify-end gap-1">
+          {room.status === 'bidding' && (
+            <BiddingPanel room={room} myName={myName} />
+          )}
           {(() => {
             const isPlayingTurn = room.status === 'playing' && isMyTurn;
             const isBiddingTurn =
@@ -324,7 +325,7 @@ export function GameView({ room, players, myName }: Props) {
             const isMyActionTurn = isPlayingTurn || isBiddingTurn;
 
             return (
-              <h3 className="mb-1 text-center flex items-center justify-center gap-1.5">
+              <h3 className="text-center flex items-center justify-center gap-1.5">
                 <span
                   className={`uppercase tracking-[0.2em] font-black ${
                     isMyActionTurn
@@ -342,6 +343,13 @@ export function GameView({ room, players, myName }: Props) {
               </h3>
             );
           })()}
+        </div>
+      )}
+
+      {(room.status === 'bidding' ||
+        room.status === 'playing' ||
+        room.status === 'dealing') && (
+        <div>
           <HandDisplay
             hand={displayHand}
             legal={legal}

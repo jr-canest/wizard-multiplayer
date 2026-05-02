@@ -90,16 +90,16 @@ export function OpponentTile({
     ((isBidding && bid !== undefined) ||
       (isPlaying && room.trickInProgress.some((p) => p.playerName === playerName)));
 
-  // Status label above the tile.
+  // Status label above the tile (kept short to fit narrow tiles).
   let label: string | null = null;
   if (isActive) {
-    label = isBidding ? 'Bidding' : "Player's Turn";
+    label = isBidding ? 'Bidding' : 'Playing';
   } else if (isNext) {
-    label = 'Next Turn';
+    label = 'Next';
   } else if (acted && isBidding && bid !== undefined) {
     label = `Bid ${bid}`;
   } else if (isBidding || isPlaying) {
-    label = 'Waiting for turn';
+    label = 'Waiting';
   }
 
   const wonBidNode =
@@ -153,7 +153,7 @@ export function OpponentTile({
           </span>
           <span className="shrink-0">{wonBidNode}</span>
         </div>
-        <div className="flex items-center justify-between gap-1 mt-0.5">
+        <div className="flex items-center gap-1 mt-0.5">
           <MiniFan count={handSize} />
           <span className={`text-navy-200 tabular-nums ${handSizeText}`}>
             +{handSize}
@@ -161,7 +161,7 @@ export function OpponentTile({
         </div>
         {isDealer && (
           <span
-            className="absolute -top-1 -left-1 text-gold-300 text-xs leading-none"
+            className="absolute -top-1.5 -left-1.5 w-[18px] h-[18px] rounded-full bg-gold-300 text-navy-900 text-[11px] font-black flex items-center justify-center shadow-md leading-none ring-1 ring-gold-100"
             title="Dealer"
           >
             ♛

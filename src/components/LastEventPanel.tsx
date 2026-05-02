@@ -81,21 +81,24 @@ export function LastEventPanel({ room, myName }: Props) {
 
   if (!event) {
     return (
-      <div className="flex-1 rounded-md border border-gold-700/30 bg-navy-900/30 px-2 py-1 min-h-[40px] flex items-center justify-center">
+      <div className="flex-1 rounded-md border border-gold-700/40 bg-navy-900/50 px-2 py-1 min-h-[40px] flex items-center justify-center">
         <span className="text-[10px] text-navy-400">—</span>
       </div>
     );
   }
 
+  const boxCls =
+    'flex-1 rounded-md border border-gold-700/40 bg-navy-900/50 px-2 py-1 min-h-[40px] flex items-center justify-center text-[11px] leading-tight text-center';
+
   if (event.kind === 'winning') {
     const c = colorForViewer(event.player, myName, room.playerOrder);
     const isMe = event.player === myName;
     return (
-      <div className="flex-1 rounded-md border border-gold-700/40 bg-navy-900/50 px-2 py-1 min-h-[40px] flex items-center justify-center text-[11px] leading-tight">
+      <div className={boxCls}>
         <span className="text-gold-300 mr-1">♛</span>
-        <span className="text-navy-300">winning trick: </span>
+        <span className="text-navy-300">winning: </span>
         <span className={`${c.text} font-bold ml-1`}>
-          {isMe ? 'You' : event.player}
+          {isMe ? 'you' : event.player}
         </span>
       </div>
     );
@@ -105,8 +108,8 @@ export function LastEventPanel({ room, myName }: Props) {
     const c = colorForViewer(event.player, myName, room.playerOrder);
     const isMe = event.player === myName;
     return (
-      <div className="flex-1 rounded-md border border-gold-700/40 bg-navy-900/50 px-2 py-1 min-h-[40px] flex items-center justify-center text-[11px] leading-tight text-center">
-        <span className="text-navy-300">last trick won by </span>
+      <div className={boxCls}>
+        <span className="text-navy-300">trick won by </span>
         <span className={`${c.text} font-bold ml-1`}>
           {isMe ? 'you' : event.player}
         </span>
@@ -114,21 +117,19 @@ export function LastEventPanel({ room, myName }: Props) {
     );
   }
 
-  // lastRound
+  // lastRound — best round score (positive = won, negative = least loss)
   const c = colorForViewer(event.topPlayer, myName, room.playerOrder);
   const isMe = event.topPlayer === myName;
   const sign = event.delta > 0 ? '+' : '';
   return (
-    <div className="flex-1 rounded-md border border-gold-700/40 bg-navy-900/50 px-2 py-1 min-h-[40px] flex flex-col items-center justify-center text-[11px] leading-tight text-center">
-      <span className="text-navy-300">round {event.round} top:</span>
-      <span>
-        <span className={`${c.text} font-bold`}>
-          {isMe ? 'you' : event.topPlayer}
-        </span>
-        <span className="text-gold-200 tabular-nums ml-1">
-          {sign}
-          {event.delta}
-        </span>
+    <div className={boxCls}>
+      <span className="text-navy-300">R{event.round} best: </span>
+      <span className={`${c.text} font-bold ml-1`}>
+        {isMe ? 'you' : event.topPlayer}
+      </span>
+      <span className="text-gold-200 tabular-nums ml-1">
+        {sign}
+        {event.delta}
       </span>
     </div>
   );

@@ -17,7 +17,10 @@ const REACTIONS = [
   'respect the game',
   'why???',
 ];
-const TTL_MS = 3200;
+// Reactions linger long enough to be readable + give other players time
+// to glance at them, but short enough that a follow-up reaction can take
+// the slot.
+const TTL_MS = 7000;
 
 export function Reactions({ room, myName }: Props) {
   const [open, setOpen] = useState(false);

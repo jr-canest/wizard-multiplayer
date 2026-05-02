@@ -112,8 +112,11 @@ export function StatusRow({ room, myName }: Props) {
           text={`Vote: end after next round ${endNowVotes.length}/${endNowThreshold}${myEndNowVote ? ' · ✓ you' : ''}`}
         />
       ) : (
-        // Empty placeholder — reserves the row's height so layout below stays put.
-        <div className="flex-1" />
+        // Empty placeholder — matches LastEventPanel's empty state so the
+        // two info panels look like a consistent pair.
+        <div className="flex-1 rounded-md border border-gold-700/40 bg-navy-900/50 px-2 py-1 min-h-[40px] flex items-center justify-center">
+          <span className="text-[10px] text-navy-400">—</span>
+        </div>
       )}
     </div>
   );

@@ -70,24 +70,22 @@ export function Table({
 
   return (
     <div className="space-y-1">
-      {/* Top row of opponent tiles */}
+      {/* Top row of opponent tiles — centered, fixed-width like the side cols. */}
       {topRow.length > 0 && (
-        <div
-          className={`grid gap-1`}
-          style={{ gridTemplateColumns: `repeat(${topRow.length}, minmax(0, 1fr))` }}
-        >
+        <div className="flex justify-center gap-1">
           {topRow.map((name, i) =>
             name ? (
-              <OpponentTile
-                key={name}
-                room={room}
-                myName={myName}
-                playerName={name}
-                playerMeta={playersByName.get(name)}
-                compact
-              />
+              <div key={name} className="w-[80px] shrink-0">
+                <OpponentTile
+                  room={room}
+                  myName={myName}
+                  playerName={name}
+                  playerMeta={playersByName.get(name)}
+                  compact
+                />
+              </div>
             ) : (
-              <div key={`top-${i}`} />
+              <div key={`top-${i}`} className="w-[80px]" />
             ),
           )}
         </div>
@@ -97,7 +95,7 @@ export function Table({
       <div className="flex items-stretch gap-1">
         {/* Left column */}
         {leftCol.length > 0 && (
-          <div className="flex flex-col justify-around gap-1 w-[78px] shrink-0">
+          <div className="flex flex-col justify-around gap-1 w-[80px] shrink-0">
             {leftCol.map((name, i) =>
               name ? (
                 <OpponentTile
@@ -116,7 +114,7 @@ export function Table({
         )}
 
         {/* Table center: trick area + trump in middle */}
-        <div className="flex-1 relative card-gold-subtle border-2 border-gold-700/50 rounded-xl overflow-hidden p-2 min-h-[260px]">
+        <div className="flex-1 relative card-gold-subtle border-2 border-gold-700/50 rounded-xl overflow-hidden p-2 min-h-[340px]">
           {/* Trump card centered behind the trick fan */}
           <TrumpCenter
             trumpCard={room.trumpCard}
@@ -169,29 +167,33 @@ function TrumpCenter({
   trumpSuit: Suit | null;
   awaitingTrumpChoice: boolean;
 }) {
+  const labelSuit =
+    trumpSuit !== null ? (
+      <span className={`${SUIT_COLOR[trumpSuit]} drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]`}>
+        {SUIT_GLYPH[trumpSuit]}
+      </span>
+    ) : null;
+
   return (
     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-      <div className="flex flex-col items-center gap-1 opacity-90">
+      <div className="flex flex-col items-center gap-1">
         {trumpCard ? (
           <CardImage card={trumpCard} size="md" />
         ) : (
-          <div className="w-16 h-[90px] rounded-md border border-dashed border-navy-300/60 flex items-center justify-center text-navy-300 text-[10px]">
-            no trump
+          <div className="w-16 h-[90px] rounded-md border border-dashed border-navy-300/60 flex items-center justify-center text-navy-300 text-[10px] bg-navy-900/40">
+            —
           </div>
         )}
-        <div className="text-center">
+        <span className="text-[9px] uppercase tracking-[0.2em] font-bold text-gold-200 bg-navy-900/85 rounded px-1.5 py-0.5 flex items-center gap-1 leading-none">
+          TRUMP
           {awaitingTrumpChoice ? (
-            <span className="text-[10px] text-gold-300 font-semibold bg-navy-900/80 rounded px-1">
-              choosing…
-            </span>
-          ) : trumpSuit ? (
-            <span
-              className={`text-2xl leading-none ${SUIT_COLOR[trumpSuit]} drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]`}
-            >
-              {SUIT_GLYPH[trumpSuit]}
-            </span>
-          ) : null}
-        </div>
+            <span className="text-gold-300">…</span>
+          ) : labelSuit ? (
+            <span className="text-base leading-none">{labelSuit}</span>
+          ) : (
+            <span className="text-navy-200 normal-case tracking-normal">none</span>
+          )}
+        </span>
       </div>
     </div>
   );

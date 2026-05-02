@@ -15,9 +15,14 @@ type Props = {
   isLeaving?: boolean;
 };
 
-const CARD_W = 96;
-const FALLBACK_W = 280;
-const ROW_OFFSET = 44;
+// Trick cards are md-sized (64×90) to match the central trump card.
+const CARD_W = 64;
+const CARD_H = 90;
+const FALLBACK_W = 240;
+// Half-trump-height + label height + half-card-height + breathing room.
+// Trick cards centered at ±ROW_OFFSET never touch the trump's footprint
+// (trump card + the "TRUMP ♠" label sitting just below it).
+const ROW_OFFSET = Math.ceil(CARD_H / 2 + 16 + CARD_H / 2 + 4); // ≈ 110
 
 type Slot = { x: number; y: number; rot: number };
 
@@ -110,7 +115,7 @@ const TrickCard = memo(function TrickCard({
         <div
           className={`relative rounded-md ring-2 ${color.ring} ${color.glow} bg-navy-900`}
         >
-          <CardImage card={card} size="lg" />
+          <CardImage card={card} size="md" />
           {isWinning && (
             <div className="absolute inset-0 rounded-md pointer-events-none animate-winning-inner z-[5]" />
           )}
