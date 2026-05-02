@@ -6,6 +6,7 @@ import {
   setSharedAiSummary,
   votePlayAgain,
 } from '../lib/gameFlow';
+import { isTestGame } from '../lib/history';
 import { isBotName } from '../lib/rooms';
 import { ScoreLineGraph } from './ScoreLineGraph';
 import {
@@ -189,21 +190,35 @@ export function FinalScoreboard({ room, myName }: Props) {
     aiClaimAttempted.current = true;
     claimAiSummary(room.code).then(async (won) => {
       if (!won) return;
-      const s = await fetchAISummary(buildAISummaryPayload(room));
-      if (!s) return;
-      // Share with everyone via the room doc.
-      await setSharedAiSummary(room.code, s).catch(() => {});
-      // Best-effort persist onto the game doc so re-opens of the finished
-      // game can show the recap without re-calling the API.
-      const persist = (retries = 5): void => {
-        if (gameIdRef.current) {
-          updateDoc(doc(db, 'games', gameIdRef.current), { summary: s })
-            .catch(() => {});
-        } else if (retries > 0) {
-          window.setTimeout(() => persist(retries - 1), 400);
+      // Test/bot games: skip the AI call (saves quota) — write the
+      // deterministic fallback directly.
+      const skipAi = isTestGame(room);
+      let s: string | null = null;
+      if (!skipAi) {
+        try {
+          s = await fetchAISummary(buildAISummaryPayload(room));
+        } catch {
+          s = null;
         }
-      };
-      persist();
+      }
+      // Always share something — falls back to the deterministic recap
+      // when the AI call fails / returns null. Otherwise everyone stays
+      // stuck on "Generating recap…".
+      const final = s ?? fallbackSummary;
+      await setSharedAiSummary(room.code, final).catch(() => {});
+      // Persist onto the games doc only when the AI summary actually
+      // succeeded — fallbacks are cheap to recompute, no need to cache.
+      if (s) {
+        const persist = (retries = 5): void => {
+          if (gameIdRef.current) {
+            updateDoc(doc(db, 'games', gameIdRef.current), { summary: s })
+              .catch(() => {});
+          } else if (retries > 0) {
+            window.setTimeout(() => persist(retries - 1), 400);
+          }
+        };
+        persist();
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aiSummary, aiClaimed]);

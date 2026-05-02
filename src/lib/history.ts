@@ -17,11 +17,12 @@ import { isBotName } from './rooms';
 import type { RoomDoc } from './types';
 
 /**
- * Test/dev signals that should keep the game out of the shared history:
+ * Test/dev signals that should keep the game out of the shared history,
+ * skip AI summary calls, etc:
  *   - any bot in playerOrder (only added via the dev-mode toggle)
  *   - any player named 'test' (the dev-mode trigger name)
  */
-function isTestGame(room: RoomDoc): boolean {
+export function isTestGame(room: RoomDoc): boolean {
   return room.playerOrder.some(
     (n) => isBotName(n) || n.trim().toLowerCase() === 'test',
   );
