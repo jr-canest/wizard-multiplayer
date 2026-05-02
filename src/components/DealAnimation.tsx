@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cardBackUrl } from '../lib/cardImages';
 import type { RoomSnapshot } from '../hooks/useRoom';
@@ -41,10 +41,14 @@ export function DealAnimation({ room, myName, onActiveChange }: Props) {
   const onActiveRef = useRef(onActiveChange);
   onActiveRef.current = onActiveChange;
 
-  useEffect(() => {
+  // Synchronous detection so we can hide the just-arrived cards BEFORE
+  // the browser paints them. The DOM measurement still happens in a
+  // requestAnimationFrame to give the new tiles a chance to lay out.
+  useLayoutEffect(() => {
     const next = room.currentRound;
     if (next > prevRoundRef.current && next >= 1) {
-      // Defer one frame so the just-dealt round's tiles are in the DOM.
+      // Hide cards / trump immediately (parent listens via onActiveChange).
+      onActiveRef.current?.(true);
       const raf = requestAnimationFrame(() => {
         const dealerName = room.playerOrder[room.dealerIndex];
         const dealerEl = findPlayerEl(dealerName);
@@ -71,7 +75,6 @@ export function DealAnimation({ room, myName, onActiveChange }: Props) {
         if (others.length === 0) return;
         setFrame({ origin, targets: others });
         setActiveKey((k) => k + 1);
-        onActiveRef.current?.(true);
       });
       prevRoundRef.current = next;
       return () => cancelAnimationFrame(raf);

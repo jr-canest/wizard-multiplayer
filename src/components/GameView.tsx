@@ -12,7 +12,6 @@ import { Reactions } from './Reactions';
 import { GameMenu } from './GameMenu';
 import { Table } from './Table';
 import { DealAnimation } from './DealAnimation';
-import { OverlayBanner } from './OverlayBanner';
 import { playCard } from '../lib/gameFlow';
 import { legalIndices } from '../game/legalMoves';
 import { playerColor } from '../lib/playerColors';
@@ -249,10 +248,6 @@ export function GameView({ room, players, myName }: Props) {
 
       <DisconnectBanner room={room} players={players} myName={myName} />
 
-      {/* Transient announcements (reactions, undo prompts, end-now vote
-          progress, last-round banners) overlay over the trick area. */}
-      <OverlayBanner room={room} myName={myName} />
-
       {room.awaitingTrumpChoice && isDealer && (
         <TrumpChooser code={room.code} callerName={myName} />
       )}
@@ -266,6 +261,27 @@ export function GameView({ room, players, myName }: Props) {
           trickIsLeaving={trickIsLeaving}
           isMyTurn={isMyTurn}
           hideTrump={dealingActive}
+          centerBanner={
+            winBanner && winnerColor ? (
+              <div
+                key={winBanner.key}
+                className="card-gold px-5 py-2.5 shadow-2xl text-center bg-navy-900/95 backdrop-blur animate-trick-banner pointer-events-auto"
+              >
+                <p className="text-xl font-black leading-tight">
+                  {winBanner.winner === myName ? (
+                    <span className="text-gold-100">You won!</span>
+                  ) : (
+                    <>
+                      <span className={winnerColor.text}>
+                        {winBanner.winner}
+                      </span>
+                      <span className="text-gold-100"> won</span>
+                    </>
+                  )}
+                </p>
+              </div>
+            ) : null
+          }
         />
       )}
 
@@ -290,25 +306,6 @@ export function GameView({ room, players, myName }: Props) {
         <FinalScoreboard room={room} myName={myName} />
       )}
 
-      {winBanner && winnerColor && (
-        <div
-          key={winBanner.key}
-          className="fixed left-1/2 top-1/3 z-[300] pointer-events-none animate-trick-banner"
-        >
-          <div className="card-gold px-6 py-3 shadow-2xl text-center bg-navy-900/90 backdrop-blur">
-            <p className="text-2xl font-black leading-tight">
-              {winBanner.winner === myName ? (
-                <span className="text-gold-100">You won!</span>
-              ) : (
-                <>
-                  <span className={winnerColor.text}>{winBanner.winner}</span>
-                  <span className="text-gold-100"> won</span>
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Compact title strip above the user's hand. Main info area:
           turn callout on top + sticky last-event subtitle below. Same
@@ -322,7 +319,7 @@ export function GameView({ room, players, myName }: Props) {
             room.status === 'bidding' &&
             currentName === myName &&
             myBid === undefined;
-          let primary: React.ReactNode;
+          let primary: React.ReactNode = null;
           let frame = '';
           if (isPlayingTurn) {
             primary = (
@@ -332,11 +329,8 @@ export function GameView({ room, players, myName }: Props) {
             );
             frame = 'ring-2 ring-gold-300 shadow-[0_0_14px_rgba(254,205,70,0.4)]';
           } else if (isBiddingTurn) {
-            primary = (
-              <span className="text-navy-300 text-[11px]">
-                Place your bid above…
-              </span>
-            );
+            // BidModal is up — no need for a redundant "place your bid"
+            // line in the strip. Leave primary empty; subtitle still shows.
           } else if (
             room.status === 'bidding' &&
             myBid !== undefined &&
@@ -415,16 +409,18 @@ export function GameView({ room, players, myName }: Props) {
             <div
               className={`card-gold-subtle px-3 py-1.5 min-h-[44px] flex flex-col items-center justify-center gap-0.5 transition-shadow ${frame}`}
             >
-              <div className="flex items-center justify-center gap-2">
-                {primary}
-                {myBid !== undefined && (
-                  <span
-                    className={`${myBidWonTone} font-bold tabular-nums text-[12px]`}
-                  >
-                    · {myWon}/{myBid}
-                  </span>
-                )}
-              </div>
+              {(primary || myBid !== undefined) && (
+                <div className="flex items-center justify-center gap-2">
+                  {primary}
+                  {myBid !== undefined && (
+                    <span
+                      className={`${myBidWonTone} font-bold tabular-nums text-[12px]`}
+                    >
+                      {primary ? '· ' : ''}{myWon}/{myBid}
+                    </span>
+                  )}
+                </div>
+              )}
               {lastEvent && (
                 <div className="text-[10px] text-navy-300 leading-tight">
                   {lastEvent}

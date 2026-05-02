@@ -109,11 +109,18 @@ export function OpponentTile({
   }
 
   return (
+    <div className="flex flex-col items-stretch min-w-0">
+      <div
+        className={`text-[10px] font-semibold truncate text-center leading-tight px-0.5 ${color.text}`}
+        title={playerName}
+      >
+        {playerName}
+      </div>
     <div
       data-player={playerName}
       className={`relative rounded-md py-1 px-1 border bg-navy-900/65 ${
         color.border
-      } transition-opacity flex flex-col items-center justify-between min-h-[68px] ${
+      } transition-opacity flex flex-col items-center justify-center min-h-[48px] ${
         isActive
           ? `ring-2 ${color.ring} ${color.glow} animate-[pulse_2s_ease-in-out_infinite]`
           : acted
@@ -121,12 +128,6 @@ export function OpponentTile({
             : ''
       }`}
     >
-      <div
-        className={`w-full text-[10px] font-semibold truncate text-center leading-tight ${color.text}`}
-        title={playerName}
-      >
-        {playerName}
-      </div>
       <div
         className={`text-[18px] font-black tabular-nums leading-none ${bigTone}`}
       >
@@ -157,6 +158,7 @@ export function OpponentTile({
           title="Disconnected"
         />
       )}
+    </div>
     </div>
   );
 }

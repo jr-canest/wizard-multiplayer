@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
 import { requestUndo, voteUndo } from '../lib/gameFlow';
 import { isBotName } from '../lib/rooms';
 import { colorForViewer, playerColor } from '../lib/playerColors';
@@ -116,7 +115,7 @@ export function OverlayBanner({ room, myName }: Props) {
         ? 'border-amber-500/70 bg-amber-900/35 text-amber-100'
         : 'border-gold-500/70 bg-navy-900/85 text-gold-100';
 
-  return createPortal(
+  return (
     <div
       key={
         // Re-mount when the headline changes so the slide-in fires each time.
@@ -132,16 +131,15 @@ export function OverlayBanner({ room, myName }: Props) {
                   ? 'end-now'
                   : 'idle'
       }
-      className="fixed left-1/2 top-[10vh] z-[180] -translate-x-1/2 pointer-events-none animate-overlay-banner"
+      className="absolute top-1.5 left-1.5 z-[180] max-w-[70%] pointer-events-none animate-overlay-banner-inline"
       aria-live="polite"
     >
       <div
-        className={`backdrop-blur rounded-lg border ${toneCls} px-3 py-1.5 shadow-2xl pointer-events-auto`}
+        className={`backdrop-blur rounded-md border ${toneCls} px-2 py-1 shadow-lg pointer-events-auto text-[11px] leading-tight`}
       >
         {content}
       </div>
-    </div>,
-    document.body,
+    </div>
   );
 }
 

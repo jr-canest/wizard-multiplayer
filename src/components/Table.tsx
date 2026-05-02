@@ -1,6 +1,8 @@
+import type { ReactNode } from 'react';
 import { TrickArea } from './TrickArea';
 import { OpponentTile } from './OpponentTile';
 import { CardImage } from './CardImage';
+import { OverlayBanner } from './OverlayBanner';
 import { distributeSeats, viewerSlotIndex } from '../lib/seats';
 import type { Suit, Card } from '../lib/types';
 import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
@@ -11,11 +13,13 @@ const SUIT_GLYPH: Record<Suit, string> = {
   C: '♣',
   S: '♠',
 };
+// Standard playing-card colors. On the dark navy table bg, "black"
+// suits render as bright neutral so they read at a glance.
 const SUIT_COLOR: Record<Suit, string> = {
-  H: 'text-rose-300',
-  D: 'text-sky-300',
-  C: 'text-emerald-300',
-  S: 'text-navy-100',
+  H: 'text-rose-400',
+  D: 'text-rose-400',
+  C: 'text-navy-50',
+  S: 'text-navy-50',
 };
 
 type Props = {
@@ -26,6 +30,9 @@ type Props = {
   trickIsLeaving: boolean;
   isMyTurn: boolean;
   hideTrump?: boolean;
+  /** Optional content rendered absolutely-centered over the trick area
+   * (used for the "X won" banner). */
+  centerBanner?: ReactNode;
 };
 
 /**
@@ -42,6 +49,7 @@ export function Table({
   trickIsLeaving,
   isMyTurn,
   hideTrump = false,
+  centerBanner,
 }: Props) {
   const opponents = room.playerOrder.filter((n) => n !== myName);
   const oppCount = opponents.length;
@@ -77,7 +85,7 @@ export function Table({
         <div className="flex justify-center gap-1">
           {topRow.map((name, i) =>
             name ? (
-              <div key={name} className="w-[64px] shrink-0">
+              <div key={name} className="w-[56px] shrink-0">
                 <OpponentTile
                   room={room}
                   myName={myName}
@@ -86,7 +94,7 @@ export function Table({
                 />
               </div>
             ) : (
-              <div key={`top-${i}`} className="w-[64px]" />
+              <div key={`top-${i}`} className="w-[56px]" />
             ),
           )}
         </div>
@@ -96,7 +104,7 @@ export function Table({
       <div className="flex items-stretch gap-1">
         {/* Left column */}
         {leftCol.length > 0 && (
-          <div className="flex flex-col justify-around gap-1 w-[64px] shrink-0">
+          <div className="flex flex-col justify-around gap-1 w-[56px] shrink-0">
             {leftCol.map((name, i) =>
               name ? (
                 <OpponentTile
@@ -134,11 +142,20 @@ export function Table({
               isLeaving={trickIsLeaving}
             />
           </div>
+          {/* Transient announcements (reactions, undo, votes, last-round)
+              docked at top-left of the trick area. */}
+          <OverlayBanner room={room} myName={myName} />
+          {/* Centered "X won" banner. */}
+          {centerBanner && (
+            <div className="absolute inset-0 z-[300] flex items-center justify-center pointer-events-none">
+              {centerBanner}
+            </div>
+          )}
         </div>
 
         {/* Right column */}
         {rightCol.length > 0 && (
-          <div className="flex flex-col justify-around gap-1 w-[64px] shrink-0">
+          <div className="flex flex-col justify-around gap-1 w-[56px] shrink-0">
             {rightCol.map((name, i) =>
               name ? (
                 <OpponentTile
@@ -179,14 +196,15 @@ function TrumpCenter({
 
   return (
     <div
-      className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-300 ${
+      className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-300 z-[200] ${
         hidden ? 'opacity-0' : 'opacity-100'
       }`}
     >
       {/* Trump frame: ~30% smaller card (sm = 48×67) inside a gold-bordered
           panel that wraps the card AND the TRUMP label. Trick cards are
-          positioned to never enter this frame. */}
-      <div className="flex flex-col items-center gap-1 p-1.5 rounded-lg border border-gold-500/60 shadow-[0_0_18px_rgba(254,205,70,0.2)] bg-navy-900/45">
+          positioned to never enter this frame; z-[200] keeps the trump
+          on top of any trick card that does drift close. */}
+      <div className="flex flex-col items-center gap-1 p-1 rounded-lg border border-gold-500/60 shadow-[0_0_18px_rgba(254,205,70,0.2)] bg-navy-900/45">
         {trumpCard ? (
           <CardImage
             card={trumpCard}
@@ -198,15 +216,16 @@ function TrumpCenter({
             —
           </div>
         )}
-        <span className="text-[9px] uppercase tracking-[0.2em] font-bold text-gold-200 flex items-center gap-1 leading-none">
-          TRUMP
+        {/* Label width matches the card (sm = w-12). "TRUMP" + colored
+            suit stay contained so the frame doesn't get wider than the
+            card itself. */}
+        <span className="w-12 text-[9px] uppercase tracking-[0.05em] font-bold text-gold-200 flex items-center justify-center gap-0.5 leading-none">
+          <span>TRUMP</span>
           {awaitingTrumpChoice ? (
             <span className="text-gold-300">…</span>
           ) : labelSuit ? (
-            <span className="text-sm leading-none">{labelSuit}</span>
-          ) : (
-            <span className="text-navy-200 normal-case tracking-normal">none</span>
-          )}
+            <span className="text-[12px] leading-none">{labelSuit}</span>
+          ) : null}
         </span>
       </div>
     </div>
