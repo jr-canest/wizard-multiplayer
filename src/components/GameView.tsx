@@ -13,6 +13,7 @@ import { GameMenu } from './GameMenu';
 import { StatusRow } from './StatusRow';
 import { Table } from './Table';
 import { LastEventPanel } from './LastEventPanel';
+import { DealAnimation } from './DealAnimation';
 import { playCard } from '../lib/gameFlow';
 import { legalIndices } from '../game/legalMoves';
 import { playerColor } from '../lib/playerColors';
@@ -273,6 +274,8 @@ export function GameView({ room, players, myName }: Props) {
         />
       )}
 
+      <DealAnimation room={room} myName={myName} />
+
       {room.status === 'scoring' && !holdingRoundEnd && (
         <RoundScoreboard room={room} myName={myName} />
       )}
@@ -349,7 +352,7 @@ export function GameView({ room, players, myName }: Props) {
       {(room.status === 'bidding' ||
         room.status === 'playing' ||
         room.status === 'dealing') && (
-        <div>
+        <div data-player={myName}>
           <HandDisplay
             hand={displayHand}
             legal={legal}

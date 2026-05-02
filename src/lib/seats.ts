@@ -74,3 +74,70 @@ export function viewerSlotIndex(
   const N = playerOrder.length;
   return (seatIdx - myIdx + N) % N;
 }
+
+/**
+ * Where in the table-shaped trick area a card played by a given seat
+ * should land. Coordinates are relative to the trick area's center
+ * (positive y = down, positive x = right). Cards are positioned near
+ * the edge corresponding to their seat side and tilted slightly toward
+ * the centre.
+ *
+ * For the local viewer (slot 0 = bottom), the card sits centered near
+ * the bottom edge.
+ */
+export function trickSlotForSide(
+  side: SeatSide | 'bottom',
+  indexInSide: number,
+  totalOnSide: number,
+  fanW: number,
+  fanH: number,
+): { x: number; y: number; rot: number } {
+  const halfW = fanW / 2;
+  const halfH = fanH / 2;
+  // Distance from each edge to the card centre. Sized so the trump in
+  // the middle plus its label still has clear space.
+  const edgeMargin = 56;
+  const center = (totalOnSide - 1) / 2;
+  const stepX = Math.min(82, (fanW - 2 * edgeMargin) / Math.max(1, totalOnSide));
+  const stepY = Math.min(72, (fanH - 2 * edgeMargin) / Math.max(1, totalOnSide));
+
+  switch (side) {
+    case 'top': {
+      const offsetX = (indexInSide - center) * stepX;
+      return { x: offsetX, y: -halfH + edgeMargin, rot: 0 };
+    }
+    case 'bottom': {
+      return { x: 0, y: halfH - edgeMargin, rot: 0 };
+    }
+    case 'left': {
+      // index 0 = bottom of column (closer to viewer). Bottom is +y.
+      const offsetY = (center - indexInSide) * stepY;
+      return { x: -halfW + edgeMargin, y: offsetY, rot: -8 };
+    }
+    case 'right': {
+      // index 0 = top of column. Top is -y.
+      const offsetY = (indexInSide - center) * stepY;
+      return { x: halfW - edgeMargin, y: offsetY, rot: 8 };
+    }
+  }
+}
+
+/** Look up a player's seat (side + index + side total) for the local viewer. */
+export function playerSeatInfo(
+  playerName: string,
+  myName: string,
+  playerOrder: string[],
+):
+  | { side: SeatSide; index: number; totalOnSide: number }
+  | { side: 'bottom'; index: 0; totalOnSide: 1 } {
+  const slot = viewerSlotIndex(playerName, myName, playerOrder);
+  if (slot === 0) return { side: 'bottom', index: 0, totalOnSide: 1 };
+  const opp = playerOrder.length - 1;
+  const positions = seatPositions(opp);
+  const pos = positions[slot - 1];
+  if (!pos) return { side: 'bottom', index: 0, totalOnSide: 1 };
+  const { left, top, right } = distributeSeats(opp);
+  const totalOnSide =
+    pos.side === 'left' ? left : pos.side === 'top' ? top : right;
+  return { side: pos.side, index: pos.index, totalOnSide };
+}

@@ -1,8 +1,9 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import type { Card, Suit } from '../lib/types';
 import { CardImage } from './CardImage';
 import { colorForViewer, type PlayerColor } from '../lib/playerColors';
 import { winningPlayIndex } from '../game/trickWinner';
+import { playerSeatInfo, trickSlotForSide } from '../lib/seats';
 
 type Play = { playerName: string; card: Card; playOrder?: number };
 
@@ -15,63 +16,12 @@ type Props = {
   isLeaving?: boolean;
 };
 
-// Trick cards are md-sized (64×90) to match the central trump card.
-const CARD_W = 64;
-const CARD_H = 90;
 const FALLBACK_W = 240;
-// Half-trump-height + label height + half-card-height + breathing room.
-// Trick cards centered at ±ROW_OFFSET never touch the trump's footprint
-// (trump card + the "TRUMP ♠" label sitting just below it).
-const ROW_OFFSET = Math.ceil(CARD_H / 2 + 16 + CARD_H / 2 + 4); // ≈ 110
-
-type Slot = { x: number; y: number; rot: number };
+const FALLBACK_H = 320;
 
 function noise(seed: number): number {
   const v = Math.sin(seed * 9301 + 49297) * 233280;
   return ((v - Math.floor(v)) - 0.5) * 2;
-}
-
-function buildSlots(playerCount: number, fanW: number): Slot[] {
-  const N = Math.max(1, playerCount);
-  // Use the 2-row layout starting at 3 players so the local viewer always
-  // sits at the bottom (matches Wizard's "you, the table" mental model).
-  const useTwoRows = N >= 3;
-  const topCount = useTwoRows ? Math.ceil(N / 2) : N;
-  const bottomCount = useTwoRows ? N - topCount : 0;
-  const maxStretch = Math.max(80, fanW - CARD_W - 8);
-
-  function rowSlots(count: number, y: number, seedBase: number): Slot[] {
-    if (count === 0) return [];
-    const stepX =
-      count <= 1
-        ? 0
-        : Math.max(56, Math.min(110, maxStretch / (count - 1)));
-    const center = (count - 1) / 2;
-    return Array.from({ length: count }, (_, i) => {
-      // Stable per-slot seed (no round dependency) — keeps each player's
-      // spot rock-stable across rounds with a tiny per-slot jitter for
-      // visual variety.
-      const seed = seedBase + i + 1;
-      return {
-        x: (i - center) * stepX + noise(seed) * 5,
-        y: y + noise(seed * 2) * 6,
-        rot: noise(seed * 3) * 8,
-      };
-    });
-  }
-
-  const topRow = rowSlots(topCount, useTwoRows ? -ROW_OFFSET : 0, 100);
-  const bottomRow = rowSlots(bottomCount, ROW_OFFSET, 200);
-
-  if (!useTwoRows) {
-    // Single row (N <= 2): rightmost = slot 0 (me), going left clockwise.
-    return [...topRow].reverse();
-  }
-  // Two rows: clockwise from bottom-right (me).
-  //   bottom-row reversed (right-to-left): SE → ... → SW
-  //   top-row in order (left-to-right):    NW → ... → NE
-  // So slot 0 = SE (me), slot 1 = next clockwise (player to my left), etc.
-  return [...bottomRow.reverse(), ...topRow];
 }
 
 type TrickCardProps = {
@@ -158,15 +108,16 @@ export function TrickArea({
 
   const fanRef = useRef<HTMLDivElement>(null);
   const [fanW, setFanW] = useState(FALLBACK_W);
+  const [fanH, setFanH] = useState(FALLBACK_H);
 
   useEffect(() => {
     const el = fanRef.current;
     if (!el) return;
     const update = () => {
-      // Round to a stable bucket so subpixel resize jitter doesn't trigger
-      // re-layout of every existing card.
-      const next = Math.round((el.clientWidth || FALLBACK_W) / 4) * 4;
-      setFanW((prev) => (prev === next ? prev : next));
+      const w = Math.round((el.clientWidth || FALLBACK_W) / 4) * 4;
+      const h = Math.round((el.clientHeight || FALLBACK_H) / 4) * 4;
+      setFanW((prev) => (prev === w ? prev : w));
+      setFanH((prev) => (prev === h ? prev : h));
     };
     update();
     const ro = new ResizeObserver(update);
@@ -174,27 +125,9 @@ export function TrickArea({
     return () => ro.disconnect();
   }, []);
 
-  const slots = useMemo(
-    () => buildSlots(playerOrder.length, fanW),
-    [playerOrder.length, fanW],
-  );
-
-  // Slot index per player. Slot 0 is the viewer (bottom-right in 2-row
-  // layouts), and remaining slots fill clockwise around the table —
-  // matching Wizard's turn order (player to your left plays first).
-  // playerOrder is the canonical clockwise seating, so player k clockwise
-  // from me sits at slot k.
-  const myIdx = playerOrder.indexOf(myName);
-  function viewerSlotIndex(playerName: string): number {
-    const seatIdx = playerOrder.indexOf(playerName);
-    if (seatIdx < 0) return 0;
-    if (myIdx < 0) return seatIdx;
-    const N = playerOrder.length;
-    return (seatIdx - myIdx + N) % N;
-  }
-
   return (
     <div
+      ref={fanRef}
       data-drop="trick"
       className={`absolute inset-0 transition-shadow ${dropGlow}`}
     >
@@ -205,13 +138,29 @@ export function TrickArea({
           </span>
         </div>
       ) : (
-        <div ref={fanRef} className="relative h-full w-full">
+        <div className="relative h-full w-full">
           {plays.map((p, i) => {
-            // Slot is determined by the player's seat (viewer-rotated),
-            // NOT by play order. Stacking still uses play order so the
-            // most recently played card sits on top.
-            const slot =
-              slots[viewerSlotIndex(p.playerName)] ?? { x: 0, y: 0, rot: 0 };
+            // Slot is determined by the player's seat (which side of the
+            // table they sit on, viewer-rotated). Stacking still uses
+            // play order so the most recent card sits on top.
+            const seat = playerSeatInfo(p.playerName, myName, playerOrder);
+            const base = trickSlotForSide(
+              seat.side,
+              seat.index,
+              seat.totalOnSide,
+              fanW,
+              fanH,
+            );
+            // Tiny per-card jitter so multiple cards from the same seat
+            // (across multiple tricks in a held view, etc.) don't sit
+            // perfectly atop each other.
+            const seedBase =
+              p.playerName.charCodeAt(0) * 13 + p.playerName.length;
+            const slot = {
+              x: base.x + noise(seedBase) * 4,
+              y: base.y + noise(seedBase * 2) * 4,
+              rot: base.rot + noise(seedBase * 3) * 4,
+            };
             return (
               <TrickCard
                 // Stable per-player key — survives the source flip from

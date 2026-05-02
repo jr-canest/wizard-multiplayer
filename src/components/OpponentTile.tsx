@@ -137,6 +137,7 @@ export function OpponentTile({
         </span>
       )}
       <div
+        data-player={playerName}
         className={`relative rounded-md ${padding} border bg-navy-900/60 ${
           color.border
         } ${
