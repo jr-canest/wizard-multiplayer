@@ -112,7 +112,7 @@ export function Home() {
           </button>
 
           <a
-            href="https://jr-canest.github.io/wizard-scorekeeper/"
+            href="https://wizard-scorekeeper.web.app/"
             className="block w-full text-center rounded-lg py-2.5 text-sm border border-gold-700/50 bg-navy-800/40 text-gold-200 active:scale-[0.99] transition no-underline"
           >
             ↗ Open Score Keeper

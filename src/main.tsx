@@ -17,7 +17,7 @@ if (!rootEl) throw new Error('#root not found');
 createRoot(rootEl).render(
   <StrictMode>
     <SessionProvider>
-      <BrowserRouter basename="/wizard-multiplayer">
+      <BrowserRouter>
         <Routes>
           <Route element={<App />}>
             <Route index element={<Home />} />

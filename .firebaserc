@@ -1,5 +1,12 @@
 {
   "projects": {
     "default": "wizard-scores-2521c"
+  },
+  "targets": {
+    "wizard-scores-2521c": {
+      "hosting": {
+        "multiplayer": ["wizard-multiplayer"]
+      }
+    }
   }
 }

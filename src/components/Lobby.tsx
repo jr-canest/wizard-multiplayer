@@ -47,7 +47,7 @@ export function Lobby({ room, players, myName }: Props) {
   const playersByName = new Map(players.map((p) => [p.name, p]));
 
   async function handleCopyLink() {
-    const url = `${window.location.origin}/wizard-multiplayer/room/${room.code}`;
+    const url = `${window.location.origin}/room/${room.code}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopying(true);

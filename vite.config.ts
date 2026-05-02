@@ -4,7 +4,8 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: '/wizard-multiplayer/',
+  // Firebase Hosting serves at the site root.
+  base: '/',
   server: {
     port: 5181,
     strictPort: true,
