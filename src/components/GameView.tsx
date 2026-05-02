@@ -2,18 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
 import { useMyHand } from '../hooks/useMyHand';
 import { useWakeLock } from '../hooks/useWakeLock';
-import { TrumpDisplay } from './TrumpDisplay';
 import { TrumpChooser } from './TrumpChooser';
 import { HandDisplay } from './HandDisplay';
 import { BiddingPanel } from './BiddingPanel';
-import { TrickArea } from './TrickArea';
 import { RoundScoreboard } from './RoundScoreboard';
 import { FinalScoreboard } from './FinalScoreboard';
-import { Opponents } from './Opponents';
 import { DisconnectBanner } from './DisconnectBanner';
 import { Reactions } from './Reactions';
 import { GameMenu } from './GameMenu';
 import { StatusRow } from './StatusRow';
+import { Table } from './Table';
+import { LastEventPanel } from './LastEventPanel';
 import { playCard } from '../lib/gameFlow';
 import { legalIndices } from '../game/legalMoves';
 import { playerColor } from '../lib/playerColors';
@@ -247,38 +246,31 @@ export function GameView({ room, players, myName }: Props) {
         </span>
       </div>
 
-      {showOpponents && (
-        <Opponents room={room} players={players} myName={myName} />
-      )}
+      {/* Two-column info section under the top bar.
+            Left: votes / undo / reactions / last-round announcements.
+            Right: sticky last significant game event. */}
+      <div className="flex items-stretch gap-1.5">
+        <div className="flex-1">
+          <StatusRow room={room} myName={myName} />
+        </div>
+        <LastEventPanel room={room} myName={myName} />
+      </div>
 
       <DisconnectBanner room={room} players={players} myName={myName} />
-
-      <StatusRow room={room} myName={myName} />
 
       {room.awaitingTrumpChoice && isDealer && (
         <TrumpChooser code={room.code} callerName={myName} />
       )}
 
       {showOpponents && (
-        <div className="flex items-stretch gap-2">
-          <TrumpDisplay
-            trumpCard={room.trumpCard}
-            trumpSuit={room.trumpSuit}
-            awaitingTrumpChoice={room.awaitingTrumpChoice}
-          />
-          {room.status === 'bidding' ? (
-            <BiddingPanel room={room} myName={myName} />
-          ) : (
-            <TrickArea
-              plays={displayedPlays}
-              playerOrder={room.playerOrder}
-              trumpSuit={room.trumpSuit}
-              isMyTurn={isMyTurn && room.status === 'playing'}
-              myName={myName}
-              isLeaving={trickIsLeaving}
-            />
-          )}
-        </div>
+        <Table
+          room={room}
+          players={players}
+          myName={myName}
+          trickPlays={displayedPlays}
+          trickIsLeaving={trickIsLeaving}
+          isMyTurn={isMyTurn}
+        />
       )}
 
       {room.status === 'scoring' && !holdingRoundEnd && (
@@ -309,42 +301,39 @@ export function GameView({ room, players, myName }: Props) {
         </div>
       )}
 
+      {/* Bidding panel slots in below the table when bidding. */}
+      {room.status === 'bidding' && (
+        <BiddingPanel room={room} myName={myName} />
+      )}
+
       {(room.status === 'bidding' ||
         room.status === 'playing' ||
         room.status === 'dealing') && (
         <div>
           {(() => {
-            const handCount = hand?.length ?? 0;
             const isPlayingTurn = room.status === 'playing' && isMyTurn;
             const isBiddingTurn =
               room.status === 'bidding' &&
               room.playerOrder[room.currentPlayerIndex] === myName &&
               myBid === undefined;
-            const isMyActionTurn = isPlayingTurn || isBiddingTurn;
             const turnLabel = isPlayingTurn
               ? 'YOUR TURN — PLAY A CARD'
               : isBiddingTurn
                 ? 'YOUR TURN — PLACE YOUR BID'
-                : null;
-
-            if (isMyActionTurn && turnLabel) {
-              return (
-                <h3 className="mb-1 text-center flex items-center justify-center gap-1.5">
-                  <span className="text-[12px] uppercase tracking-[0.2em] font-black text-gold-100 animate-pulse">
-                    {turnLabel}
-                  </span>
-                  {myBid !== undefined && (
-                    <span className={`${myBidWonTone} font-bold normal-case tracking-normal text-[12px] tabular-nums`}>
-                      · {myWon}/{myBid}
-                    </span>
-                  )}
-                </h3>
-              );
-            }
+                : 'WAITING FOR YOUR TURN';
+            const isMyActionTurn = isPlayingTurn || isBiddingTurn;
 
             return (
-              <h3 className="text-[10px] uppercase tracking-wider text-navy-300 mb-0.5 text-center flex items-center justify-center gap-1.5">
-                <span>Your hand ({handCount})</span>
+              <h3 className="mb-1 text-center flex items-center justify-center gap-1.5">
+                <span
+                  className={`uppercase tracking-[0.2em] font-black ${
+                    isMyActionTurn
+                      ? 'text-gold-100 text-[13px] animate-pulse'
+                      : 'text-navy-300 text-[11px]'
+                  }`}
+                >
+                  {turnLabel}
+                </span>
                 {myBid !== undefined && (
                   <span className={`${myBidWonTone} font-bold normal-case tracking-normal text-[12px] tabular-nums`}>
                     · {myWon}/{myBid}

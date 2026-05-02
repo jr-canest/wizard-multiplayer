@@ -191,12 +191,12 @@ export function TrickArea({
   return (
     <div
       data-drop="trick"
-      className={`card-gold-subtle flex-1 p-2 h-[240px] border-2 rounded-xl transition-shadow overflow-hidden ${dropGlow}`}
+      className={`absolute inset-0 transition-shadow ${dropGlow}`}
     >
       {plays.length === 0 ? (
-        <div className="h-full flex items-center justify-center">
-          <span className="text-navy-300 text-xs text-center px-2">
-            {isMyTurn ? 'Tap or drag a card here' : 'Trick area'}
+        <div className="h-full flex items-end justify-center pb-2">
+          <span className="text-navy-300 text-[11px] text-center px-2">
+            {isMyTurn ? 'Tap or drag a card here' : ''}
           </span>
         </div>
       ) : (

@@ -55,19 +55,7 @@ export function BiddingPanel({ room, myName }: Props) {
     }
   }
 
-  // totalBidsSoFar already includes myBid when alreadyBid is true —
-  // the previous version added myBid again, double-counting it.
-  const totalSoFar = totalBidsSoFar;
-  const diff = totalSoFar - cardsThisRound;
-  const bidSumLabel =
-    diff > 0 ? `Over ${diff}` : diff < 0 ? `Under ${-diff}` : 'Exact';
-  const bidSumTone =
-    diff > 0
-      ? 'text-rose-300'
-      : diff === 0
-        ? 'text-amber-300'
-        : 'text-sky-300';
-
+  // (Total bids over/under display now lives in the GameView top bar.)
   const currentColor = playerColor(currentName, room.playerOrder);
   const myTurnGlow =
     isMyTurn && !alreadyBid
@@ -76,37 +64,18 @@ export function BiddingPanel({ room, myName }: Props) {
 
   return (
     <div
-      className={`card-gold-subtle flex-1 p-2.5 h-[240px] flex flex-col gap-1.5 ${myTurnGlow}`}
+      className={`card-gold-subtle p-2 flex flex-col gap-1.5 ${myTurnGlow}`}
     >
-      <div className="flex items-center justify-between text-[11px]">
-        <span className="uppercase tracking-wider text-navy-200">
-          Total bids
-        </span>
-        <span className="tabular-nums">
-          <strong className={bidSumTone}>{totalSoFar}</strong>
-          <span className="text-navy-400"> / {cardsThisRound}</span>
-          <span className={`ml-1.5 font-semibold ${bidSumTone}`}>
-            · {bidSumLabel}
-          </span>
-        </span>
-      </div>
-
       {alreadyBid && !isMyTurn ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-1 text-center">
-          <p className="text-sm text-navy-100">
-            Your bid: <strong className="text-gold-100">{myBid}</strong>
-          </p>
-          <p className="text-xs text-navy-200">
-            Waiting for{' '}
-            <strong className={currentColor.text}>{currentName}</strong>
-            {dealerName === currentName ? ' (dealer)' : ''}…
-          </p>
-        </div>
+        <p className="text-xs text-center text-navy-100">
+          Your bid: <strong className="text-gold-100">{myBid}</strong>
+          {' · '}
+          Waiting for{' '}
+          <strong className={currentColor.text}>{currentName}</strong>
+          {dealerName === currentName ? ' (dealer)' : ''}…
+        </p>
       ) : isMyTurn ? (
-        <div className="flex-1 flex flex-col">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-gold-200 font-black mb-1.5 text-center">
-            Your turn to bid
-          </p>
+        <div className="flex flex-col gap-1.5">
           <div className="flex flex-wrap gap-1.5 justify-center">
             {Array.from({ length: cardsThisRound + 1 }, (_, i) => {
               const locked = isLocked(i);
@@ -132,19 +101,17 @@ export function BiddingPanel({ room, myName }: Props) {
             allOthersBidIn &&
             room.canadianRule &&
             room.currentRound > 1 && (
-              <p className="text-[10px] text-navy-200 mt-1.5 text-center">
+              <p className="text-[10px] text-navy-200 text-center">
                 Canadian rule: can’t bid the value that balances the round.
               </p>
             )}
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center text-center px-2">
-          <p className="text-sm text-navy-100">
-            Waiting for{' '}
-            <strong className={currentColor.text}>{currentName}</strong>
-            {dealerName === currentName ? ' (dealer)' : ''}…
-          </p>
-        </div>
+        <p className="text-xs text-center text-navy-100">
+          Waiting for{' '}
+          <strong className={currentColor.text}>{currentName}</strong>
+          {dealerName === currentName ? ' (dealer)' : ''}…
+        </p>
       )}
 
       {error && <p className="text-[11px] text-rose-300 text-center">{error}</p>}

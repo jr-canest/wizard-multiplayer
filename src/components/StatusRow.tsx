@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { requestUndo, voteUndo } from '../lib/gameFlow';
 import { isBotName } from '../lib/rooms';
 import { colorForViewer } from '../lib/playerColors';
-import { winningPlayIndex } from '../game/trickWinner';
 import { ReactionInline, useActiveReaction } from './Reactions';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
@@ -66,8 +65,7 @@ export function StatusRow({ room, myName }: Props) {
     endNowVotes.length < endNowThreshold;
   const myEndNowVote = endNowVotes.includes(myName);
 
-  const inTrick =
-    room.status === 'playing' && room.trickInProgress.length > 0;
+  // (Winning-trick indicator now lives in LastEventPanel.)
 
   async function handleRequestUndo() {
     if (busy) return;
@@ -111,10 +109,8 @@ export function StatusRow({ room, myName }: Props) {
       ) : endNowVoteInProgress ? (
         <Banner
           tone="amber"
-          text={`Vote in progress: end after next round ${endNowVotes.length}/${endNowThreshold}${myEndNowVote ? ' · ✓ you' : ''}`}
+          text={`Vote: end after next round ${endNowVotes.length}/${endNowThreshold}${myEndNowVote ? ' · ✓ you' : ''}`}
         />
-      ) : inTrick ? (
-        <WinningContent room={room} myName={myName} />
       ) : (
         // Empty placeholder — reserves the row's height so layout below stays put.
         <div className="flex-1" />
@@ -142,31 +138,6 @@ function Banner({
     >
       <span className="text-xs uppercase tracking-[0.18em] font-bold">
         {text}
-      </span>
-    </div>
-  );
-}
-
-function WinningContent({
-  room,
-  myName,
-}: {
-  room: RoomSnapshot;
-  myName: string;
-}) {
-  const idx = winningPlayIndex(room.trickInProgress, room.trumpSuit);
-  const winner = room.trickInProgress[idx]?.playerName;
-  if (!winner) return <div className="flex-1" />;
-  const c = colorForViewer(winner, myName, room.playerOrder);
-  const isMe = winner === myName;
-  return (
-    <div className="flex-1 card-gold-subtle rounded-md px-3 py-1 flex items-center justify-center text-[12px]">
-      <span className="text-gold-300 mr-1.5" aria-hidden>
-        ♛
-      </span>
-      <span className="text-navy-200">winning this trick: </span>
-      <span className={`${c.text} font-bold ml-1`}>
-        {isMe ? 'You' : winner}
       </span>
     </div>
   );
