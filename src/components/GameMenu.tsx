@@ -34,7 +34,10 @@ export function GameMenu({ room, myName }: Props) {
   }, [open]);
 
   const realPlayers = room.playerOrder.filter((n) => !isBotName(n));
-  const threshold = Math.floor(realPlayers.length / 2) + 1;
+  // Majority for the end-now (mid-game) vote.
+  const majorityThreshold = Math.floor(realPlayers.length / 2) + 1;
+  // Unanimous for the next-round advance vote.
+  const unanimousThreshold = Math.max(1, realPlayers.length);
 
   const canVoteEndNow =
     room.status === 'bidding' || room.status === 'playing';
@@ -189,8 +192,8 @@ export function GameMenu({ room, myName }: Props) {
                   }`}
                 >
                   {myNextRoundVote
-                    ? `✓ Voted · ${isFinalRound ? 'finish game' : 'next round'} ${nextRoundVotes.length}/${threshold}`
-                    : `${isFinalRound ? 'Finish game' : 'Next round'} ${nextRoundVotes.length}/${threshold}`}
+                    ? `✓ Voted · ${isFinalRound ? 'finish game' : 'next round'} ${nextRoundVotes.length}/${unanimousThreshold}`
+                    : `${isFinalRound ? 'Finish game' : 'Next round'} ${nextRoundVotes.length}/${unanimousThreshold}`}
                 </button>
               </div>
             )}
@@ -208,8 +211,8 @@ export function GameMenu({ room, myName }: Props) {
                   }`}
                 >
                   {myEndNowVote
-                    ? `✓ Voted — next round is last (${endNowVotes.length}/${threshold}) · tap to undo`
-                    : `Vote: next round is last (${endNowVotes.length}/${threshold})`}
+                    ? `✓ Voted — next round is last (${endNowVotes.length}/${majorityThreshold}) · tap to undo`
+                    : `Vote: next round is last (${endNowVotes.length}/${majorityThreshold})`}
                 </button>
                 {endNowVotes.length > 0 && !myEndNowVote && (
                   <p className="text-[11px] text-center text-amber-200">

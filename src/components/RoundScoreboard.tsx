@@ -38,7 +38,10 @@ export function RoundScoreboard({ room, myName }: Props) {
   const isFinalRound = room.currentRound >= room.totalRounds;
 
   const realPlayers = room.playerOrder.filter((n) => !isBotName(n));
-  const threshold = Math.floor(realPlayers.length / 2) + 1;
+  // Unanimous: every real player must vote to advance.
+  const threshold = Math.max(1, realPlayers.length);
+  // End-now / end-early use majority — kept separate so the wording is clear.
+  const earlyThreshold = Math.floor(realPlayers.length / 2) + 1;
   const nextVotes = (room.nextRoundVotes ?? []).filter((n) =>
     realPlayers.includes(n),
   );
@@ -185,8 +188,8 @@ export function RoundScoreboard({ room, myName }: Props) {
             {myEarlyVote ? 'Cancel: end after next round' : 'Vote: end after next round'}
           </button>
           <p className="text-[11px] text-center text-navy-300 tabular-nums">
-            {earlyVotes.length}/{threshold} votes — majority makes the next
-            round the last.
+            {earlyVotes.length}/{earlyThreshold} votes — majority makes the
+            next round the last.
           </p>
         </div>
       )}

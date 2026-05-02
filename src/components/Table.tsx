@@ -30,6 +30,9 @@ type Props = {
   trickIsLeaving: boolean;
   isMyTurn: boolean;
   hideTrump?: boolean;
+  /** When true the trump slot shows "LAST ROUND / NO TRUMP" instead of
+   * the trump card. */
+  isLastRoundNoTrump?: boolean;
   /** Optional content rendered absolutely-centered over the trick area
    * (used for the "X won" banner). */
   centerBanner?: ReactNode;
@@ -49,6 +52,7 @@ export function Table({
   trickIsLeaving,
   isMyTurn,
   hideTrump = false,
+  isLastRoundNoTrump = false,
   centerBanner,
 }: Props) {
   const opponents = room.playerOrder.filter((n) => n !== myName);
@@ -133,6 +137,7 @@ export function Table({
             trumpSuit={room.trumpSuit}
             awaitingTrumpChoice={room.awaitingTrumpChoice}
             hidden={hideTrump}
+            lastRoundNoTrump={isLastRoundNoTrump}
           />
           {/* Trick fan */}
           <div className="relative h-full w-full">
@@ -184,11 +189,13 @@ function TrumpCenter({
   trumpSuit,
   awaitingTrumpChoice,
   hidden = false,
+  lastRoundNoTrump = false,
 }: {
   trumpCard: Card | null;
   trumpSuit: Suit | null;
   awaitingTrumpChoice: boolean;
   hidden?: boolean;
+  lastRoundNoTrump?: boolean;
 }) {
   const labelSuit =
     trumpSuit !== null ? (
@@ -199,9 +206,12 @@ function TrumpCenter({
 
   return (
     <div
-      className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-300 z-[200] ${
-        hidden ? 'opacity-0' : 'opacity-100'
-      }`}
+      className={
+        'absolute inset-0 flex items-center justify-center pointer-events-none z-[200] ' +
+        (hidden
+          ? 'opacity-0'
+          : 'opacity-100 transition-opacity duration-300')
+      }
     >
       {/* Trump frame: ~30% smaller card (sm = 48×67) inside a gold-bordered
           panel that wraps the card AND the TRUMP label. Trick cards are
@@ -214,14 +224,21 @@ function TrumpCenter({
             size="sm"
             className="ring-1 ring-gold-300/70 shadow-[0_0_8px_rgba(254,205,70,0.55)]"
           />
+        ) : lastRoundNoTrump ? (
+          // No-trump final round: replace the placeholder with the
+          // "LAST ROUND / NO TRUMP" label sitting where the card would.
+          <div className="w-12 h-[67px] rounded-md border border-dashed border-rose-500/60 flex flex-col items-center justify-center text-rose-200 text-[8px] uppercase tracking-[0.1em] font-black leading-tight bg-navy-900/55 text-center">
+            <span>LAST</span>
+            <span>ROUND</span>
+            <span className="mt-1">NO</span>
+            <span>TRUMP</span>
+          </div>
         ) : (
           <div className="w-12 h-[67px] rounded-md border border-dashed border-gold-300/50 flex items-center justify-center text-navy-300 text-[10px] bg-navy-900/40">
             —
           </div>
         )}
-        {/* Label width matches the card (sm = w-12). "TRUMP" + colored
-            suit stay contained so the frame doesn't get wider than the
-            card itself. */}
+        {/* Label width matches the card. */}
         <span className="w-12 text-[9px] uppercase tracking-[0.05em] font-bold text-gold-200 flex items-center justify-center gap-0.5 leading-none">
           <span>TRUMP</span>
           {awaitingTrumpChoice ? (

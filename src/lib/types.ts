@@ -61,6 +61,9 @@ export type RoomDoc = {
   // Player names who've voted to advance to the next round (used during
   // 'scoring'). Cleared once threshold triggers scoreAndAdvance.
   nextRoundVotes?: string[];
+  // Player names who've voted to start a new game (used during
+  // 'finished'). Cleared on resetForNewGame.
+  playAgainVotes?: string[];
   // Most recent reaction broadcast by any player. Clients show it briefly
   // based on `ts` (epoch ms, client-set — no clock-skew sensitivity since
   // it's a soft TTL, not a correctness check).

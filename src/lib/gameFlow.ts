@@ -83,9 +83,10 @@ export async function voteEndEarly(
 
 /**
  * Toggle the caller's vote to advance to the next round (or finish the
- * game on the final round). When majority of real players vote yes, the
- * caller drives scoreAndAdvance; subsequent calls are no-ops via
- * scoreAndAdvance's status check.
+ * game on the final round). UNANIMOUS — every real (non-bot) player
+ * must opt in. When all have voted yes, the caller drives
+ * scoreAndAdvance; subsequent calls are no-ops via scoreAndAdvance's
+ * status check.
  */
 export async function voteNextRound(
   code: string,
@@ -110,9 +111,8 @@ export async function voteNextRound(
     const realVotes = [...current].filter(
       (n) => !n.startsWith('Bot-') && realPlayers.includes(n),
     );
-    const threshold = Math.floor(realPlayers.length / 2) + 1;
 
-    if (realVotes.length >= threshold) {
+    if (realPlayers.length > 0 && realVotes.length >= realPlayers.length) {
       tx.update(roomRef, { nextRoundVotes: [] });
       advance = true;
     } else {
@@ -778,6 +778,18 @@ export async function resetForNewGame(
   if (room.status !== 'finished') throw new FlowError('notFinished');
   if (room.hostPlayerName !== callerName) throw new FlowError('notHost');
 
+  await resetGameStateInternal(code, room);
+}
+
+/**
+ * The actual room-state reset used by both the host's manual button
+ * and the unanimous play-again vote. Skips the host check.
+ */
+async function resetGameStateInternal(
+  code: string,
+  room: RoomDoc,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
   const handsSnap = await getDocs(collection(db, 'rooms', code, 'hands'));
   await Promise.all(handsSnap.docs.map((d) => deleteDoc(d.ref)));
 
@@ -805,7 +817,54 @@ export async function resetForNewGame(
     historyGameId: null,
     aiSummary: null,
     aiSummaryRequested: false,
+    playAgainVotes: [],
+    nextRoundVotes: [],
+    endNowVotes: [],
+    endEarlyVotes: [],
   });
+}
+
+/**
+ * Toggle the caller's vote to start a new game from the FinalScoreboard.
+ * UNANIMOUS — every real player must opt in. The caller who tips the
+ * count drives the actual reset.
+ */
+export async function votePlayAgain(
+  code: string,
+  callerName: string,
+  voteYes: boolean,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  let trigger = false;
+  let snapshotRoom: RoomDoc | null = null;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) return;
+    const room = snap.data() as RoomDoc;
+    if (room.status !== 'finished') return;
+
+    const current = new Set(room.playAgainVotes ?? []);
+    if (voteYes) current.add(callerName);
+    else current.delete(callerName);
+
+    const realPlayers = room.playerOrder.filter(
+      (n) => !n.startsWith('Bot-'),
+    );
+    const realVotes = [...current].filter(
+      (n) => !n.startsWith('Bot-') && realPlayers.includes(n),
+    );
+
+    if (realPlayers.length > 0 && realVotes.length >= realPlayers.length) {
+      tx.update(roomRef, { playAgainVotes: [] });
+      trigger = true;
+      snapshotRoom = room;
+    } else {
+      tx.update(roomRef, { playAgainVotes: [...current] });
+    }
+  });
+  if (trigger && snapshotRoom) {
+    await resetGameStateInternal(code, snapshotRoom);
+  }
 }
 
 /**

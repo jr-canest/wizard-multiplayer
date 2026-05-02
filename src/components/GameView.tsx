@@ -253,6 +253,11 @@ export function GameView({ room, players, myName }: Props) {
           trickIsLeaving={trickIsLeaving}
           isMyTurn={isMyTurn}
           hideTrump={dealingActive}
+          isLastRoundNoTrump={
+            !room.trumpCard &&
+            room.currentRound > 0 &&
+            room.currentRound >= room.totalRounds
+          }
           centerBanner={
             winBanner && winnerColor ? (
               <div
@@ -436,9 +441,11 @@ export function GameView({ room, players, myName }: Props) {
         room.status === 'dealing') && (
         <div
           data-player={myName}
-          className={`transition-opacity duration-300 ${
-            dealingActive ? 'opacity-0 pointer-events-none' : 'opacity-100'
-          }`}
+          className={
+            dealingActive
+              ? 'opacity-0 pointer-events-none'
+              : 'opacity-100 transition-opacity duration-300'
+          }
         >
           <HandDisplay
             hand={displayHand}

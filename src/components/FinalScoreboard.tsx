@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { computeStandings, saveMultiplayerGame } from '../lib/history';
 import {
   claimAiSummary,
-  resetForNewGame,
   setSharedAiSummary,
+  votePlayAgain,
 } from '../lib/gameFlow';
+import { isBotName } from '../lib/rooms';
 import { ScoreLineGraph } from './ScoreLineGraph';
 import {
   fetchAISummary,
@@ -124,7 +125,6 @@ export function FinalScoreboard({ room, myName }: Props) {
   const [showSparkles, setShowSparkles] = useState(true);
   const [contentVisible, setContentVisible] = useState(false);
 
-  const isHost = room.hostPlayerName === myName;
   const gameIdRef = useRef<string | null>(room.historyGameId ?? null);
 
   // Wipe + sparkles + sound on mount.
@@ -212,13 +212,22 @@ export function FinalScoreboard({ room, myName }: Props) {
   // finished without a result (failed/null).
   const displayedSummary = aiSummary ?? (aiLoading ? null : fallbackSummary);
 
+  // Unanimous vote — every real player must opt in to start a new game.
+  const realPlayers = room.playerOrder.filter((n) => !isBotName(n));
+  const playAgainVotes = (room.playAgainVotes ?? []).filter((n) =>
+    realPlayers.includes(n),
+  );
+  const myPlayAgainVote = playAgainVotes.includes(myName);
+  const playAgainThreshold = Math.max(1, realPlayers.length);
+
   async function handlePlayAgain() {
     setResetting(true);
     setResetError(null);
     try {
-      await resetForNewGame(room.code, myName);
+      await votePlayAgain(room.code, myName, !myPlayAgainVote);
     } catch (err) {
-      setResetError(err instanceof Error ? err.message : 'Failed to reset.');
+      setResetError(err instanceof Error ? err.message : 'Failed to vote.');
+    } finally {
       setResetting(false);
     }
   }
@@ -346,16 +355,22 @@ export function FinalScoreboard({ room, myName }: Props) {
           {savingState === 'error' && '⚠ Could not save to history.'}
         </p>
 
-        {isHost && (
-          <button
-            type="button"
-            onClick={handlePlayAgain}
-            disabled={resetting}
-            className="btn-gold w-full rounded-xl py-3"
-          >
-            {resetting ? 'Resetting…' : 'Play again'}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={handlePlayAgain}
+          disabled={resetting}
+          className={`w-full rounded-xl py-3 font-bold border tabular-nums transition ${
+            myPlayAgainVote
+              ? 'bg-emerald-700/30 border-emerald-500/60 text-emerald-100'
+              : 'btn-gold border-gold-400'
+          }`}
+        >
+          {resetting
+            ? 'Working…'
+            : myPlayAgainVote
+              ? `✓ Voted · play again ${playAgainVotes.length}/${playAgainThreshold}`
+              : `Play again ${playAgainVotes.length}/${playAgainThreshold}`}
+        </button>
         {resetError && (
           <p className="text-sm text-rose-300 text-center">{resetError}</p>
         )}
