@@ -96,8 +96,8 @@ export function trickSlotForSide(
   const halfH = fanH / 2;
   // Distance from each edge to the card centre. Picked so trick cards
   // (md ≈ 64×90) never overlap the trump frame in the middle (sm card
-  // + label ≈ 60×100).
-  const edgeMargin = 44;
+  // + label ≈ 60×90), AND cards stay within the trick area's bounds.
+  const edgeMargin = 48;
   const center = (totalOnSide - 1) / 2;
   const stepX = Math.min(82, (fanW - 2 * edgeMargin) / Math.max(1, totalOnSide));
   const stepY = Math.min(72, (fanH - 2 * edgeMargin) / Math.max(1, totalOnSide));

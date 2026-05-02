@@ -204,17 +204,9 @@ export function GameView({ room, players, myName }: Props) {
         ? 'text-amber-300'
         : 'text-sky-300';
 
-  // My bid/won chip for the hand label. Goes red if busted, green if exact.
+  // My bid/won values — used by the action strip's big right-side line.
   const myBid = room.bids[myName];
   const myWon = room.tricksWon[myName] ?? 0;
-  const myBidWonTone =
-    myBid === undefined
-      ? 'text-navy-300'
-      : myWon > myBid
-        ? 'text-rose-300'
-        : myWon === myBid
-          ? 'text-emerald-300'
-          : 'text-gold-200';
 
   return (
     <div className="w-full max-w-md space-y-2">
@@ -361,13 +353,13 @@ export function GameView({ room, players, myName }: Props) {
               </span>
             );
           }
-          // Sticky last event from the log — most recent trickWin or
-          // roundScore — shown as a subtitle so the game story is
-          // visible without the dedicated info panel above.
+          // Sticky last event — only this round's most recent trickWin.
+          // Round summaries are dropped (the round scoreboard already
+          // covers that and this strip should stay focused on now).
           const lastEvent: React.ReactNode = (() => {
             for (let i = room.log.length - 1; i >= 0; i--) {
               const e = room.log[i];
-              if (e.t === 'trickWin') {
+              if (e.t === 'trickWin' && e.round === room.currentRound) {
                 return (
                   <>
                     <span className="text-gold-300">♛</span>{' '}
@@ -378,54 +370,58 @@ export function GameView({ room, players, myName }: Props) {
                   </>
                 );
               }
-              if (e.t === 'roundScore') {
-                let topName = '';
-                let topDelta = -Infinity;
-                for (const [name, d] of Object.entries(e.scores)) {
-                  if (d > topDelta) {
-                    topDelta = d;
-                    topName = name;
-                  }
-                }
-                if (!topName) return null;
-                const sign = topDelta > 0 ? '+' : '';
-                return (
-                  <>
-                    R{e.round} best:{' '}
-                    <strong className="text-gold-200">
-                      {topName === myName ? 'you' : topName}
-                    </strong>{' '}
-                    <span className="tabular-nums text-gold-200">
-                      {sign}
-                      {topDelta}
-                    </span>
-                  </>
-                );
-              }
+              // Stop at the first roundScore — older trick wins are
+              // from previous rounds and we don't surface those.
+              if (e.t === 'roundScore') return null;
             }
             return null;
           })();
+          // My own big won/bid line — same visual treatment as the
+          // opponent tiles' middle row (text-[18px] tabular, color-coded).
+          let myBigLine: React.ReactNode = null;
+          let myBigTone = 'text-navy-400';
+          if (myBid === undefined) {
+            myBigLine = '—';
+          } else if (room.status === 'bidding') {
+            myBigLine = myBid;
+            myBigTone = 'text-gold-100';
+          } else {
+            myBigLine = `${myWon}/${myBid}`;
+            myBigTone =
+              myWon > myBid
+                ? 'text-rose-300'
+                : myWon === myBid
+                  ? 'text-emerald-300'
+                  : 'text-sky-300';
+          }
           return (
             <div
-              className={`card-gold-subtle px-3 py-1.5 min-h-[44px] flex flex-col items-center justify-center gap-0.5 transition-shadow ${frame}`}
+              className={`card-gold-subtle pl-3 pr-2 py-1 min-h-[48px] flex items-stretch transition-shadow ${frame}`}
             >
-              {(primary || myBid !== undefined) && (
-                <div className="flex items-center justify-center gap-2">
-                  {primary}
-                  {myBid !== undefined && (
-                    <span
-                      className={`${myBidWonTone} font-bold tabular-nums text-[12px]`}
-                    >
-                      {primary ? '· ' : ''}{myWon}/{myBid}
-                    </span>
-                  )}
-                </div>
-              )}
-              {lastEvent && (
-                <div className="text-[10px] text-navy-300 leading-tight">
-                  {lastEvent}
-                </div>
-              )}
+              <div className="flex-1 flex flex-col items-center justify-center gap-0.5 min-w-0">
+                {primary && (
+                  <div className="flex items-center justify-center">
+                    {primary}
+                  </div>
+                )}
+                {lastEvent && (
+                  <div className="text-[10px] text-navy-300 leading-tight">
+                    {lastEvent}
+                  </div>
+                )}
+              </div>
+              <div
+                className={`shrink-0 flex items-center justify-end pl-2 ml-2 border-l border-gold-700/40 ${myBigTone} font-black tabular-nums text-[18px] leading-none`}
+                title={
+                  myBid === undefined
+                    ? 'Waiting to bid'
+                    : room.status === 'bidding'
+                      ? `Your bid: ${myBid}`
+                      : `Won ${myWon}/${myBid}`
+                }
+              >
+                {myBigLine}
+              </div>
             </div>
           );
         })()}

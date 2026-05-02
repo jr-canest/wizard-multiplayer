@@ -122,7 +122,10 @@ export function Table({
         )}
 
         {/* Table center: trick area + trump in middle */}
-        <div className="flex-1 relative card-gold-subtle border-2 border-gold-700/50 rounded-xl overflow-hidden p-2 min-h-[340px]">
+        <div
+          data-trick-area-frame
+          className="flex-1 relative card-gold-subtle border-2 border-gold-700/50 rounded-xl overflow-hidden p-2 min-h-[306px]"
+        >
           {/* Trump card centered behind the trick fan. Hidden during the
               deal animation so the deal can finish before revealing it. */}
           <TrumpCenter
