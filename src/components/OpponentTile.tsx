@@ -146,7 +146,7 @@ export function OpponentTile({
       )}
       {playedChip && (
         <span
-          className={`absolute -top-2 -right-1.5 bg-navy-900/90 ${playedChip.tone} text-[10px] font-bold rounded px-1 py-0.5 shadow-md ring-1 ring-gold-700/60 leading-none`}
+          className={`absolute -bottom-2 -right-1.5 bg-navy-900/95 ${playedChip.tone} text-[10px] font-bold rounded px-1 py-0.5 shadow-md ring-1 ring-gold-700/60 leading-none`}
           title="Played card"
         >
           {playedChip.text}
@@ -154,7 +154,7 @@ export function OpponentTile({
       )}
       {offline && (
         <span
-          className="absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-rose-400"
+          className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-rose-400"
           title="Disconnected"
         />
       )}

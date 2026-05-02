@@ -28,13 +28,20 @@ export function BidModal({ room, myName }: Props) {
 
   useLayoutEffect(() => {
     function update() {
-      const el = document.querySelector<HTMLElement>(
+      // Prefer the action strip's bottom edge so the modal's bottom
+      // aligns with the strip's. Fall back to the trick area frame
+      // until the strip is mounted.
+      const strip = document.querySelector<HTMLElement>(
+        '[data-action-strip]',
+      );
+      const trick = document.querySelector<HTMLElement>(
         '[data-trick-area-frame]',
       );
+      const el = strip ?? trick;
       if (!el) return;
       const r = el.getBoundingClientRect();
       setAnchor({
-        bottom: window.innerHeight - r.bottom + 12,
+        bottom: window.innerHeight - r.bottom,
         centerX: r.left + r.width / 2,
       });
     }

@@ -396,9 +396,12 @@ export function GameView({ room, players, myName }: Props) {
           }
           return (
             <div
-              className={`card-gold-subtle pl-3 pr-2 py-1 min-h-[48px] flex items-stretch transition-shadow ${frame}`}
+              data-action-strip
+              className={`relative card-gold-subtle px-3 py-1 min-h-[48px] flex items-stretch transition-shadow ${frame}`}
             >
-              <div className="flex-1 flex flex-col items-center justify-center gap-0.5 min-w-0">
+              {/* Center column is absolutely positioned so the right-side
+                  bid badge can't shift it off-axis. */}
+              <div className="absolute inset-0 px-3 flex flex-col items-center justify-center gap-0.5 pointer-events-none">
                 {primary && (
                   <div className="flex items-center justify-center">
                     {primary}
@@ -410,8 +413,10 @@ export function GameView({ room, players, myName }: Props) {
                   </div>
                 )}
               </div>
+              {/* Spacer + right-side big won/bid (mirror to keep balance). */}
+              <div className="flex-1" />
               <div
-                className={`shrink-0 flex items-center justify-end pl-2 ml-2 border-l border-gold-700/40 ${myBigTone} font-black tabular-nums text-[18px] leading-none`}
+                className={`relative shrink-0 flex items-center justify-end pl-2 ml-2 border-l border-gold-700/40 ${myBigTone} font-black tabular-nums text-[18px] leading-none`}
                 title={
                   myBid === undefined
                     ? 'Waiting to bid'
