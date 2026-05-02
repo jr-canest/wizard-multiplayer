@@ -4,7 +4,6 @@ import { useSession } from '../hooks/useSession';
 import { useActiveRoom } from '../hooks/useActiveRoom';
 import { IdentityPrompt } from '../components/IdentityPrompt';
 import { CreateRoomPanel } from '../components/CreateRoomPanel';
-import { RecentGames } from '../components/RecentGames';
 
 export function Home() {
   const navigate = useNavigate();
@@ -101,19 +100,17 @@ export function Home() {
             </button>
           </form>
 
-          <RecentGames />
-
           <button
             type="button"
             onClick={() => navigate('/history')}
-            className="w-full rounded-lg py-2.5 text-sm border border-gold-700/50 bg-navy-800/40 text-gold-200 active:scale-[0.99] transition"
+            className="w-full rounded-xl py-2.5 text-sm font-medium text-gold-200 border border-gold-700/50 bg-navy-800/40 active:bg-navy-700/60"
           >
-            Show all history
+            📜 Game History
           </button>
 
           <a
             href="https://wizard-scorekeeper.web.app/"
-            className="block w-full text-center rounded-lg py-2.5 text-sm border border-gold-700/50 bg-navy-800/40 text-gold-200 active:scale-[0.99] transition no-underline"
+            className="block w-full text-center rounded-xl py-2.5 text-sm font-medium text-gold-200 border border-gold-700/50 bg-navy-800/40 active:bg-navy-700/60 no-underline"
           >
             ↗ Open Score Keeper
           </a>
