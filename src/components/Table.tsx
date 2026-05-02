@@ -77,17 +77,16 @@ export function Table({
         <div className="flex justify-center gap-1">
           {topRow.map((name, i) =>
             name ? (
-              <div key={name} className="w-[80px] shrink-0">
+              <div key={name} className="w-[64px] shrink-0">
                 <OpponentTile
                   room={room}
                   myName={myName}
                   playerName={name}
                   playerMeta={playersByName.get(name)}
-                  compact
                 />
               </div>
             ) : (
-              <div key={`top-${i}`} className="w-[80px]" />
+              <div key={`top-${i}`} className="w-[64px]" />
             ),
           )}
         </div>
@@ -97,7 +96,7 @@ export function Table({
       <div className="flex items-stretch gap-1">
         {/* Left column */}
         {leftCol.length > 0 && (
-          <div className="flex flex-col justify-around gap-1 w-[80px] shrink-0">
+          <div className="flex flex-col justify-around gap-1 w-[64px] shrink-0">
             {leftCol.map((name, i) =>
               name ? (
                 <OpponentTile
@@ -106,7 +105,6 @@ export function Table({
                   myName={myName}
                   playerName={name}
                   playerMeta={playersByName.get(name)}
-                  compact
                 />
               ) : (
                 <div key={`left-${i}`} />
@@ -140,7 +138,7 @@ export function Table({
 
         {/* Right column */}
         {rightCol.length > 0 && (
-          <div className="flex flex-col justify-around gap-1 w-[78px] shrink-0">
+          <div className="flex flex-col justify-around gap-1 w-[64px] shrink-0">
             {rightCol.map((name, i) =>
               name ? (
                 <OpponentTile
@@ -149,7 +147,6 @@ export function Table({
                   myName={myName}
                   playerName={name}
                   playerMeta={playersByName.get(name)}
-                  compact
                 />
               ) : (
                 <div key={`right-${i}`} />
@@ -186,26 +183,27 @@ function TrumpCenter({
         hidden ? 'opacity-0' : 'opacity-100'
       }`}
     >
-      {/* Subtle gold halo + dashed frame around the trump card+label so
-          the trump is visually distinct from the surrounding trick cards. */}
-      <div className="flex flex-col items-center gap-1 p-1 rounded-lg border border-gold-700/45 shadow-[0_0_18px_rgba(254,205,70,0.15)] bg-navy-900/30">
+      {/* Trump frame: ~30% smaller card (sm = 48×67) inside a gold-bordered
+          panel that wraps the card AND the TRUMP label. Trick cards are
+          positioned to never enter this frame. */}
+      <div className="flex flex-col items-center gap-1 p-1.5 rounded-lg border border-gold-500/60 shadow-[0_0_18px_rgba(254,205,70,0.2)] bg-navy-900/45">
         {trumpCard ? (
           <CardImage
             card={trumpCard}
-            size="md"
-            className="ring-2 ring-gold-300/70 shadow-[0_0_10px_rgba(254,205,70,0.55)]"
+            size="sm"
+            className="ring-1 ring-gold-300/70 shadow-[0_0_8px_rgba(254,205,70,0.55)]"
           />
         ) : (
-          <div className="w-16 h-[90px] rounded-md border border-dashed border-gold-300/50 flex items-center justify-center text-navy-300 text-[10px] bg-navy-900/40">
+          <div className="w-12 h-[67px] rounded-md border border-dashed border-gold-300/50 flex items-center justify-center text-navy-300 text-[10px] bg-navy-900/40">
             —
           </div>
         )}
-        <span className="text-[9px] uppercase tracking-[0.2em] font-bold text-gold-200 bg-navy-900/85 rounded px-1.5 py-0.5 flex items-center gap-1 leading-none ring-1 ring-gold-700/60">
+        <span className="text-[9px] uppercase tracking-[0.2em] font-bold text-gold-200 flex items-center gap-1 leading-none">
           TRUMP
           {awaitingTrumpChoice ? (
             <span className="text-gold-300">…</span>
           ) : labelSuit ? (
-            <span className="text-base leading-none">{labelSuit}</span>
+            <span className="text-sm leading-none">{labelSuit}</span>
           ) : (
             <span className="text-navy-200 normal-case tracking-normal">none</span>
           )}

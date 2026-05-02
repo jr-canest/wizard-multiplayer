@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { postReaction } from '../lib/gameFlow';
-import { playerColor } from '../lib/playerColors';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -138,21 +137,3 @@ export function useActiveReaction(
   return r;
 }
 
-export function ReactionInline({
-  room,
-}: {
-  room: RoomSnapshot;
-}) {
-  const r = useActiveReaction(room);
-  if (!r) return null;
-  const c = playerColor(r.player, room.playerOrder);
-  return (
-    <div
-      key={`${r.player}-${r.ts}`}
-      className="flex-1 rounded-md bg-navy-900/70 border border-gold-700/50 px-3 py-1 flex items-center justify-center gap-1 animate-reaction-inline whitespace-nowrap"
-    >
-      <span className={`${c.text} font-bold text-sm`}>{r.player}</span>
-      <span className="text-gold-100 text-sm">: {r.text}</span>
-    </div>
-  );
-}

@@ -19,14 +19,14 @@ type Props = {
 export function BidModal({ room, myName }: Props) {
   return createPortal(
     <div
-      className="fixed inset-0 z-[250] flex items-end justify-center px-3 pb-[28vh] pointer-events-none animate-bid-modal-in"
+      className="fixed inset-0 z-[250] flex items-end justify-center px-3 pb-[34vh] pointer-events-none animate-bid-modal-in"
       aria-modal="true"
       role="dialog"
     >
-      {/* Soft backdrop — does not capture clicks (cards underneath
-          can't be played anyway during bidding). */}
-      <div className="absolute inset-0 bg-navy-900/45 backdrop-blur-[1px]" />
-      <div className="relative card-gold p-4 w-full max-w-[340px] pointer-events-auto shadow-2xl ring-2 ring-gold-300 shadow-[0_0_24px_rgba(254,205,70,0.5)]">
+      {/* No fullscreen backdrop — only the modal itself is opaque,
+          using a navy-at-40% background so the rest of the table stays
+          fully visible. */}
+      <div className="relative card-gold p-4 w-full max-w-[340px] pointer-events-auto shadow-2xl ring-2 ring-gold-300 shadow-[0_0_24px_rgba(254,205,70,0.5)] bg-navy-900/40 backdrop-blur-[2px]">
         <h3 className="text-center text-[12px] uppercase tracking-[0.2em] font-black text-gold-100 mb-3">
           Place your bid
         </h3>

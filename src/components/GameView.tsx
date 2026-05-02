@@ -10,10 +10,9 @@ import { FinalScoreboard } from './FinalScoreboard';
 import { DisconnectBanner } from './DisconnectBanner';
 import { Reactions } from './Reactions';
 import { GameMenu } from './GameMenu';
-import { StatusRow } from './StatusRow';
 import { Table } from './Table';
-import { LastEventPanel } from './LastEventPanel';
 import { DealAnimation } from './DealAnimation';
+import { OverlayBanner } from './OverlayBanner';
 import { playCard } from '../lib/gameFlow';
 import { legalIndices } from '../game/legalMoves';
 import { playerColor } from '../lib/playerColors';
@@ -248,17 +247,11 @@ export function GameView({ room, players, myName }: Props) {
         </span>
       </div>
 
-      {/* Two-column info section under the top bar.
-            Left: votes / undo / reactions / last-round announcements.
-            Right: sticky last significant game event. */}
-      <div className="flex items-stretch gap-1.5">
-        <div className="flex-1">
-          <StatusRow room={room} myName={myName} />
-        </div>
-        <LastEventPanel room={room} myName={myName} />
-      </div>
-
       <DisconnectBanner room={room} players={players} myName={myName} />
+
+      {/* Transient announcements (reactions, undo prompts, end-now vote
+          progress, last-round banners) overlay over the trick area. */}
+      <OverlayBanner room={room} myName={myName} />
 
       {room.awaitingTrumpChoice && isDealer && (
         <TrumpChooser code={room.code} callerName={myName} />
@@ -317,9 +310,9 @@ export function GameView({ room, players, myName }: Props) {
         </div>
       )}
 
-      {/* Compact title strip below the table. Same height across phases
-          so the hand never shifts. Bid buttons (when it's your turn to
-          bid) live INSIDE the trick area, not here. */}
+      {/* Compact title strip above the user's hand. Main info area:
+          turn callout on top + sticky last-event subtitle below. Same
+          height across phases so the hand never shifts. */}
       {(room.status === 'bidding' ||
         room.status === 'playing' ||
         room.status === 'dealing') && (() => {
@@ -329,14 +322,19 @@ export function GameView({ room, players, myName }: Props) {
             room.status === 'bidding' &&
             currentName === myName &&
             myBid === undefined;
-          const isMyActionTurn = isPlayingTurn || isBiddingTurn;
-          // Subtitle text varies by state — big "YOUR TURN" when it's
-          // mine, otherwise contextual info about who's acting.
           let primary: React.ReactNode;
-          if (isMyActionTurn) {
+          let frame = '';
+          if (isPlayingTurn) {
             primary = (
               <span className="uppercase tracking-[0.2em] font-black text-gold-100 text-[13px] animate-pulse">
                 YOUR TURN
+              </span>
+            );
+            frame = 'ring-2 ring-gold-300 shadow-[0_0_14px_rgba(254,205,70,0.4)]';
+          } else if (isBiddingTurn) {
+            primary = (
+              <span className="text-navy-300 text-[11px]">
+                Place your bid above…
               </span>
             );
           } else if (
@@ -369,20 +367,68 @@ export function GameView({ room, players, myName }: Props) {
               </span>
             );
           }
-          const frame = isMyActionTurn
-            ? 'ring-2 ring-gold-300 shadow-[0_0_14px_rgba(254,205,70,0.4)]'
-            : '';
+          // Sticky last event from the log — most recent trickWin or
+          // roundScore — shown as a subtitle so the game story is
+          // visible without the dedicated info panel above.
+          const lastEvent: React.ReactNode = (() => {
+            for (let i = room.log.length - 1; i >= 0; i--) {
+              const e = room.log[i];
+              if (e.t === 'trickWin') {
+                return (
+                  <>
+                    <span className="text-gold-300">♛</span>{' '}
+                    last trick:{' '}
+                    <strong className="text-gold-200">
+                      {e.winner === myName ? 'you' : e.winner}
+                    </strong>
+                  </>
+                );
+              }
+              if (e.t === 'roundScore') {
+                let topName = '';
+                let topDelta = -Infinity;
+                for (const [name, d] of Object.entries(e.scores)) {
+                  if (d > topDelta) {
+                    topDelta = d;
+                    topName = name;
+                  }
+                }
+                if (!topName) return null;
+                const sign = topDelta > 0 ? '+' : '';
+                return (
+                  <>
+                    R{e.round} best:{' '}
+                    <strong className="text-gold-200">
+                      {topName === myName ? 'you' : topName}
+                    </strong>{' '}
+                    <span className="tabular-nums text-gold-200">
+                      {sign}
+                      {topDelta}
+                    </span>
+                  </>
+                );
+              }
+            }
+            return null;
+          })();
           return (
             <div
-              className={`card-gold-subtle px-3 py-2 min-h-[40px] flex items-center justify-center gap-2 transition-shadow ${frame}`}
+              className={`card-gold-subtle px-3 py-1.5 min-h-[44px] flex flex-col items-center justify-center gap-0.5 transition-shadow ${frame}`}
             >
-              {primary}
-              {myBid !== undefined && (
-                <span
-                  className={`${myBidWonTone} font-bold tabular-nums text-[12px]`}
-                >
-                  · {myWon}/{myBid}
-                </span>
+              <div className="flex items-center justify-center gap-2">
+                {primary}
+                {myBid !== undefined && (
+                  <span
+                    className={`${myBidWonTone} font-bold tabular-nums text-[12px]`}
+                  >
+                    · {myWon}/{myBid}
+                  </span>
+                )}
+              </div>
+              {lastEvent && (
+                <div className="text-[10px] text-navy-300 leading-tight">
+                  {lastEvent}
+                </div>
               )}
             </div>
           );
