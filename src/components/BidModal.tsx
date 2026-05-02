@@ -23,14 +23,15 @@ export function BidModal({ room, myName }: Props) {
   // user's hand (below the table). Re-measures on resize.
   const [anchor, setAnchor] = useState<{
     bottom: number;
-    centerX: number;
+    left: number;
+    width: number;
   } | null>(null);
 
   useLayoutEffect(() => {
     function update() {
-      // Prefer the action strip's bottom edge so the modal's bottom
-      // aligns with the strip's. Fall back to the trick area frame
-      // until the strip is mounted.
+      // Prefer the action strip's bottom edge + width so the modal sits
+      // flush with it (same horizontal extent + bottom). Fall back to
+      // the trick area frame until the strip is mounted.
       const strip = document.querySelector<HTMLElement>(
         '[data-action-strip]',
       );
@@ -42,7 +43,8 @@ export function BidModal({ room, myName }: Props) {
       const r = el.getBoundingClientRect();
       setAnchor({
         bottom: window.innerHeight - r.bottom,
-        centerX: r.left + r.width / 2,
+        left: r.left,
+        width: r.width,
       });
     }
     update();
@@ -61,15 +63,16 @@ export function BidModal({ room, myName }: Props) {
 
   return createPortal(
     <div
-      className="fixed z-[250] pointer-events-none animate-bid-modal-in -translate-x-1/2"
+      className="fixed z-[250] pointer-events-none animate-bid-modal-in"
       style={{
         bottom: anchor.bottom,
-        left: anchor.centerX,
+        left: anchor.left,
+        width: anchor.width,
       }}
       aria-modal="true"
       role="dialog"
     >
-      <div className="relative card-gold p-3 w-[88vw] max-w-[340px] pointer-events-auto shadow-2xl ring-2 ring-gold-300 shadow-[0_0_24px_rgba(254,205,70,0.5)] bg-navy-900/85 backdrop-blur">
+      <div className="relative card-gold p-3 w-full pointer-events-auto shadow-2xl ring-2 ring-gold-300 shadow-[0_0_24px_rgba(254,205,70,0.5)] bg-navy-900/85 backdrop-blur">
         <h3 className="text-center text-[11px] uppercase tracking-[0.2em] font-black text-gold-100 mb-2">
           Place your bid
         </h3>

@@ -38,22 +38,16 @@ export function OverlayBanner({ room, myName }: Props) {
     room.status === 'bidding' ||
     room.status === 'playing' ||
     room.status === 'dealing';
-  const isLastRound =
-    inActiveRound &&
-    room.currentRound > 0 &&
-    room.currentRound >= room.totalRounds;
-  const nextIsLast =
-    inActiveRound &&
-    !isLastRound &&
-    room.currentRound + 1 === room.totalRounds;
+  // (LAST ROUND lives on the trump frame; "next is last" lives under
+  // the round indicator in the top bar — neither shows here anymore.)
 
   const endNowVotes = (room.endNowVotes ?? []).filter((n) =>
     realPlayers.includes(n),
   );
+  const nextIsAlreadyLast = room.currentRound + 1 >= room.totalRounds;
   const endNowVoteInProgress =
     inActiveRound &&
-    !isLastRound &&
-    !nextIsLast &&
+    !nextIsAlreadyLast &&
     endNowVotes.length > 0 &&
     endNowVotes.length < threshold;
   const myEndNowVote = endNowVotes.includes(myName);
@@ -80,20 +74,6 @@ export function OverlayBanner({ room, myName }: Props) {
           {reaction.player}
         </span>
         <span className="text-gold-100 text-sm">: {reaction.text}</span>
-      </span>
-    );
-  } else if (isLastRound) {
-    tone = 'rose';
-    content = (
-      <span className="text-xs uppercase tracking-[0.18em] font-bold">
-        LAST ROUND{room.trumpCard ? '' : ' · no trump'}
-      </span>
-    );
-  } else if (nextIsLast) {
-    tone = 'amber';
-    content = (
-      <span className="text-xs uppercase tracking-[0.18em] font-bold">
-        Next round will be the last
       </span>
     );
   } else if (endNowVoteInProgress) {
@@ -123,13 +103,9 @@ export function OverlayBanner({ room, myName }: Props) {
           ? `r-${reaction.player}-${reaction.ts}`
           : pu?.requested
             ? `u-${pu.actor}`
-            : isLastRound
-              ? 'last'
-              : nextIsLast
-                ? 'next-last'
-                : endNowVoteInProgress
-                  ? 'end-now'
-                  : 'idle'
+            : endNowVoteInProgress
+              ? 'end-now'
+              : 'idle'
       }
       className="absolute top-1.5 left-1.5 z-[180] max-w-[70%] pointer-events-none animate-overlay-banner-inline"
       aria-live="polite"

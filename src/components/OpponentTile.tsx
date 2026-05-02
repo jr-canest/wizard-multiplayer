@@ -80,12 +80,13 @@ export function OpponentTile({
     } as const;
   })();
 
-  // Status word at the bottom of the tile.
+  // Status word at the bottom of the tile. For acted players (bid in,
+  // played card) we just show a check — the big number above already
+  // tells you what they bid / how their tricks stand.
   let label = '';
   if (isActive) label = isBidding ? 'Bidding' : 'Playing';
   else if (isNext) label = 'Next';
-  else if (acted && isPlaying) label = '✓ Played';
-  else if (acted && isBidding) label = 'Bid in';
+  else if (acted) label = '✓';
   else if (isBidding || isPlaying) label = 'Waiting';
 
   // Big middle line: won/bid (with color) once play starts; just bid
@@ -124,8 +125,10 @@ export function OpponentTile({
         isActive
           ? `ring-2 ${color.ring} ${color.glow} animate-[pulse_2s_ease-in-out_infinite]`
           : acted
-            ? 'opacity-55'
-            : ''
+            ? ''
+            : isBidding || isPlaying
+              ? 'opacity-55'
+              : ''
       }`}
     >
       <div
@@ -133,7 +136,13 @@ export function OpponentTile({
       >
         {bigLine}
       </div>
-      <div className="text-[8px] uppercase tracking-wider text-navy-300 leading-none truncate w-full text-center">
+      <div
+        className={`leading-none truncate w-full text-center ${
+          label === '✓'
+            ? 'text-[14px] font-black text-emerald-300'
+            : 'text-[8px] uppercase tracking-wider text-navy-300'
+        }`}
+      >
         {label || ' '}
       </div>
       {isDealer && (

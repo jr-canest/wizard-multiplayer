@@ -110,6 +110,13 @@ export function Home() {
           >
             Show all history
           </button>
+
+          <a
+            href="https://jr-canest.github.io/wizard-scorekeeper/"
+            className="block w-full text-center rounded-lg py-2.5 text-sm border border-gold-700/50 bg-navy-800/40 text-gold-200 active:scale-[0.99] transition no-underline"
+          >
+            ↗ Open Score Keeper
+          </a>
         </div>
       )}
     </div>

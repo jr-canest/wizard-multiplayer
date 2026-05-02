@@ -210,14 +210,36 @@ export function GameView({ room, players, myName }: Props) {
 
   return (
     <div className="w-full max-w-md space-y-2">
+      {(() => {
+        const isLastRoundNow =
+          room.currentRound > 0 &&
+          room.currentRound >= room.totalRounds &&
+          (room.status === 'bidding' ||
+            room.status === 'playing' ||
+            room.status === 'dealing');
+        const nextIsLast =
+          !isLastRoundNow && room.currentRound + 1 === room.totalRounds;
+        return (
       <div className="card-gold-subtle px-3 py-1.5 flex items-center justify-between text-[12px] gap-2">
         <span className="text-navy-100 whitespace-nowrap flex items-center gap-1.5">
           <Reactions room={room} myName={myName} />
-          <span>
-            Round{' '}
-            <strong className="text-gold-100">
-              {room.currentRound}/{room.totalRounds}
-            </strong>
+          <span className="flex flex-col leading-none gap-0.5">
+            <span>
+              Round{' '}
+              <strong className="text-gold-100">
+                {room.currentRound}/{room.totalRounds}
+              </strong>
+            </span>
+            {isLastRoundNow && (
+              <span className="text-[9px] text-rose-300 leading-none uppercase tracking-wider">
+                last round
+              </span>
+            )}
+            {nextIsLast && (
+              <span className="text-[9px] text-amber-300 leading-none">
+                next is last
+              </span>
+            )}
           </span>
         </span>
         {showBidSum && (
@@ -237,6 +259,8 @@ export function GameView({ room, players, myName }: Props) {
           <GameMenu room={room} myName={myName} />
         </span>
       </div>
+        );
+      })()}
 
       <DisconnectBanner room={room} players={players} myName={myName} />
 
