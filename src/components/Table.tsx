@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { TrickArea } from './TrickArea';
 import { OpponentTile } from './OpponentTile';
 import { CardImage } from './CardImage';
@@ -27,9 +26,6 @@ type Props = {
   trickIsLeaving: boolean;
   isMyTurn: boolean;
   hideTrump?: boolean;
-  /** Optional content rendered at the bottom of the trick area, on top
-   * of the trick layout. Used for the bid number picker during bidding. */
-  trickFooter?: ReactNode;
 };
 
 /**
@@ -46,7 +42,6 @@ export function Table({
   trickIsLeaving,
   isMyTurn,
   hideTrump = false,
-  trickFooter,
 }: Props) {
   const opponents = room.playerOrder.filter((n) => n !== myName);
   const oppCount = opponents.length;
@@ -141,14 +136,6 @@ export function Table({
               isLeaving={trickIsLeaving}
             />
           </div>
-          {/* Optional content pinned at the bottom of the trick area
-              (e.g., the bid number bar during bidding). Sits above the
-              trick fan so taps land here. */}
-          {trickFooter && (
-            <div className="absolute bottom-2 left-2 right-2 z-30">
-              {trickFooter}
-            </div>
-          )}
         </div>
 
         {/* Right column */}

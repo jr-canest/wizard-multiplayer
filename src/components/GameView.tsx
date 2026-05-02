@@ -4,7 +4,7 @@ import { useMyHand } from '../hooks/useMyHand';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { TrumpChooser } from './TrumpChooser';
 import { HandDisplay } from './HandDisplay';
-import { BidButtonsBar } from './BidButtonsBar';
+import { BidModal } from './BidModal';
 import { RoundScoreboard } from './RoundScoreboard';
 import { FinalScoreboard } from './FinalScoreboard';
 import { DisconnectBanner } from './DisconnectBanner';
@@ -264,26 +264,24 @@ export function GameView({ room, players, myName }: Props) {
         <TrumpChooser code={room.code} callerName={myName} />
       )}
 
-      {showOpponents && (() => {
-        const isMyBidTurn =
-          room.status === 'bidding' &&
-          room.playerOrder[room.currentPlayerIndex] === myName &&
-          myBid === undefined;
-        return (
-          <Table
-            room={room}
-            players={players}
-            myName={myName}
-            trickPlays={displayedPlays}
-            trickIsLeaving={trickIsLeaving}
-            isMyTurn={isMyTurn}
-            hideTrump={dealingActive}
-            trickFooter={
-              isMyBidTurn ? <BidButtonsBar room={room} myName={myName} /> : null
-            }
-          />
-        );
-      })()}
+      {showOpponents && (
+        <Table
+          room={room}
+          players={players}
+          myName={myName}
+          trickPlays={displayedPlays}
+          trickIsLeaving={trickIsLeaving}
+          isMyTurn={isMyTurn}
+          hideTrump={dealingActive}
+        />
+      )}
+
+      {/* Bid number picker modal — only while it's my turn to bid. */}
+      {room.status === 'bidding' &&
+        room.playerOrder[room.currentPlayerIndex] === myName &&
+        myBid === undefined && (
+          <BidModal room={room} myName={myName} />
+        )}
 
       <DealAnimation
         room={room}
