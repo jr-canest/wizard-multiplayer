@@ -64,6 +64,10 @@ export type RoomDoc = {
   // Player names who've voted to start a new game (used during
   // 'finished'). Cleared on resetForNewGame.
   playAgainVotes?: string[];
+  // Player names who've voted to end the game NOW (immediately finish
+  // with current cumulative scores, regardless of how many rounds are
+  // left). Cleared once the threshold triggers the finish.
+  endGameVotes?: string[];
   // Most recent reaction broadcast by any player. Clients show it briefly
   // based on `ts` (epoch ms, client-set — no clock-skew sensitivity since
   // it's a soft TTL, not a correctness check).

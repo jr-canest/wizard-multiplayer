@@ -123,6 +123,69 @@ export async function voteNextRound(
 }
 
 /**
+ * Toggle the caller's vote to end the game IMMEDIATELY with current
+ * cumulative scores (majority of real players). When threshold is met,
+ * the room flips to 'finished' — including this round's deltas if we
+ * were in scoring.
+ */
+export async function voteEndGame(
+  code: string,
+  callerName: string,
+  voteYes: boolean,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  let trigger = false;
+  let snapshotRoom: RoomDoc | null = null;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) return;
+    const room = snap.data() as RoomDoc;
+    if (room.status === 'lobby' || room.status === 'finished') return;
+
+    const current = new Set(room.endGameVotes ?? []);
+    if (voteYes) current.add(callerName);
+    else current.delete(callerName);
+
+    const realPlayers = room.playerOrder.filter(
+      (n) => !n.startsWith('Bot-'),
+    );
+    const realVotes = [...current].filter(
+      (n) => !n.startsWith('Bot-') && realPlayers.includes(n),
+    );
+    const threshold = Math.floor(realPlayers.length / 2) + 1;
+
+    if (realVotes.length >= threshold) {
+      tx.update(roomRef, { endGameVotes: [] });
+      trigger = true;
+      snapshotRoom = room;
+    } else {
+      tx.update(roomRef, { endGameVotes: [...current] });
+    }
+  });
+  if (!trigger || !snapshotRoom) return;
+  const room: RoomDoc = snapshotRoom;
+  const baseFromLog = cumulativeScoresFromLog(room.playerOrder, room.log);
+  const final: Record<string, number> = { ...baseFromLog };
+  if (room.status === 'scoring') {
+    const deltas = computeRoundDeltas(
+      room.playerOrder,
+      room.bids,
+      room.tricksWon,
+    );
+    for (const name of room.playerOrder) {
+      final[name] = (final[name] ?? 0) + (deltas[name] ?? 0);
+    }
+  }
+  const gameOverLog: LogEntry = { t: 'gameOver', finalScores: final };
+  await updateDoc(roomRef, {
+    status: 'finished',
+    cumulativeScores: final,
+    log: [...room.log, gameOverLog],
+    pendingUndo: null,
+  });
+}
+
+/**
  * Toggle the caller's vote to make the NEXT round the last (mid-round
  * vote). When majority is reached, totalRounds is shrunk to currentRound+1,
  * so the current round finishes naturally and one more round runs as the

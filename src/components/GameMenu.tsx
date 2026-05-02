@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   computeRoundDeltas,
   cumulativeScoresFromLog,
+  voteEndGame,
   voteEndNow,
   voteNextRound,
 } from '../lib/gameFlow';
@@ -17,8 +18,40 @@ type Props = {
 export function GameMenu({ room, myName }: Props) {
   const [open, setOpen] = useState(false);
   const [voting, setVoting] = useState(false);
+  const [anchor, setAnchor] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    bottom: number;
+  } | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Match the trick-area frame's horizontal extent so the sheet sits
+  // centered on the table column. Re-measure when opened + on resize.
+  useLayoutEffect(() => {
+    if (!open) return;
+    function update() {
+      const el = document.querySelector<HTMLElement>(
+        '[data-trick-area-frame]',
+      );
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setAnchor({
+        left: r.left,
+        top: r.top,
+        width: r.width,
+        bottom: window.innerHeight - r.bottom,
+      });
+    }
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -49,6 +82,17 @@ export function GameMenu({ room, myName }: Props) {
   );
   const myEndNowVote = endNowVotes.includes(myName);
 
+  // End-game-NOW vote — finishes immediately with current scores.
+  // Available during bidding/playing/scoring (anywhere except lobby/finished).
+  const canVoteEndGame =
+    room.status === 'bidding' ||
+    room.status === 'playing' ||
+    room.status === 'scoring';
+  const endGameVotes = (room.endGameVotes ?? []).filter((n) =>
+    realPlayers.includes(n),
+  );
+  const myEndGameVote = endGameVotes.includes(myName);
+
   // Next-round vote (during scoring). Mirrors the RoundScoreboard's vote
   // control so the user can confirm/cast from either place.
   const showNextRoundVote = room.status === 'scoring';
@@ -73,6 +117,16 @@ export function GameMenu({ room, myName }: Props) {
     setVoting(true);
     try {
       await voteNextRound(room.code, myName, !myNextRoundVote);
+    } finally {
+      setVoting(false);
+    }
+  }
+
+  async function handleEndGame() {
+    if (voting) return;
+    setVoting(true);
+    try {
+      await voteEndGame(room.code, myName, !myEndGameVote);
     } finally {
       setVoting(false);
     }
@@ -112,10 +166,25 @@ export function GameMenu({ room, myName }: Props) {
       {open && (
         <>
           {/* tap-out backdrop */}
-          <div className="fixed inset-0 z-[100] bg-black/40" />
+          <div className="fixed inset-0 z-[270] bg-black/40" />
           <div
             ref={sheetRef}
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[110] w-[min(92vw,360px)] card-gold p-3 space-y-3 shadow-2xl"
+            className="fixed z-[280] card-gold p-3 space-y-3 shadow-2xl"
+            style={
+              anchor
+                ? {
+                    left: anchor.left,
+                    top: Math.max(8, anchor.top - 4),
+                    width: anchor.width,
+                  }
+                : {
+                    // Fallback before anchor measurement
+                    left: '50%',
+                    top: '8vh',
+                    transform: 'translateX(-50%)',
+                    width: 'min(92vw, 360px)',
+                  }
+            }
           >
             <div className="flex items-center justify-between">
               <span className="text-xs uppercase tracking-wider text-gold-200">
@@ -198,28 +267,54 @@ export function GameMenu({ room, myName }: Props) {
               </div>
             )}
 
-            {showEndNow && (
-              <div className="border-t border-gold-700/30 pt-3 space-y-1">
-                <button
-                  type="button"
-                  onClick={handleEndNow}
-                  disabled={voting}
-                  className={`w-full rounded-md py-2 text-sm font-semibold border transition tabular-nums ${
-                    myEndNowVote
-                      ? 'bg-emerald-700/30 border-emerald-500/60 text-emerald-100'
-                      : 'bg-navy-900 border-gold-600/60 text-gold-200 active:scale-[0.98]'
-                  }`}
-                >
-                  {myEndNowVote
-                    ? `✓ Voted — next round is last (${endNowVotes.length}/${majorityThreshold}) · tap to undo`
-                    : `Vote: next round is last (${endNowVotes.length}/${majorityThreshold})`}
-                </button>
-                {endNowVotes.length > 0 && !myEndNowVote && (
-                  <p className="text-[11px] text-center text-amber-200">
-                    {endNowVotes.length} player
-                    {endNowVotes.length === 1 ? ' wants' : 's want'} to end after the next round.
-                  </p>
-                )}
+            {(showEndNow || canVoteEndGame) && (
+              <div className="border-t border-gold-700/30 pt-3">
+                <div className="grid grid-cols-2 gap-1.5">
+                  {showEndNow ? (
+                    <button
+                      type="button"
+                      onClick={handleEndNow}
+                      disabled={voting}
+                      className={`rounded-md py-2 text-[11px] font-semibold border transition tabular-nums leading-tight ${
+                        myEndNowVote
+                          ? 'bg-emerald-700/30 border-emerald-500/60 text-emerald-100'
+                          : 'bg-navy-900 border-gold-600/60 text-gold-200 active:scale-[0.98]'
+                      }`}
+                    >
+                      {myEndNowVote ? '✓ Voted — ' : 'Vote: '}
+                      <span className="block normal-case font-normal text-[10px] opacity-90">
+                        next round is last
+                      </span>
+                      <span className="tabular-nums">
+                        {endNowVotes.length}/{majorityThreshold}
+                      </span>
+                    </button>
+                  ) : (
+                    <div />
+                  )}
+                  {canVoteEndGame ? (
+                    <button
+                      type="button"
+                      onClick={handleEndGame}
+                      disabled={voting}
+                      className={`rounded-md py-2 text-[11px] font-semibold border transition tabular-nums leading-tight ${
+                        myEndGameVote
+                          ? 'bg-rose-700/30 border-rose-500/60 text-rose-100'
+                          : 'bg-navy-900 border-rose-700/60 text-rose-200 active:scale-[0.98]'
+                      }`}
+                    >
+                      {myEndGameVote ? '✓ Voted — ' : 'Vote: '}
+                      <span className="block normal-case font-normal text-[10px] opacity-90">
+                        end game now
+                      </span>
+                      <span className="tabular-nums">
+                        {endGameVotes.length}/{majorityThreshold}
+                      </span>
+                    </button>
+                  ) : (
+                    <div />
+                  )}
+                </div>
               </div>
             )}
           </div>
