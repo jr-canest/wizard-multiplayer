@@ -55,9 +55,6 @@ export type RoomDoc = {
   // Player names who've voted that the next round should be the last
   // (used during 'scoring' phase). Cleared once totalRounds is shrunk.
   endEarlyVotes?: string[];
-  // Player names who've voted to make the CURRENT round the last (used
-  // during 'bidding' / 'playing'). Cleared on round transition.
-  endNowVotes?: string[];
   // Player names who've voted to advance to the next round (used during
   // 'scoring'). Cleared once threshold triggers scoreAndAdvance.
   nextRoundVotes?: string[];

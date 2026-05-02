@@ -3,6 +3,7 @@ import {
   computeRoundDeltas,
   cumulativeScoresFromLog,
   voteEndEarly,
+  voteEndGame,
   voteNextRound,
 } from '../lib/gameFlow';
 import { isBotName } from '../lib/rooms';
@@ -70,6 +71,24 @@ export function RoundScoreboard({ room, myName }: Props) {
     realPlayers.includes(n),
   );
   const myEarlyVote = earlyVotes.includes(myName);
+
+  // End-game NOW vote — finishes immediately with current scores.
+  // Hide on the final round (advancing already finishes the game).
+  const showEndGame = !isFinalRound;
+  const endGameVotes = (room.endGameVotes ?? []).filter((n) =>
+    realPlayers.includes(n),
+  );
+  const myEndGameVote = endGameVotes.includes(myName);
+
+  async function handleEndGame() {
+    if (voting) return;
+    setVoting(true);
+    try {
+      await voteEndGame(room.code, myName, !myEndGameVote);
+    } finally {
+      setVoting(false);
+    }
+  }
 
   async function handleEndEarly() {
     if (voting) return;
@@ -173,23 +192,56 @@ export function RoundScoreboard({ room, myName }: Props) {
             : `${isFinalRound ? 'Finish game' : 'Next round'} ${nextVotes.length}/${threshold}`}
       </button>
 
-      {showEndEarly && (
+      {(showEndEarly || showEndGame) && (
         <div className="border-t border-gold-700/30 pt-3 -mt-1 space-y-1.5">
-          <button
-            type="button"
-            onClick={handleEndEarly}
-            disabled={voting}
-            className={`w-full rounded-lg py-2 text-sm font-semibold border transition ${
-              myEarlyVote
-                ? 'bg-rose-700/30 border-rose-500/60 text-rose-100'
-                : 'bg-navy-800 border-gold-700/60 text-gold-200 active:scale-[0.98]'
-            }`}
-          >
-            {myEarlyVote ? 'Cancel: end after next round' : 'Vote: end after next round'}
-          </button>
-          <p className="text-[11px] text-center text-navy-300 tabular-nums">
-            {earlyVotes.length}/{earlyThreshold} votes — majority makes the
-            next round the last.
+          <div className="grid grid-cols-2 gap-1.5">
+            {showEndEarly ? (
+              <button
+                type="button"
+                onClick={handleEndEarly}
+                disabled={voting}
+                className={`rounded-lg py-2 text-[11px] font-semibold border transition tabular-nums leading-tight ${
+                  myEarlyVote
+                    ? 'bg-emerald-700/30 border-emerald-500/60 text-emerald-100'
+                    : 'bg-navy-800 border-gold-700/60 text-gold-200 active:scale-[0.98]'
+                }`}
+              >
+                {myEarlyVote ? '✓ Voted — ' : 'Vote: '}
+                <span className="block normal-case font-normal text-[10px] opacity-90">
+                  next round is last
+                </span>
+                <span className="tabular-nums">
+                  {earlyVotes.length}/{earlyThreshold}
+                </span>
+              </button>
+            ) : (
+              <div />
+            )}
+            {showEndGame ? (
+              <button
+                type="button"
+                onClick={handleEndGame}
+                disabled={voting}
+                className={`rounded-lg py-2 text-[11px] font-semibold border transition tabular-nums leading-tight ${
+                  myEndGameVote
+                    ? 'bg-rose-700/30 border-rose-500/60 text-rose-100'
+                    : 'bg-navy-900 border-rose-700/60 text-rose-200 active:scale-[0.98]'
+                }`}
+              >
+                {myEndGameVote ? '✓ Voted — ' : 'Vote: '}
+                <span className="block normal-case font-normal text-[10px] opacity-90">
+                  end game now
+                </span>
+                <span className="tabular-nums">
+                  {endGameVotes.length}/{earlyThreshold}
+                </span>
+              </button>
+            ) : (
+              <div />
+            )}
+          </div>
+          <p className="text-[11px] text-center text-navy-300">
+            Both votes need a majority.
           </p>
         </div>
       )}

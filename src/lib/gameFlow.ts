@@ -140,7 +140,8 @@ export async function voteEndGame(
     const snap = await tx.get(roomRef);
     if (!snap.exists()) return;
     const room = snap.data() as RoomDoc;
-    if (room.status === 'lobby' || room.status === 'finished') return;
+    // Only available on the round-end score page.
+    if (room.status !== 'scoring') return;
 
     const current = new Set(room.endGameVotes ?? []);
     if (voteYes) current.add(callerName);
@@ -164,17 +165,17 @@ export async function voteEndGame(
   });
   if (!trigger || !snapshotRoom) return;
   const room: RoomDoc = snapshotRoom;
+  // Final = log-based cumulative + this just-finished round's deltas
+  // (status was 'scoring', so the round was about to be applied).
   const baseFromLog = cumulativeScoresFromLog(room.playerOrder, room.log);
+  const deltas = computeRoundDeltas(
+    room.playerOrder,
+    room.bids,
+    room.tricksWon,
+  );
   const final: Record<string, number> = { ...baseFromLog };
-  if (room.status === 'scoring') {
-    const deltas = computeRoundDeltas(
-      room.playerOrder,
-      room.bids,
-      room.tricksWon,
-    );
-    for (const name of room.playerOrder) {
-      final[name] = (final[name] ?? 0) + (deltas[name] ?? 0);
-    }
+  for (const name of room.playerOrder) {
+    final[name] = (final[name] ?? 0) + (deltas[name] ?? 0);
   }
   const gameOverLog: LogEntry = { t: 'gameOver', finalScores: final };
   await updateDoc(roomRef, {
@@ -185,48 +186,9 @@ export async function voteEndGame(
   });
 }
 
-/**
- * Toggle the caller's vote to make the NEXT round the last (mid-round
- * vote). When majority is reached, totalRounds is shrunk to currentRound+1,
- * so the current round finishes naturally and one more round runs as the
- * declared final.
- */
-export async function voteEndNow(
-  code: string,
-  callerName: string,
-  voteYes: boolean,
-): Promise<void> {
-  const roomRef = doc(db, 'rooms', code);
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(roomRef);
-    if (!snap.exists()) return;
-    const room = snap.data() as RoomDoc;
-    if (room.status !== 'bidding' && room.status !== 'playing') return;
-    // Next round would already be on/past the final — nothing to shrink.
-    if (room.currentRound + 1 >= room.totalRounds) return;
-
-    const current = new Set(room.endNowVotes ?? []);
-    if (voteYes) current.add(callerName);
-    else current.delete(callerName);
-
-    const realPlayers = room.playerOrder.filter(
-      (n) => !n.startsWith('Bot-'),
-    );
-    const realVotes = [...current].filter(
-      (n) => !n.startsWith('Bot-') && realPlayers.includes(n),
-    );
-    const threshold = Math.floor(realPlayers.length / 2) + 1;
-
-    if (realVotes.length >= threshold) {
-      tx.update(roomRef, {
-        totalRounds: room.currentRound + 1,
-        endNowVotes: [],
-      });
-    } else {
-      tx.update(roomRef, { endNowVotes: [...current] });
-    }
-  });
-}
+// (voteEndNow / endNowVotes were the mid-game variant of "next round
+// is last". Replaced by voteEndEarly during scoring, which is the only
+// place voting can happen now.)
 
 export class FlowError extends Error {
   code:
@@ -363,8 +325,9 @@ export async function dealNextRound(code: string, prev: RoomDoc): Promise<void> 
     tricksWon,
     trickInProgress: [],
     log: [...prev.log, dealLog, trumpLog],
-    endNowVotes: [],
     nextRoundVotes: [],
+    endGameVotes: [],
+    endEarlyVotes: [],
     pendingUndo: null,
     cumulativeScores: prev.cumulativeScores,
   });
@@ -882,8 +845,8 @@ async function resetGameStateInternal(
     aiSummaryRequested: false,
     playAgainVotes: [],
     nextRoundVotes: [],
-    endNowVotes: [],
     endEarlyVotes: [],
+    endGameVotes: [],
   });
 }
 

@@ -23,9 +23,6 @@ export function OverlayBanner({ room, myName }: Props) {
   const [busy, setBusy] = useState(false);
   const reaction = useActiveReaction(room);
 
-  const realPlayers = room.playerOrder.filter((n) => !isBotName(n));
-  const threshold = Math.floor(realPlayers.length / 2) + 1;
-
   const pu = room.pendingUndo;
   const isUndoActor = pu?.actor === myName;
   const isUndoOpen = !!pu?.requested;
@@ -33,28 +30,13 @@ export function OverlayBanner({ room, myName }: Props) {
     !!pu &&
     (room.status === 'bidding' || room.status === 'playing') &&
     (isUndoOpen || isUndoActor);
-
-  const inActiveRound =
-    room.status === 'bidding' ||
-    room.status === 'playing' ||
-    room.status === 'dealing';
   // (LAST ROUND lives on the trump frame; "next is last" lives under
-  // the round indicator in the top bar — neither shows here anymore.)
-
-  const endNowVotes = (room.endNowVotes ?? []).filter((n) =>
-    realPlayers.includes(n),
-  );
-  const nextIsAlreadyLast = room.currentRound + 1 >= room.totalRounds;
-  const endNowVoteInProgress =
-    inActiveRound &&
-    !nextIsAlreadyLast &&
-    endNowVotes.length > 0 &&
-    endNowVotes.length < threshold;
-  const myEndNowVote = endNowVotes.includes(myName);
+  // the round indicator in the top bar; vote progress lives in the
+  // RoundScoreboard. So the banner only carries undo + reactions.)
 
   // Build the active banner content (or null when nothing's active).
   let content: React.ReactNode = null;
-  let tone: 'gold' | 'rose' | 'amber' = 'gold';
+  let tone: 'gold' | 'rose' = 'gold';
 
   if (undoVisible && pu) {
     tone = 'rose';
@@ -76,14 +58,6 @@ export function OverlayBanner({ room, myName }: Props) {
         <span className="text-gold-100 text-sm">: {reaction.text}</span>
       </span>
     );
-  } else if (endNowVoteInProgress) {
-    tone = 'amber';
-    content = (
-      <span className="text-xs uppercase tracking-[0.18em] font-bold">
-        Vote: end after next round {endNowVotes.length}/{threshold}
-        {myEndNowVote ? ' · ✓ you' : ''}
-      </span>
-    );
   }
 
   if (!content) return null;
@@ -91,9 +65,7 @@ export function OverlayBanner({ room, myName }: Props) {
   const toneCls =
     tone === 'rose'
       ? 'border-rose-600/70 bg-rose-900/35 text-rose-100'
-      : tone === 'amber'
-        ? 'border-amber-500/70 bg-amber-900/35 text-amber-100'
-        : 'border-gold-500/70 bg-navy-900/85 text-gold-100';
+      : 'border-gold-500/70 bg-navy-900/85 text-gold-100';
 
   return (
     <div
@@ -103,9 +75,7 @@ export function OverlayBanner({ room, myName }: Props) {
           ? `r-${reaction.player}-${reaction.ts}`
           : pu?.requested
             ? `u-${pu.actor}`
-            : endNowVoteInProgress
-              ? 'end-now'
-              : 'idle'
+            : 'idle'
       }
       className="absolute top-1.5 left-1.5 z-[180] max-w-[70%] pointer-events-none animate-overlay-banner-inline"
       aria-live="polite"
