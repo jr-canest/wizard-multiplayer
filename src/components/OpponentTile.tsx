@@ -1,6 +1,15 @@
 import { colorForViewer } from '../lib/playerColors';
 import { isConnected } from '../lib/presence';
+import type { Suit } from '../lib/types';
 import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
+
+const SUIT_GLYPH: Record<Suit, string> = { H: '♥', D: '♦', C: '♣', S: '♠' };
+const SUIT_TONE: Record<Suit, string> = {
+  H: 'text-rose-300',
+  D: 'text-sky-300',
+  C: 'text-emerald-300',
+  S: 'text-navy-50',
+};
 
 type Props = {
   room: RoomSnapshot;
@@ -84,6 +93,29 @@ export function OpponentTile({
   const handSize = estimateHandSize(room, playerName);
   const color = colorForViewer(playerName, myName, room.playerOrder);
   const offline = playerMeta ? !isConnected(playerMeta) : false;
+
+  // The card this player just played in the current trick (if any) —
+  // shown as a small chip on the tile so you can spot what they put down
+  // without scanning back to the trick area.
+  const inTrick = room.trickInProgress.find(
+    (p) => p.playerName === playerName,
+  );
+  const playedChip = (() => {
+    if (!inTrick) return null;
+    const c = inTrick.card;
+    if (c.kind === 'wizard')
+      return { text: 'W', tone: 'text-sky-200' } as const;
+    if (c.kind === 'jester')
+      return { text: 'J', tone: 'text-amber-300' } as const;
+    const rankStr =
+      c.rank > 10
+        ? ['J', 'Q', 'K', 'A'][c.rank - 11]
+        : String(c.rank);
+    return {
+      text: `${rankStr}${SUIT_GLYPH[c.suit]}`,
+      tone: SUIT_TONE[c.suit],
+    } as const;
+  })();
 
   const acted =
     !isActive &&
@@ -169,6 +201,14 @@ export function OpponentTile({
             title="Dealer"
           >
             ♛
+          </span>
+        )}
+        {playedChip && (
+          <span
+            className={`absolute -top-2 -right-1.5 bg-navy-900/90 ${playedChip.tone} text-[10px] font-bold rounded px-1 py-0.5 shadow-md ring-1 ring-gold-700/60 leading-none`}
+            title="Played card"
+          >
+            {playedChip.text}
           </span>
         )}
         {offline && (

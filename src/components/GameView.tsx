@@ -4,7 +4,7 @@ import { useMyHand } from '../hooks/useMyHand';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { TrumpChooser } from './TrumpChooser';
 import { HandDisplay } from './HandDisplay';
-import { BiddingPanel } from './BiddingPanel';
+import { BidButtonsBar } from './BidButtonsBar';
 import { RoundScoreboard } from './RoundScoreboard';
 import { FinalScoreboard } from './FinalScoreboard';
 import { DisconnectBanner } from './DisconnectBanner';
@@ -264,17 +264,26 @@ export function GameView({ room, players, myName }: Props) {
         <TrumpChooser code={room.code} callerName={myName} />
       )}
 
-      {showOpponents && (
-        <Table
-          room={room}
-          players={players}
-          myName={myName}
-          trickPlays={displayedPlays}
-          trickIsLeaving={trickIsLeaving}
-          isMyTurn={isMyTurn}
-          hideTrump={dealingActive}
-        />
-      )}
+      {showOpponents && (() => {
+        const isMyBidTurn =
+          room.status === 'bidding' &&
+          room.playerOrder[room.currentPlayerIndex] === myName &&
+          myBid === undefined;
+        return (
+          <Table
+            room={room}
+            players={players}
+            myName={myName}
+            trickPlays={displayedPlays}
+            trickIsLeaving={trickIsLeaving}
+            isMyTurn={isMyTurn}
+            hideTrump={dealingActive}
+            trickFooter={
+              isMyBidTurn ? <BidButtonsBar room={room} myName={myName} /> : null
+            }
+          />
+        );
+      })()}
 
       <DealAnimation
         room={room}
@@ -310,52 +319,73 @@ export function GameView({ room, players, myName }: Props) {
         </div>
       )}
 
-      {/* Action area between table and hand. Always rendered as the
-          same-sized bordered box across phases so the hand never
-          shifts when the bid panel comes/goes. */}
+      {/* Compact title strip below the table. Same height across phases
+          so the hand never shifts. Bid buttons (when it's your turn to
+          bid) live INSIDE the trick area, not here. */}
       {(room.status === 'bidding' ||
         room.status === 'playing' ||
         room.status === 'dealing') && (() => {
+          const currentName = room.playerOrder[room.currentPlayerIndex];
           const isPlayingTurn = room.status === 'playing' && isMyTurn;
           const isBiddingTurn =
             room.status === 'bidding' &&
-            room.playerOrder[room.currentPlayerIndex] === myName &&
+            currentName === myName &&
             myBid === undefined;
           const isMyActionTurn = isPlayingTurn || isBiddingTurn;
-          // Big banner: short verb. The action itself is implied by phase
-          // (bid buttons rendered inside the box during bidding).
-          const turnLabel = isMyActionTurn
-            ? 'YOUR TURN'
-            : 'WAITING';
-          const myTurnFrame =
-            isMyActionTurn
-              ? 'ring-2 ring-gold-300 shadow-[0_0_18px_rgba(254,205,70,0.45)]'
-              : '';
+          // Subtitle text varies by state — big "YOUR TURN" when it's
+          // mine, otherwise contextual info about who's acting.
+          let primary: React.ReactNode;
+          if (isMyActionTurn) {
+            primary = (
+              <span className="uppercase tracking-[0.2em] font-black text-gold-100 text-[13px] animate-pulse">
+                YOUR TURN
+              </span>
+            );
+          } else if (
+            room.status === 'bidding' &&
+            myBid !== undefined &&
+            currentName !== myName
+          ) {
+            primary = (
+              <span className="text-navy-100 text-[12px]">
+                Your bid: <strong className="text-gold-100">{myBid}</strong>
+                {' · '}
+                Waiting for{' '}
+                <strong className="text-gold-200">{currentName}</strong>…
+              </span>
+            );
+          } else if (
+            (room.status === 'bidding' || room.status === 'playing') &&
+            currentName !== myName
+          ) {
+            primary = (
+              <span className="text-navy-200 text-[12px]">
+                Waiting for{' '}
+                <strong className="text-gold-200">{currentName}</strong>…
+              </span>
+            );
+          } else {
+            primary = (
+              <span className="uppercase tracking-[0.2em] font-black text-navy-300 text-[11px]">
+                WAITING
+              </span>
+            );
+          }
+          const frame = isMyActionTurn
+            ? 'ring-2 ring-gold-300 shadow-[0_0_14px_rgba(254,205,70,0.4)]'
+            : '';
           return (
             <div
-              className={`card-gold-subtle p-2 min-h-[88px] flex flex-col justify-center gap-1.5 transition-shadow ${myTurnFrame}`}
+              className={`card-gold-subtle px-3 py-2 min-h-[40px] flex items-center justify-center gap-2 transition-shadow ${frame}`}
             >
-              {room.status === 'bidding' && (
-                <BiddingPanel room={room} myName={myName} />
-              )}
-              <h3 className="text-center flex items-center justify-center gap-1.5">
+              {primary}
+              {myBid !== undefined && (
                 <span
-                  className={`uppercase tracking-[0.2em] font-black ${
-                    isMyActionTurn
-                      ? 'text-gold-100 text-[13px] animate-pulse'
-                      : 'text-navy-300 text-[11px]'
-                  }`}
+                  className={`${myBidWonTone} font-bold tabular-nums text-[12px]`}
                 >
-                  {turnLabel}
+                  · {myWon}/{myBid}
                 </span>
-                {myBid !== undefined && (
-                  <span
-                    className={`${myBidWonTone} font-bold normal-case tracking-normal text-[12px] tabular-nums`}
-                  >
-                    · {myWon}/{myBid}
-                  </span>
-                )}
-              </h3>
+              )}
             </div>
           );
         })()}
