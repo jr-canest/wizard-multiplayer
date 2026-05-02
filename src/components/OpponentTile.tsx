@@ -90,7 +90,8 @@ export function OpponentTile({
     ((isBidding && bid !== undefined) ||
       (isPlaying && room.trickInProgress.some((p) => p.playerName === playerName)));
 
-  // Status label above the tile (kept short to fit narrow tiles).
+  // Status label above the tile. Once a player has acted, switch the
+  // label to confirm what they did instead of saying "Waiting".
   let label: string | null = null;
   if (isActive) {
     label = isBidding ? 'Bidding' : 'Playing';
@@ -98,6 +99,8 @@ export function OpponentTile({
     label = 'Next';
   } else if (acted && isBidding && bid !== undefined) {
     label = `Bid ${bid}`;
+  } else if (acted && isPlaying) {
+    label = '✓ Played';
   } else if (isBidding || isPlaying) {
     label = 'Waiting';
   }
@@ -140,12 +143,12 @@ export function OpponentTile({
         data-player={playerName}
         className={`relative rounded-md ${padding} border bg-navy-900/60 ${
           color.border
-        } ${
+        } transition-opacity ${
           isActive
             ? `ring-2 ${color.ring} ${color.glow} animate-[pulse_2s_ease-in-out_infinite]`
             : acted
-              ? ''
-              : 'opacity-70'
+              ? 'opacity-55'
+              : ''
         }`}
       >
         <div className="flex items-center justify-between gap-1 leading-tight">

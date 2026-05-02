@@ -55,17 +55,13 @@ export function BiddingPanel({ room, myName }: Props) {
     }
   }
 
-  // (Total bids over/under display now lives in the GameView top bar.)
+  // (Total bids over/under display now lives in the GameView top bar.
+  // Outer frame is provided by the action area in GameView.)
   const currentColor = playerColor(currentName, room.playerOrder);
-  const myTurnGlow =
-    isMyTurn && !alreadyBid
-      ? 'ring-4 ring-gold-300 shadow-[0_0_24px_rgba(254,205,70,0.7)] animate-[pulse_2s_ease-in-out_infinite]'
-      : '';
 
   return (
-    <div
-      className={`card-gold-subtle p-2 flex flex-col gap-1.5 ${myTurnGlow}`}
-    >
+    <div className="flex flex-col gap-1.5">
+
       {alreadyBid && !isMyTurn ? (
         <p className="text-xs text-center text-navy-100">
           Your bid: <strong className="text-gold-100">{myBid}</strong>

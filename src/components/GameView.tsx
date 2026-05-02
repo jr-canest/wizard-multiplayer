@@ -49,6 +49,7 @@ export function GameView({ room, players, myName }: Props) {
 
   const [playError, setPlayError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [dealingActive, setDealingActive] = useState(false);
   const [winBanner, setWinBanner] = useState<{
     winner: string;
     key: number;
@@ -271,10 +272,15 @@ export function GameView({ room, players, myName }: Props) {
           trickPlays={displayedPlays}
           trickIsLeaving={trickIsLeaving}
           isMyTurn={isMyTurn}
+          hideTrump={dealingActive}
         />
       )}
 
-      <DealAnimation room={room} myName={myName} />
+      <DealAnimation
+        room={room}
+        myName={myName}
+        onActiveChange={setDealingActive}
+      />
 
       {room.status === 'scoring' && !holdingRoundEnd && (
         <RoundScoreboard room={room} myName={myName} />
@@ -304,30 +310,34 @@ export function GameView({ room, players, myName }: Props) {
         </div>
       )}
 
-      {/* Action area between table and hand. Fixed min-height so the
-          hand never shifts as the BiddingPanel or turn callout swap in
-          and out. */}
+      {/* Action area between table and hand. Always rendered as the
+          same-sized bordered box across phases so the hand never
+          shifts when the bid panel comes/goes. */}
       {(room.status === 'bidding' ||
         room.status === 'playing' ||
-        room.status === 'dealing') && (
-        <div className="min-h-[88px] flex flex-col justify-end gap-1">
-          {room.status === 'bidding' && (
-            <BiddingPanel room={room} myName={myName} />
-          )}
-          {(() => {
-            const isPlayingTurn = room.status === 'playing' && isMyTurn;
-            const isBiddingTurn =
-              room.status === 'bidding' &&
-              room.playerOrder[room.currentPlayerIndex] === myName &&
-              myBid === undefined;
-            const turnLabel = isPlayingTurn
-              ? 'YOUR TURN — PLAY A CARD'
-              : isBiddingTurn
-                ? 'YOUR TURN — PLACE YOUR BID'
-                : 'WAITING FOR YOUR TURN';
-            const isMyActionTurn = isPlayingTurn || isBiddingTurn;
-
-            return (
+        room.status === 'dealing') && (() => {
+          const isPlayingTurn = room.status === 'playing' && isMyTurn;
+          const isBiddingTurn =
+            room.status === 'bidding' &&
+            room.playerOrder[room.currentPlayerIndex] === myName &&
+            myBid === undefined;
+          const isMyActionTurn = isPlayingTurn || isBiddingTurn;
+          // Big banner: short verb. The action itself is implied by phase
+          // (bid buttons rendered inside the box during bidding).
+          const turnLabel = isMyActionTurn
+            ? 'YOUR TURN'
+            : 'WAITING';
+          const myTurnFrame =
+            isMyActionTurn
+              ? 'ring-2 ring-gold-300 shadow-[0_0_18px_rgba(254,205,70,0.45)]'
+              : '';
+          return (
+            <div
+              className={`card-gold-subtle p-2 min-h-[88px] flex flex-col justify-center gap-1.5 transition-shadow ${myTurnFrame}`}
+            >
+              {room.status === 'bidding' && (
+                <BiddingPanel room={room} myName={myName} />
+              )}
               <h3 className="text-center flex items-center justify-center gap-1.5">
                 <span
                   className={`uppercase tracking-[0.2em] font-black ${
@@ -339,20 +349,26 @@ export function GameView({ room, players, myName }: Props) {
                   {turnLabel}
                 </span>
                 {myBid !== undefined && (
-                  <span className={`${myBidWonTone} font-bold normal-case tracking-normal text-[12px] tabular-nums`}>
+                  <span
+                    className={`${myBidWonTone} font-bold normal-case tracking-normal text-[12px] tabular-nums`}
+                  >
                     · {myWon}/{myBid}
                   </span>
                 )}
               </h3>
-            );
-          })()}
-        </div>
-      )}
+            </div>
+          );
+        })()}
 
       {(room.status === 'bidding' ||
         room.status === 'playing' ||
         room.status === 'dealing') && (
-        <div data-player={myName}>
+        <div
+          data-player={myName}
+          className={`transition-opacity duration-300 ${
+            dealingActive ? 'opacity-0 pointer-events-none' : 'opacity-100'
+          }`}
+        >
           <HandDisplay
             hand={displayHand}
             legal={legal}

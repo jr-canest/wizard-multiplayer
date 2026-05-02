@@ -33,6 +33,10 @@ type TrickCardProps = {
   color: PlayerColor;
   isWinning: boolean;
   isLeaving?: boolean;
+  /** Offsets toward the winner's seat — used as the trick-collect target
+   * when isLeaving. Cards then translate to the winner before fading. */
+  leaveDx?: number;
+  leaveDy?: number;
 };
 
 const TrickCard = memo(function TrickCard({
@@ -44,6 +48,8 @@ const TrickCard = memo(function TrickCard({
   color,
   isWinning,
   isLeaving,
+  leaveDx = 0,
+  leaveDy = 0,
 }: TrickCardProps) {
   return (
     // 4 wrappers, each with one job — the play-in animation lives on a
@@ -60,7 +66,17 @@ const TrickCard = memo(function TrickCard({
         zIndex,
       }}
     >
-      <div className={isLeaving ? 'animate-trick-leave' : ''}>
+      <div
+        className={isLeaving ? 'animate-trick-leave' : ''}
+        style={
+          isLeaving
+            ? ({
+                ['--lx']: `${leaveDx}px`,
+                ['--ly']: `${leaveDy}px`,
+              } as React.CSSProperties)
+            : undefined
+        }
+      >
       <div className="animate-play-in">
         <div
           className={`relative rounded-md ring-2 ${color.ring} ${color.glow} bg-navy-900`}
@@ -139,48 +155,60 @@ export function TrickArea({
         </div>
       ) : (
         <div className="relative h-full w-full">
-          {plays.map((p, i) => {
-            // Slot is determined by the player's seat (which side of the
-            // table they sit on, viewer-rotated). Stacking still uses
-            // play order so the most recent card sits on top.
-            const seat = playerSeatInfo(p.playerName, myName, playerOrder);
-            const base = trickSlotForSide(
-              seat.side,
-              seat.index,
-              seat.totalOnSide,
-              fanW,
-              fanH,
-            );
-            // Tiny per-card jitter so multiple cards from the same seat
-            // (across multiple tricks in a held view, etc.) don't sit
-            // perfectly atop each other.
-            const seedBase =
-              p.playerName.charCodeAt(0) * 13 + p.playerName.length;
-            const slot = {
-              x: base.x + noise(seedBase) * 4,
-              y: base.y + noise(seedBase * 2) * 4,
-              rot: base.rot + noise(seedBase * 3) * 4,
-            };
-            return (
-              <TrickCard
-                // Stable per-player key — survives the source flip from
-                // trickInProgress (has playOrder) to held trickHistory
-                // entry (no playOrder), which previously remounted every
-                // card and re-fired the play-in animation on all of them.
-                key={p.playerName}
-                card={p.card}
-                slotX={slot.x}
-                slotY={slot.y}
-                slotRot={slot.rot}
-                // Pure play-order stacking: 1st played at the bottom of the
-                // pile, last on top. Winning is signalled by ring + badge.
-                zIndex={100 + i}
-                color={colorForViewer(p.playerName, myName, playerOrder)}
-                isWinning={i === winnerIdx}
-                isLeaving={isLeaving}
-              />
-            );
-          })}
+          {(() => {
+            // Winner's seat slot — used as the collect-target when the
+            // trick is leaving (cards animate toward the winner).
+            const winnerName =
+              winnerIdx >= 0 ? plays[winnerIdx]?.playerName : null;
+            const winnerSlot = (() => {
+              if (!winnerName) return null;
+              const ws = playerSeatInfo(winnerName, myName, playerOrder);
+              return trickSlotForSide(
+                ws.side,
+                ws.index,
+                ws.totalOnSide,
+                fanW,
+                fanH,
+              );
+            })();
+            return plays.map((p, i) => {
+              // Slot is determined by the player's seat (which side of
+              // the table they sit on, viewer-rotated). Stacking still
+              // uses play order so the most recent card sits on top.
+              const seat = playerSeatInfo(p.playerName, myName, playerOrder);
+              const base = trickSlotForSide(
+                seat.side,
+                seat.index,
+                seat.totalOnSide,
+                fanW,
+                fanH,
+              );
+              const seedBase =
+                p.playerName.charCodeAt(0) * 13 + p.playerName.length;
+              const slot = {
+                x: base.x + noise(seedBase) * 4,
+                y: base.y + noise(seedBase * 2) * 4,
+                rot: base.rot + noise(seedBase * 3) * 4,
+              };
+              const leaveDx = winnerSlot ? winnerSlot.x - slot.x : 0;
+              const leaveDy = winnerSlot ? winnerSlot.y - slot.y : 0;
+              return (
+                <TrickCard
+                  key={p.playerName}
+                  card={p.card}
+                  slotX={slot.x}
+                  slotY={slot.y}
+                  slotRot={slot.rot}
+                  zIndex={100 + i}
+                  color={colorForViewer(p.playerName, myName, playerOrder)}
+                  isWinning={i === winnerIdx}
+                  isLeaving={isLeaving}
+                  leaveDx={leaveDx}
+                  leaveDy={leaveDy}
+                />
+              );
+            });
+          })()}
         </div>
       )}
     </div>

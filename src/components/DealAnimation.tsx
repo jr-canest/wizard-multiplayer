@@ -6,6 +6,9 @@ import type { RoomSnapshot } from '../hooks/useRoom';
 type Props = {
   room: RoomSnapshot;
   myName: string;
+  /** Optional: notified true when the animation starts, false when it ends.
+   * Lets the parent hide real cards/trump until the deal is "done". */
+  onActiveChange?: (active: boolean) => void;
 };
 
 const SHUFFLE_MS = 500;
@@ -31,10 +34,12 @@ function findPlayerEl(name: string): HTMLElement | null {
  * tile, briefly "shuffle" in place, then fly out to every other player
  * in a staggered burst. Pure visual flair — never blocks gameplay.
  */
-export function DealAnimation({ room, myName }: Props) {
+export function DealAnimation({ room, myName, onActiveChange }: Props) {
   const [activeKey, setActiveKey] = useState(0);
   const [frame, setFrame] = useState<Frame | null>(null);
   const prevRoundRef = useRef(room.currentRound);
+  const onActiveRef = useRef(onActiveChange);
+  onActiveRef.current = onActiveChange;
 
   useEffect(() => {
     const next = room.currentRound;
@@ -66,6 +71,7 @@ export function DealAnimation({ room, myName }: Props) {
         if (others.length === 0) return;
         setFrame({ origin, targets: others });
         setActiveKey((k) => k + 1);
+        onActiveRef.current?.(true);
       });
       prevRoundRef.current = next;
       return () => cancelAnimationFrame(raf);
@@ -81,7 +87,10 @@ export function DealAnimation({ room, myName }: Props) {
       DEAL_PER_CARD_MS * frame.targets.length +
       DEAL_FLIGHT_MS +
       TOTAL_PADDING_MS;
-    const t = window.setTimeout(() => setFrame(null), total);
+    const t = window.setTimeout(() => {
+      setFrame(null);
+      onActiveRef.current?.(false);
+    }, total);
     return () => window.clearTimeout(t);
   }, [activeKey, frame]);
 

@@ -25,6 +25,7 @@ type Props = {
   trickPlays: Array<{ playerName: string; card: Card; playOrder?: number }>;
   trickIsLeaving: boolean;
   isMyTurn: boolean;
+  hideTrump?: boolean;
 };
 
 /**
@@ -40,6 +41,7 @@ export function Table({
   trickPlays,
   trickIsLeaving,
   isMyTurn,
+  hideTrump = false,
 }: Props) {
   const opponents = room.playerOrder.filter((n) => n !== myName);
   const oppCount = opponents.length;
@@ -115,11 +117,13 @@ export function Table({
 
         {/* Table center: trick area + trump in middle */}
         <div className="flex-1 relative card-gold-subtle border-2 border-gold-700/50 rounded-xl overflow-hidden p-2 min-h-[340px]">
-          {/* Trump card centered behind the trick fan */}
+          {/* Trump card centered behind the trick fan. Hidden during the
+              deal animation so the deal can finish before revealing it. */}
           <TrumpCenter
             trumpCard={room.trumpCard}
             trumpSuit={room.trumpSuit}
             awaitingTrumpChoice={room.awaitingTrumpChoice}
+            hidden={hideTrump}
           />
           {/* Trick fan (current Phase 1 — still arc layout) */}
           <div className="relative h-full w-full">
@@ -162,10 +166,12 @@ function TrumpCenter({
   trumpCard,
   trumpSuit,
   awaitingTrumpChoice,
+  hidden = false,
 }: {
   trumpCard: Card | null;
   trumpSuit: Suit | null;
   awaitingTrumpChoice: boolean;
+  hidden?: boolean;
 }) {
   const labelSuit =
     trumpSuit !== null ? (
@@ -175,16 +181,26 @@ function TrumpCenter({
     ) : null;
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-      <div className="flex flex-col items-center gap-1">
+    <div
+      className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-300 ${
+        hidden ? 'opacity-0' : 'opacity-100'
+      }`}
+    >
+      {/* Subtle gold halo + dashed frame around the trump card+label so
+          the trump is visually distinct from the surrounding trick cards. */}
+      <div className="flex flex-col items-center gap-1 p-1 rounded-lg border border-gold-700/45 shadow-[0_0_18px_rgba(254,205,70,0.15)] bg-navy-900/30">
         {trumpCard ? (
-          <CardImage card={trumpCard} size="md" />
+          <CardImage
+            card={trumpCard}
+            size="md"
+            className="ring-2 ring-gold-300/70 shadow-[0_0_10px_rgba(254,205,70,0.55)]"
+          />
         ) : (
-          <div className="w-16 h-[90px] rounded-md border border-dashed border-navy-300/60 flex items-center justify-center text-navy-300 text-[10px] bg-navy-900/40">
+          <div className="w-16 h-[90px] rounded-md border border-dashed border-gold-300/50 flex items-center justify-center text-navy-300 text-[10px] bg-navy-900/40">
             —
           </div>
         )}
-        <span className="text-[9px] uppercase tracking-[0.2em] font-bold text-gold-200 bg-navy-900/85 rounded px-1.5 py-0.5 flex items-center gap-1 leading-none">
+        <span className="text-[9px] uppercase tracking-[0.2em] font-bold text-gold-200 bg-navy-900/85 rounded px-1.5 py-0.5 flex items-center gap-1 leading-none ring-1 ring-gold-700/60">
           TRUMP
           {awaitingTrumpChoice ? (
             <span className="text-gold-300">…</span>

@@ -133,13 +133,20 @@ button:focus-visible {
   animation: winning-inner 1.6s ease-in-out infinite;
 }
 
-@keyframes trick-leave {
-  0% { opacity: 1; transform: translateY(0) scale(1); }
-  100% { opacity: 0; transform: translateY(-26px) scale(0.9); }
+/* Trick cards collect to the winner: each card translates from its
+ * resting slot toward the winner's seat. --lx, --ly are set inline
+ * per-card based on the winner's position relative to the card's slot. */
+@keyframes trick-collect {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  60% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate(var(--lx, 0), var(--ly, 0)) scale(0.6);
+  }
 }
 
 .animate-trick-leave {
-  animation: trick-leave 380ms cubic-bezier(0.4, 0, 0.7, 0.95) forwards;
+  animation: trick-collect 460ms cubic-bezier(0.5, 0, 0.6, 1) forwards;
 }
 
 /* Deal-animation shuffle: 5 staggered keyframes to give each card in
