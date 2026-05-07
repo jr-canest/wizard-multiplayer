@@ -190,6 +190,78 @@ export function buildAISummaryPayload(room: RoomDoc): AISummaryPayload {
 
   const negativeCount = standings.filter((s) => s.score < 0).length;
 
+  // Per-round signals from the log: best/worst single-round delta, exact-vs-miss
+  // tallies per player, and wizard/jester counts. These feed the AI prompt so
+  // the recap can name specific moments ("Alice nailed +50 in round 7", etc.).
+  let wizardsPlayed = 0;
+  let jestersPlayed = 0;
+  const bidByRound: Map<number, Record<string, number>> = new Map();
+  const tricksByRound: Map<number, Record<string, number>> = new Map();
+  for (const e of room.log) {
+    if (e.t === 'play') {
+      if (e.card.kind === 'wizard') wizardsPlayed++;
+      else if (e.card.kind === 'jester') jestersPlayed++;
+    } else if (e.t === 'bid') {
+      const r = bidByRound.get(e.round) ?? {};
+      r[e.player] = e.bid;
+      bidByRound.set(e.round, r);
+    } else if (e.t === 'trickWin') {
+      const r = tricksByRound.get(e.round) ?? {};
+      r[e.winner] = (r[e.winner] ?? 0) + 1;
+      tricksByRound.set(e.round, r);
+    }
+  }
+
+  const exactCounts: Record<string, number> = {};
+  const missCounts: Record<string, number> = {};
+  let bestSingleRound: { name: string; delta: number; round: number } | null = null;
+  let worstSingleRound: { name: string; delta: number; round: number } | null = null;
+  let finalRoundEntry: { round: number; scores: Record<string, number> } | null = null;
+  for (const e of room.log) {
+    if (e.t !== 'roundScore') continue;
+    const bids = bidByRound.get(e.round) ?? {};
+    const tricks = tricksByRound.get(e.round) ?? {};
+    for (const name of room.playerOrder) {
+      const bid = bids[name];
+      if (bid === undefined) continue;
+      const won = tricks[name] ?? 0;
+      if (bid === won) exactCounts[name] = (exactCounts[name] ?? 0) + 1;
+      else missCounts[name] = (missCounts[name] ?? 0) + 1;
+    }
+    for (const [name, delta] of Object.entries(e.scores)) {
+      if (!bestSingleRound || delta > bestSingleRound.delta) {
+        bestSingleRound = { name, delta, round: e.round };
+      }
+      if (!worstSingleRound || delta < worstSingleRound.delta) {
+        worstSingleRound = { name, delta, round: e.round };
+      }
+    }
+    finalRoundEntry = { round: e.round, scores: { ...e.scores } };
+  }
+
+  function topPair(
+    counts: Record<string, number>,
+  ): { name: string; count: number } | null {
+    const entries = Object.entries(counts);
+    if (entries.length === 0) return null;
+    entries.sort((a, b) => b[1] - a[1]);
+    if (entries[0][1] === 0) return null;
+    return { name: entries[0][0], count: entries[0][1] };
+  }
+
+  let finalRoundLeader: { name: string; delta: number } | null = null;
+  if (finalRoundEntry) {
+    let bestName: string | null = null;
+    let bestDelta = -Infinity;
+    for (const [name, delta] of Object.entries(finalRoundEntry.scores)) {
+      if (delta > bestDelta) {
+        bestDelta = delta;
+        bestName = name;
+      }
+    }
+    if (bestName !== null) finalRoundLeader = { name: bestName, delta: bestDelta };
+  }
+
   return {
     players: standings.map((s) => ({
       name: s.name,
@@ -203,6 +275,14 @@ export function buildAISummaryPayload(room: RoomDoc): AISummaryPayload {
     biggestLead,
     comebackRank,
     negativeCount,
+    source: 'multiplayer',
+    wizardsPlayed,
+    jestersPlayed,
+    mostExactBids: topPair(exactCounts),
+    mostMissedBids: topPair(missCounts),
+    bestSingleRound,
+    worstSingleRound,
+    finalRoundLeader,
   };
 }
 

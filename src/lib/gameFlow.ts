@@ -37,6 +37,36 @@ export async function postReaction(
   });
 }
 
+const CHAT_CAP = 50;
+const CHAT_MAX_LEN = 200;
+
+/**
+ * Append a freeform chat message to the room's chat. Used by the lobby
+ * and the round-end scoreboard so players can keep talking through the
+ * game. Capped at the most recent {@link CHAT_CAP} entries so the doc
+ * stays bounded. Trims empty input and clamps long messages.
+ */
+export async function sendChat(
+  code: string,
+  player: string,
+  text: string,
+): Promise<void> {
+  const trimmed = text.trim().slice(0, CHAT_MAX_LEN);
+  if (!trimmed) return;
+  const roomRef = doc(db, 'rooms', code);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) return;
+    const room = snap.data() as RoomDoc;
+    const current = room.chat ?? [];
+    const next = [
+      ...current,
+      { player, text: trimmed, ts: Date.now() },
+    ].slice(-CHAT_CAP);
+    tx.update(roomRef, { chat: next });
+  });
+}
+
 /**
  * Toggle the caller's vote that the next round should be the last. When the
  * tally reaches a majority of non-bot players, the room's totalRounds is
@@ -330,6 +360,9 @@ export async function dealNextRound(code: string, prev: RoomDoc): Promise<void> 
     endEarlyVotes: [],
     pendingUndo: null,
     cumulativeScores: prev.cumulativeScores,
+    // Chat is per-window (lobby, each round-end, final). Wipe on every
+    // round transition so the next chat window opens fresh.
+    chat: [],
   });
 
   for (const [name, cards] of Object.entries(hands)) {
@@ -777,6 +810,9 @@ export async function scoreAndAdvance(code: string): Promise<void> {
       status: 'finished',
       log: [...room.log, scoreLog, gameOverLog],
       pendingUndo: null,
+      // Final scoreboard is its own chat window — wipe what was said in
+      // the last round-end so it opens fresh.
+      chat: [],
     });
     return;
   }
@@ -847,6 +883,7 @@ async function resetGameStateInternal(
     nextRoundVotes: [],
     endEarlyVotes: [],
     endGameVotes: [],
+    chat: [],
   });
 }
 

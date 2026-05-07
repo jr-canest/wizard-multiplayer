@@ -69,6 +69,10 @@ export type RoomDoc = {
   // based on `ts` (epoch ms, client-set — no clock-skew sensitivity since
   // it's a soft TTL, not a correctness check).
   lastReaction?: { player: string; text: string; ts: number } | null;
+  // Freeform chat shown in the lobby and round-end scoreboard. Capped
+  // at the most recent entries so the doc stays small. Cleared on
+  // resetForNewGame.
+  chat?: Array<{ player: string; text: string; ts: number }>;
   // Host-chosen cap on rounds. null = play the maximum allowed by the
   // deck for this player count. Clamped at startGame.
   chosenTotalRounds?: number | null;

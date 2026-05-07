@@ -1,6 +1,7 @@
 import { useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BidButtonsBar } from './BidButtonsBar';
+import { getUIZoom } from '../hooks/useUIScale';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -41,10 +42,13 @@ export function BidModal({ room, myName }: Props) {
       const el = strip ?? trick;
       if (!el) return;
       const r = el.getBoundingClientRect();
+      // body { zoom } scales fixed children too — divide viewport coords
+      // by the zoom so the modal lines up with the strip visually.
+      const zoom = getUIZoom();
       setAnchor({
-        bottom: window.innerHeight - r.bottom,
-        left: r.left,
-        width: r.width,
+        bottom: (window.innerHeight - r.bottom) / zoom,
+        left: r.left / zoom,
+        width: r.width / zoom,
       });
     }
     update();

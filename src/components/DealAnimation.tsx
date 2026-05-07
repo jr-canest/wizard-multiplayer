@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cardBackUrl } from '../lib/cardImages';
+import { getUIZoom } from '../hooks/useUIScale';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -53,10 +54,14 @@ export function DealAnimation({ room, myName, onActiveChange }: Props) {
         const dealerName = room.playerOrder[room.dealerIndex];
         const dealerEl = findPlayerEl(dealerName);
         if (!dealerEl) return;
+        // body { zoom } scales fixed children too — divide rect coords by
+        // the zoom so the cards anchor where the player tiles actually
+        // sit on screen (see BidModal note).
+        const zoom = getUIZoom();
         const dr = dealerEl.getBoundingClientRect();
         const origin = {
-          x: dr.left + dr.width / 2,
-          y: dr.top + dr.height / 2,
+          x: (dr.left + dr.width / 2) / zoom,
+          y: (dr.top + dr.height / 2) / zoom,
         };
         const others = room.playerOrder
           .filter((n) => n !== dealerName)
@@ -65,8 +70,8 @@ export function DealAnimation({ room, myName, onActiveChange }: Props) {
             if (!el) return null;
             const r = el.getBoundingClientRect();
             return {
-              x: r.left + r.width / 2 - origin.x,
-              y: r.top + r.height / 2 - origin.y,
+              x: (r.left + r.width / 2) / zoom - origin.x,
+              y: (r.top + r.height / 2) / zoom - origin.y,
               rot: ((i % 5) - 2) * 4,
               delay: SHUFFLE_MS + i * DEAL_PER_CARD_MS,
             };

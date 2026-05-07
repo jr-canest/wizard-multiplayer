@@ -225,28 +225,42 @@ function TrumpCenter({
             className="ring-1 ring-gold-300/70 shadow-[0_0_8px_rgba(254,205,70,0.55)]"
           />
         ) : lastRoundNoTrump ? (
-          // No-trump final round: replace the placeholder with the
-          // "LAST ROUND / NO TRUMP" label sitting where the card would.
-          <div className="w-12 h-[67px] rounded-md border border-dashed border-rose-500/60 flex flex-col items-center justify-center text-rose-200 text-[8px] uppercase tracking-[0.1em] font-black leading-tight bg-navy-900/55 text-center">
+          // No-trump final round: card slot reads "LAST ROUND" — the
+          // trump label below switches to "NO TRUMP".
+          <div className="w-12 h-[67px] rounded-md border border-dashed border-rose-500/60 flex flex-col items-center justify-center text-rose-200 text-[9px] uppercase tracking-[0.1em] font-black leading-tight bg-navy-900/55 text-center">
             <span>LAST</span>
             <span>ROUND</span>
-            <span className="mt-1">NO</span>
-            <span>TRUMP</span>
           </div>
         ) : (
           <div className="w-12 h-[67px] rounded-md border border-dashed border-gold-300/50 flex items-center justify-center text-navy-300 text-[10px] bg-navy-900/40">
             —
           </div>
         )}
-        {/* Label width matches the card. */}
-        <span className="w-12 text-[9px] uppercase tracking-[0.05em] font-bold text-gold-200 flex items-center justify-center gap-0.5 leading-none">
-          <span>TRUMP</span>
-          {awaitingTrumpChoice ? (
-            <span className="text-gold-300">…</span>
-          ) : labelSuit ? (
-            <span className="text-[12px] leading-none">{labelSuit}</span>
-          ) : null}
-        </span>
+        {/* Label width matches the card. Jester flip + last-round both
+            mean no trump suit this round — the label reads NO TRUMP so
+            it's obvious at a glance. */}
+        {(() => {
+          const isJesterFlip =
+            trumpCard !== null && trumpCard.kind === 'jester';
+          const noTrump = lastRoundNoTrump || isJesterFlip;
+          if (noTrump) {
+            return (
+              <span className="w-12 text-[8px] uppercase tracking-[0.06em] font-black text-rose-200 leading-none text-center whitespace-nowrap">
+                NO TRUMP
+              </span>
+            );
+          }
+          return (
+            <span className="w-12 text-[9px] uppercase tracking-[0.05em] font-bold text-gold-200 flex items-center justify-center gap-0.5 leading-none">
+              <span>TRUMP</span>
+              {awaitingTrumpChoice ? (
+                <span className="text-gold-300">…</span>
+              ) : labelSuit ? (
+                <span className="text-[12px] leading-none">{labelSuit}</span>
+              ) : null}
+            </span>
+          );
+        })()}
       </div>
     </div>
   );

@@ -1,8 +1,10 @@
 import { Outlet } from 'react-router-dom';
 import { useAnonymousAuth } from './hooks/useAnonymousAuth';
+import { useUIScale } from './hooks/useUIScale';
 
 export function App() {
   const { uid, ready, error } = useAnonymousAuth();
+  useUIScale();
 
   if (error) {
     return (

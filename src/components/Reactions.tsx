@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { postReaction } from '../lib/gameFlow';
+import { getUIZoom } from '../hooks/useUIScale';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -10,6 +11,8 @@ type Props = {
 
 const REACTIONS = [
   'ouch',
+  'sorry!',
+  'thanks!',
   'take your time',
   'skip skip skip',
   'no mercy',
@@ -52,9 +55,11 @@ export function Reactions({ room, myName }: Props) {
       const next = !prev;
       if (next && buttonRef.current) {
         const rect = buttonRef.current.getBoundingClientRect();
+        // Compensate body { zoom } on fixed coords (see BidModal).
+        const zoom = getUIZoom();
         setAnchor({
-          top: rect.bottom + 6,
-          left: rect.left,
+          top: (rect.bottom + 6) / zoom,
+          left: rect.left / zoom,
         });
       }
       return next;
@@ -94,7 +99,7 @@ export function Reactions({ room, myName }: Props) {
               left: anchor.left,
               zIndex: 9999,
             }}
-            className="card-gold p-1.5 flex flex-col gap-1 min-w-[140px] shadow-2xl"
+            className="card-gold p-1.5 flex flex-col gap-1 w-max shadow-2xl"
           >
             {REACTIONS.map((r) => (
               <button

@@ -32,6 +32,10 @@ body {
   min-height: 100svh;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  /* Viewport-driven uniform scale of the whole UI. Set by useUIScale. The
+     base layout is phone-sized; bigger windows zoom up so the UI fills
+     the screen instead of sitting in a narrow column. */
+  zoom: var(--ui-zoom, 1);
 }
 
 #root {

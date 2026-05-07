@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Card } from '../lib/types';
 import { CardImage } from './CardImage';
+import { getUIZoom } from '../hooks/useUIScale';
 
 type Props = {
   hand: Card[] | null;
@@ -231,12 +232,16 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
 
           // Single DOM node across fan + drag + stuck states so pointer
           // capture stays attached and drops land correctly.
+          // Pointer events report visual viewport pixels, but body { zoom }
+          // scales position:fixed values — divide by the current zoom so
+          // the dragged card stays under the cursor at any scale.
+          const zoom = getUIZoom();
           const fixedStyle: React.CSSProperties | undefined =
             isDragging && drag
               ? {
                   position: 'fixed',
-                  left: drag.x,
-                  top: drag.y,
+                  left: drag.x / zoom,
+                  top: drag.y / zoom,
                   transform: 'translate(-50%, -55%) rotate(0deg)',
                   transformOrigin: 'center center',
                   transition: 'none',
@@ -247,8 +252,8 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
               : isStuck && stuck
                 ? {
                     position: 'fixed',
-                    left: stuck.x,
-                    top: stuck.y,
+                    left: stuck.x / zoom,
+                    top: stuck.y / zoom,
                     transform: 'translate(-50%, -55%)',
                     transformOrigin: 'center center',
                     transition: 'none',

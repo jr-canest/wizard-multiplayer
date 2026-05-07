@@ -38,6 +38,17 @@ export type AISummaryPayload = {
   biggestLead: number;
   comebackRank: number | null;
   negativeCount: number;
+  // Optional richer signals — multiplayer fills these in from the live
+  // per-round log so the AI has concrete moments to riff on. The Cloud
+  // Function ignores any field it doesn't understand.
+  source?: 'multiplayer' | 'scorekeeper';
+  wizardsPlayed?: number;
+  jestersPlayed?: number;
+  mostExactBids?: { name: string; count: number } | null;
+  mostMissedBids?: { name: string; count: number } | null;
+  bestSingleRound?: { name: string; delta: number; round: number } | null;
+  worstSingleRound?: { name: string; delta: number; round: number } | null;
+  finalRoundLeader?: { name: string; delta: number } | null;
 };
 
 /**

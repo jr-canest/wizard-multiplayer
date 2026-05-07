@@ -4,6 +4,7 @@ import {
   cumulativeScoresFromLog,
 } from '../lib/gameFlow';
 import { playerColor } from '../lib/playerColors';
+import { getUIZoom } from '../hooks/useUIScale';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -36,10 +37,12 @@ export function GameMenu({ room, myName }: Props) {
       );
       if (!el) return;
       const r = el.getBoundingClientRect();
+      // Compensate body { zoom } on fixed coords (see BidModal).
+      const zoom = getUIZoom();
       setAnchor({
-        left: r.left,
-        top: r.top,
-        width: r.width,
+        left: r.left / zoom,
+        top: r.top / zoom,
+        width: r.width / zoom,
       });
     }
     update();

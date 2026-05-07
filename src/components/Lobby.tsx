@@ -4,6 +4,7 @@ import { leaveRoom, MIN_PLAYERS, MAX_PLAYERS } from '../lib/rooms';
 import { setChosenTotalRounds, startGame } from '../lib/gameFlow';
 import { totalRoundsFor } from '../game/deck';
 import { setActiveRoomCode } from '../hooks/useActiveRoom';
+import { Chat } from './Chat';
 import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -87,6 +88,8 @@ export function Lobby({ room, players, myName }: Props) {
           {copying ? 'Link copied!' : 'Copy invite link'}
         </button>
       </div>
+
+      <Chat room={room} myName={myName} />
 
       <div className="card-gold p-4 space-y-2">
         <div className="flex items-baseline justify-between mb-1">
@@ -214,3 +217,4 @@ export function Lobby({ room, players, myName }: Props) {
     </div>
   );
 }
+

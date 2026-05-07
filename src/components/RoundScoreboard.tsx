@@ -7,6 +7,7 @@ import {
   voteNextRound,
 } from '../lib/gameFlow';
 import { isBotName } from '../lib/rooms';
+import { Chat } from './Chat';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -101,6 +102,8 @@ export function RoundScoreboard({ room, myName }: Props) {
   }
 
   return (
+    <div className="space-y-2">
+    <Chat room={room} myName={myName} />
     <div className="card-gold p-4 space-y-4">
       <div className="flex items-baseline justify-between">
         <span className="text-xs uppercase tracking-wider text-navy-200">
@@ -249,6 +252,7 @@ export function RoundScoreboard({ room, myName }: Props) {
       {error && (
         <p className="text-sm text-rose-300 text-center">{error}</p>
       )}
+    </div>
     </div>
   );
 }

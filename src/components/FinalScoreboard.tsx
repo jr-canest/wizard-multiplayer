@@ -9,6 +9,7 @@ import {
 import { isTestGame } from '../lib/history';
 import { isBotName } from '../lib/rooms';
 import { ScoreLineGraph } from './ScoreLineGraph';
+import { Chat } from './Chat';
 import {
   fetchAISummary,
   isProduction,
@@ -317,6 +318,8 @@ export function FinalScoreboard({ room, myName }: Props) {
         )}
 
         <ScoreLineGraph room={room} />
+
+        <Chat room={room} myName={myName} />
 
         <ul className="space-y-1.5">
           {standings.map((s) => {

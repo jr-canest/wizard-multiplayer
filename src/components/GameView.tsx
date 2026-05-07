@@ -9,6 +9,7 @@ import { RoundScoreboard } from './RoundScoreboard';
 import { FinalScoreboard } from './FinalScoreboard';
 import { DisconnectBanner } from './DisconnectBanner';
 import { Reactions } from './Reactions';
+import { UndoStripBar } from './OverlayBanner';
 import { GameMenu } from './GameMenu';
 import { Table } from './Table';
 import { DealAnimation } from './DealAnimation';
@@ -47,6 +48,11 @@ export function GameView({ room, players, myName }: Props) {
 
   const [playError, setPlayError] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
+  // Optimistic render of the local player's just-played card so it shows
+  // up in the trick area immediately on drop instead of waiting for the
+  // Firestore round-trip. Cleared once the server's trickInProgress (or
+  // the next trickHistory entry) reflects the play.
+  const [optimisticPlay, setOptimisticPlay] = useState<Card | null>(null);
   const [dealingActive, setDealingActive] = useState(false);
   const [winBanner, setWinBanner] = useState<{
     winner: string;
@@ -141,18 +147,34 @@ export function GameView({ room, players, myName }: Props) {
 
   async function handlePlay(displayIdx: number) {
     if (playing) return;
-    if (!sortedHand) return;
+    if (!sortedHand || !displayHand) return;
     const originalIdx = sortedHand[displayIdx]?.originalIndex ?? displayIdx;
+    const card = displayHand[displayIdx];
+    setOptimisticPlay(card);
     setPlaying(true);
     setPlayError(null);
     try {
       await playCard(room.code, myName, originalIdx);
     } catch (err) {
       setPlayError(err instanceof Error ? err.message : 'Failed to play card.');
+      setOptimisticPlay(null);
     } finally {
       setPlaying(false);
     }
   }
+
+  // Drop the optimistic ghost as soon as the server's view shows my play
+  // (either still in-flight or already moved into trickHistory).
+  useEffect(() => {
+    if (!optimisticPlay) return;
+    const inFlight = room.trickInProgress.some((p) => p.playerName === myName);
+    const lastTrickHasMe = room.trickHistory[room.trickHistory.length - 1]?.plays.some(
+      (p) => p.playerName === myName,
+    );
+    if (inFlight || lastTrickHasMe) {
+      setOptimisticPlay(null);
+    }
+  }, [room.trickInProgress, room.trickHistory, myName, optimisticPlay]);
 
   const winnerColor = winBanner
     ? playerColor(winBanner.winner, room.playerOrder)
@@ -173,10 +195,26 @@ export function GameView({ room, players, myName }: Props) {
     trickClearedKey !== lastTrickLen
       ? lastTrickPlays
       : null;
-  const displayedPlays =
+  const baseDisplayedPlays =
     room.trickInProgress.length > 0
       ? room.trickInProgress
       : heldTrick ?? leavingPlays ?? [];
+  // Append the optimistic local play when the server hasn't reflected it
+  // yet so the card lands in its trick slot the instant the user drops.
+  const myAlreadyShown = baseDisplayedPlays.some(
+    (p) => p.playerName === myName,
+  );
+  const displayedPlays =
+    optimisticPlay && !myAlreadyShown
+      ? [
+          ...baseDisplayedPlays,
+          {
+            playerName: myName,
+            card: optimisticPlay,
+            playOrder: baseDisplayedPlays.length,
+          },
+        ]
+      : baseDisplayedPlays;
   const trickIsLeaving =
     room.trickInProgress.length === 0 &&
     heldTrick === null &&
@@ -222,7 +260,11 @@ export function GameView({ room, players, myName }: Props) {
         return (
       <div className="card-gold-subtle px-3 py-1.5 flex items-center justify-between text-[12px] gap-2">
         <span className="text-navy-100 whitespace-nowrap flex items-center gap-1.5">
-          <Reactions room={room} myName={myName} />
+          {/* Reactions are only useful during active gameplay — the
+              round-end + final scoreboards have a chat box instead. */}
+          {room.status !== 'scoring' && room.status !== 'finished' && (
+            <Reactions room={room} myName={myName} />
+          )}
           <span className="flex flex-col leading-none gap-0.5">
             <span>
               Round{' '}
@@ -330,7 +372,9 @@ export function GameView({ room, players, myName }: Props) {
 
       {/* Compact title strip above the user's hand. Main info area:
           turn callout on top + sticky last-event subtitle below. Same
-          height across phases so the hand never shifts. */}
+          height across phases so the hand never shifts. The undo CTA
+          slots in on the left side of this strip when active so it
+          stays in the player's focus zone without shifting layout. */}
       {(room.status === 'bidding' ||
         room.status === 'playing' ||
         room.status === 'dealing') && (() => {
@@ -423,25 +467,43 @@ export function GameView({ room, players, myName }: Props) {
                   ? 'text-emerald-300'
                   : 'text-sky-300';
           }
+          // Undo slots in on the left when there's a pending action the
+          // viewer can request/vote on. When active, it suppresses the
+          // centered primary/lastEvent so the strip doesn't fight itself.
+          const showUndoInStrip =
+            (room.status === 'bidding' || room.status === 'playing') &&
+            !!room.pendingUndo &&
+            (room.pendingUndo.actor === myName || !!room.pendingUndo.requested);
           return (
             <div
               data-action-strip
               className={`relative card-gold-subtle px-3 py-1 min-h-[48px] flex items-stretch transition-shadow ${frame}`}
             >
+              {/* Left-side undo. Lives inside the strip (no layout push)
+                  and overrides the centered primary so the player isn't
+                  reading two competing CTAs at once. */}
+              {showUndoInStrip && (
+                <div className="relative z-10 flex items-center pr-2 max-w-[75%]">
+                  <UndoStripBar room={room} myName={myName} />
+                </div>
+              )}
               {/* Center column is absolutely positioned so the right-side
-                  bid badge can't shift it off-axis. */}
-              <div className="absolute inset-0 px-3 flex flex-col items-center justify-center gap-0.5 pointer-events-none">
-                {primary && (
-                  <div className="flex items-center justify-center">
-                    {primary}
-                  </div>
-                )}
-                {lastEvent && (
-                  <div className="text-[10px] text-navy-300 leading-tight">
-                    {lastEvent}
-                  </div>
-                )}
-              </div>
+                  bid badge can't shift it off-axis. Hidden while the undo
+                  occupies the strip. */}
+              {!showUndoInStrip && (
+                <div className="absolute inset-0 px-3 flex flex-col items-center justify-center gap-0.5 pointer-events-none">
+                  {primary && (
+                    <div className="flex items-center justify-center">
+                      {primary}
+                    </div>
+                  )}
+                  {lastEvent && (
+                    <div className="text-[10px] text-navy-300 leading-tight">
+                      {lastEvent}
+                    </div>
+                  )}
+                </div>
+              )}
               {/* Spacer + right-side big won/bid (mirror to keep balance). */}
               <div className="flex-1" />
               <div
