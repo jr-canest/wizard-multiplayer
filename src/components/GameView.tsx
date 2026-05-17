@@ -34,9 +34,24 @@ export function GameView({ room, players, myName }: Props) {
   const isMyTurn = room.playerOrder[room.currentPlayerIndex] === myName;
 
   // Hold the round-ending trick on screen for a beat before the round
-  // scoreboard takes over. Set when status flips to 'scoring' with a fresh
-  // last trick; cleared after LAST_TRICK_HOLD_MS.
+  // scoreboard takes over. Flips to true synchronously during render
+  // (see prev-status block below) the moment status goes playing →
+  // scoring, so the Table never unmounts for a frame; cleared after
+  // LAST_TRICK_HOLD_MS by the trick-history effect.
   const [holdingRoundEnd, setHoldingRoundEnd] = useState(false);
+  // Synchronous prev-status tracking. Using setState during render so
+  // the round-end hold flips in the SAME render as the status change
+  // — otherwise the Table would unmount for one frame and the cards
+  // would all re-fire their play-in animation when it remounts.
+  const [prevStatus, setPrevStatus] = useState(room.status);
+  if (room.status !== prevStatus) {
+    setPrevStatus(room.status);
+    if (prevStatus === 'playing' && room.status === 'scoring') {
+      setHoldingRoundEnd(true);
+    } else if (room.status !== 'scoring') {
+      setHoldingRoundEnd(false);
+    }
+  }
 
   const showOpponents =
     room.status === 'dealing' ||
