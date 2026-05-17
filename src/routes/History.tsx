@@ -12,10 +12,11 @@ import { db } from '../lib/firebase';
 import { mergePlayerInto, MergePlayerError } from '../lib/players';
 import {
   deleteHistoryGame,
-  roundBreakdownFromLog,
+  roundBreakdownFromGame,
   type GameRoundBreakdown,
 } from '../lib/history';
 import { ScoreLineGraph } from '../components/ScoreLineGraph';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import type { LogEntry, RoomDoc } from '../lib/types';
 
 const MEDAL_EMOJIS = ['🥇', '🥈', '🥉'];
@@ -35,6 +36,13 @@ type GameDoc = {
   results: GameResult[];
   source?: string;
   log?: LogEntry[];
+  rounds?: Array<{
+    round: number;
+    cardsDealt?: number;
+    bids?: Record<string, number>;
+    tricks?: Record<string, number>;
+    scores?: Record<string, number>;
+  }>;
 };
 
 type GameRow = GameDoc & { id: string };
@@ -132,7 +140,10 @@ export function History() {
     );
   }
 
-  useEffect(() => {
+  function loadHistory() {
+    setError(null);
+    setGames(null);
+    setPlayers(null);
     const gamesQ = query(
       collection(db, 'games'),
       orderBy('date', 'desc'),
@@ -142,7 +153,16 @@ export function History() {
       collection(db, 'players'),
       orderBy('totalScore', 'desc'),
     );
-    Promise.all([getDocs(gamesQ), getDocs(playersQ)])
+    // Race against a 15s timeout — without this a hung WebChannel
+    // could leave the spinner up forever (the loading flag is derived
+    // from games/players being null).
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), 15000),
+    );
+    Promise.race([
+      Promise.all([getDocs(gamesQ), getDocs(playersQ)]),
+      timeout,
+    ])
       .then(([gSnap, pSnap]) => {
         setGames(
           gSnap.docs.map((d) => ({ id: d.id, ...(d.data() as GameDoc) })),
@@ -156,8 +176,20 @@ export function History() {
       })
       .catch((err) => {
         console.error(err);
-        setError('Could not load history.');
+        setGames([]);
+        setPlayers([]);
+        setError(
+          err?.message === 'timeout'
+            ? 'Connection seems slow. Tap Retry.'
+            : 'Could not load history.',
+        );
       });
+  }
+
+  useEffect(() => {
+    // Initial fetch — also exposed as a button click handler (Retry).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadHistory();
   }, []);
 
   function handleSort(key: typeof SORT_COLUMNS[number]['key']) {
@@ -246,7 +278,16 @@ export function History() {
         )}
 
         {error && (
-          <p className="text-rose-300 text-sm text-center py-12">{error}</p>
+          <div className="text-center py-12">
+            <p className="text-rose-300 text-sm">{error}</p>
+            <button
+              type="button"
+              onClick={loadHistory}
+              className="mt-3 px-4 py-2 rounded-lg text-sm font-medium btn-gold"
+            >
+              Retry
+            </button>
+          </div>
         )}
 
         {!loading && !error && tab === 'players' && (
@@ -558,6 +599,7 @@ function PlayerDetailOverlay({
   onConfirmMerge,
   onBackToView,
 }: OverlayProps) {
+  useBodyScrollLock();
   const isMerging = state.mode === 'merging';
   return (
     <div
@@ -885,14 +927,13 @@ function GameDetailOverlay({
   onCancelDelete,
   onConfirmDelete,
 }: GameDetailProps) {
+  useBodyScrollLock();
   const isDeleting = state.mode === 'deleting';
   const game = state.game;
   const sortedResults = [...(game.results ?? [])].sort(
     (a, b) => a.rank - b.rank,
   );
-  const breakdown: GameRoundBreakdown[] = game.log
-    ? roundBreakdownFromLog(game.log)
-    : [];
+  const breakdown: GameRoundBreakdown[] = roundBreakdownFromGame(game);
 
   // ScoreLineGraph reads only `log` + `playerOrder` off its room prop.
   // Use seat order from the log's first `deal` entry when available

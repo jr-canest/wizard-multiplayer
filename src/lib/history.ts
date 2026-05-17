@@ -200,10 +200,47 @@ export type GameRoundBreakdown = {
   deltas: Record<string, number>;
 };
 
+type SavedRound = {
+  round: number;
+  cardsDealt?: number;
+  bids?: Record<string, number>;
+  tricks?: Record<string, number>;
+  scores?: Record<string, number>;
+};
+
+type GameDocLike = {
+  log?: LogEntry[];
+  rounds?: SavedRound[];
+};
+
+/**
+ * Unified per-round breakdown that handles both shapes the game doc
+ * may carry: `log` (multiplayer-sourced) or `rounds` (scorekeeper-
+ * sourced, name-keyed). Returns [] for old games that have neither.
+ */
+export function roundBreakdownFromGame(game: GameDocLike): GameRoundBreakdown[] {
+  if (Array.isArray(game.log) && game.log.length > 0) {
+    return roundBreakdownFromLog(game.log);
+  }
+  if (Array.isArray(game.rounds) && game.rounds.length > 0) {
+    return game.rounds
+      .slice()
+      .sort((a, b) => (a.round ?? 0) - (b.round ?? 0))
+      .map((r) => ({
+        round: r.round,
+        bids: r.bids ?? {},
+        tricks: r.tricks ?? {},
+        deltas: r.scores ?? {},
+      }));
+  }
+  return [];
+}
+
 /**
  * Reduce a finished game's log into per-round per-player bid/won/Δ
- * data, sorted by round number. Used by the History → game detail
- * modal to render the round-by-round table.
+ * data, sorted by round number. Multiplayer-sourced games only —
+ * prefer `roundBreakdownFromGame` at the call site so scorekeeper-
+ * sourced games are handled too.
  */
 export function roundBreakdownFromLog(log: LogEntry[]): GameRoundBreakdown[] {
   const byRound = new Map<number, GameRoundBreakdown>();

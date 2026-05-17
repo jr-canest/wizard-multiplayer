@@ -5,8 +5,10 @@ import { useEffect } from 'react';
 const BASE_W = 380;
 const BASE_H = 720;
 const MIN_SCALE = 1;
-// Cap the scale so very large monitors don't render the UI absurdly large.
-const MAX_SCALE = 2.4;
+// Cap the scale so very large monitors don't render the UI absurdly
+// large. 1.5 leaves room for iPad to feel filled (~1.3–1.5x) without
+// blowing up desktop where the layout already fits comfortably.
+const MAX_SCALE = 1.5;
 
 function computeScale(): number {
   if (typeof window === 'undefined') return 1;
