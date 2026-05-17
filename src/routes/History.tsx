@@ -50,11 +50,11 @@ const SORT_COLUMNS: Array<{
   label: string;
   width: string;
 }> = [
-  { key: 'winRate', label: 'Win%', width: 'w-14' },
-  { key: 'wins', label: 'W', width: 'w-10' },
-  { key: 'gamesPlayed', label: 'GP', width: 'w-10' },
-  { key: 'avg', label: 'Avg', width: 'w-14' },
-  { key: 'bestScore', label: 'Best', width: 'w-14' },
+  { key: 'winRate', label: 'Win%', width: 'w-12' },
+  { key: 'wins', label: 'W', width: 'w-8' },
+  { key: 'gamesPlayed', label: 'GP', width: 'w-8' },
+  { key: 'avg', label: 'Avg', width: 'w-12' },
+  { key: 'bestScore', label: 'Best', width: 'w-12' },
 ];
 
 function getPlayerSortValue(p: PlayerRow, key: typeof SORT_COLUMNS[number]['key']): number {
@@ -286,19 +286,21 @@ export function History() {
                       >
                         {medal || `${i + 1}.`}
                       </span>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-white font-medium text-sm truncate inline-flex items-center gap-1">
-                          {p.name}
+                      <div className="flex-1 min-w-0 pr-1">
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="text-white font-medium text-sm truncate min-w-0">
+                            {p.name}
+                          </span>
                           {hasAliases && (
                             <span
                               aria-label={`also known as ${p.aliases!.join(', ')}`}
                               title={`Also: ${p.aliases!.join(', ')}`}
-                              className="text-[10px] leading-none px-1 py-0.5 rounded-full bg-navy-700/80 border border-gold-700/40 text-gold-200 font-normal"
+                              className="shrink-0 text-[9px] leading-none px-1 py-0.5 rounded-full bg-navy-700/80 border border-gold-700/40 text-gold-200 font-normal tabular-nums"
                             >
                               ⓘ {p.aliases!.length}
                             </span>
                           )}
-                        </span>
+                        </div>
                         {(p.totalShamePoints ?? 0) > 0 && (
                           <span className="text-rose-400 text-[10px] block">
                             💀 {p.totalShamePoints}
