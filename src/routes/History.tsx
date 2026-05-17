@@ -1029,9 +1029,9 @@ function GameDetailOverlay({
                   this game's contribution.
                 </li>
                 <li>
-                  • Best/worst score columns are NOT recomputed — they
-                  may show a slightly stale value until the affected
-                  player finishes another game.
+                  • Best / worst scores are recomputed from remaining
+                  games — only for players whose best or worst was set
+                  by this game (other players are untouched).
                 </li>
               </ul>
               {deleteError && (

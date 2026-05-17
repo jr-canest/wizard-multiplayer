@@ -245,47 +245,136 @@ async function resolveCanonicalPlayerId(playerId: string): Promise<string> {
   return currentId;
 }
 
+type StoredGameResult = {
+  playerId?: string;
+  name: string;
+  score: number;
+  rank: number;
+};
+
+type StoredGameDoc = {
+  results?: StoredGameResult[];
+};
+
 /**
- * Delete a finished game and roll back the simple aggregate stats it
- * contributed: gamesPlayed, wins (if winner), totalScore. Best/worst
- * scores are NOT recomputed — they may show a slightly stale value
- * until the affected player finishes another game. The caller is
- * expected to confirm before invoking; this function performs the
- * write unconditionally.
+ * Walk every stored game (capped at the most recent 500) and return
+ * the max + min score recorded for any of the supplied names. Used
+ * after deleting a game to recompute a player's bestScore / worstScore
+ * when the deleted game's score sat at one of those boundaries.
  *
- * Player stat decrements follow `mergedInto` so deleting a game that
- * was played by an aliased name correctly removes the contribution
- * from the canonical doc.
+ * Names list includes the canonical name + every alias, so a merged
+ * player's full history is considered even though past `games` docs
+ * store the original (possibly aliased) name.
+ */
+async function findBestWorstForNames(
+  names: string[],
+): Promise<{ best: number | null; worst: number | null }> {
+  if (names.length === 0) return { best: null, worst: null };
+  const nameSet = new Set(names);
+  const snap = await getDocs(
+    query(collection(db, 'games'), orderBy('date', 'desc'), limit(500)),
+  );
+  let best: number | null = null;
+  let worst: number | null = null;
+  for (const d of snap.docs) {
+    const data = d.data() as StoredGameDoc;
+    for (const r of data.results ?? []) {
+      if (!nameSet.has(r.name)) continue;
+      if (best === null || r.score > best) best = r.score;
+      if (worst === null || r.score < worst) worst = r.score;
+    }
+  }
+  return { best, worst };
+}
+
+/**
+ * Delete a finished game and roll back the aggregate stats it
+ * contributed: gamesPlayed, wins (if winner), totalScore, plus
+ * bestScore / worstScore IF the deleted game's score happened to be
+ * that player's current best or worst (in which case those fields are
+ * recomputed by scanning all remaining games for the player's name +
+ * aliases). If the deleted game wasn't at either boundary, best/worst
+ * are left alone — no scan needed.
+ *
+ * Player stat updates follow `mergedInto` so deleting a game played by
+ * an aliased name correctly adjusts the canonical doc.
  */
 export async function deleteHistoryGame(gameId: string): Promise<void> {
   const gameRef = doc(db, 'games', gameId);
-  const snap = await getDoc(gameRef);
-  if (!snap.exists()) return;
-  const data = snap.data() as {
-    results?: Array<{ playerId?: string; name: string; score: number; rank: number }>;
-  };
+  const gameSnap = await getDoc(gameRef);
+  if (!gameSnap.exists()) return;
+  const data = gameSnap.data() as StoredGameDoc;
   const results = data.results ?? [];
   const winnerScore =
     results.length > 0
       ? Math.max(...results.map((r) => r.score))
       : -Infinity;
 
-  // Run decrements in parallel — each is its own player doc.
-  await Promise.all(
-    results.map(async (r) => {
-      if (!r.playerId) return;
-      const targetId = await resolveCanonicalPlayerId(r.playerId);
-      const playerRef = doc(db, 'players', targetId);
-      const updates: Record<string, unknown> = {
-        gamesPlayed: increment(-1),
-        totalScore: increment(-r.score),
+  // Pre-resolve each result to its canonical player doc + capture
+  // current best/worst BEFORE we touch anything, so we know whether
+  // the deleted game's score sat at a boundary.
+  type Resolved = {
+    result: StoredGameResult;
+    canonicalId: string;
+    namesForRecompute: string[];
+    currentBest: number | null | undefined;
+    currentWorst: number | null | undefined;
+  };
+  const resolved: Array<Resolved | null> = await Promise.all(
+    results.map(async (r): Promise<Resolved | null> => {
+      if (!r.playerId) return null;
+      const canonicalId = await resolveCanonicalPlayerId(r.playerId);
+      const pSnap = await getDoc(doc(db, 'players', canonicalId));
+      if (!pSnap.exists()) return null;
+      const pdata = pSnap.data() as {
+        name?: string;
+        aliases?: string[];
+        bestScore?: number | null;
+        worstScore?: number | null;
       };
-      if (r.score === winnerScore) {
-        updates.wins = increment(-1);
-      }
-      await updateDoc(playerRef, updates);
+      const namesForRecompute = [pdata.name ?? '', ...(pdata.aliases ?? [])]
+        .filter((n) => n.length > 0);
+      return {
+        result: r,
+        canonicalId,
+        namesForRecompute,
+        currentBest: pdata.bestScore,
+        currentWorst: pdata.worstScore,
+      };
     }),
   );
 
+  // Delete the game first so the recompute scan naturally excludes it.
   await deleteDoc(gameRef);
+
+  await Promise.all(
+    resolved.map(async (r) => {
+      if (!r) return;
+      const updates: Record<string, unknown> = {
+        gamesPlayed: increment(-1),
+        totalScore: increment(-r.result.score),
+      };
+      if (r.result.score === winnerScore) {
+        updates.wins = increment(-1);
+      }
+
+      const wasBest =
+        r.currentBest !== null &&
+        r.currentBest !== undefined &&
+        r.result.score === r.currentBest;
+      const wasWorst =
+        r.currentWorst !== null &&
+        r.currentWorst !== undefined &&
+        r.result.score === r.currentWorst;
+      if (wasBest || wasWorst) {
+        const { best, worst } = await findBestWorstForNames(
+          r.namesForRecompute,
+        );
+        if (wasBest) updates.bestScore = best;
+        if (wasWorst) updates.worstScore = worst;
+      }
+
+      await updateDoc(doc(db, 'players', r.canonicalId), updates);
+    }),
+  );
 }
