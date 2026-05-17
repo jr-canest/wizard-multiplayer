@@ -10,6 +10,13 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { mergePlayerInto, MergePlayerError } from '../lib/players';
+import {
+  deleteHistoryGame,
+  roundBreakdownFromLog,
+  type GameRoundBreakdown,
+} from '../lib/history';
+import { ScoreLineGraph } from '../components/ScoreLineGraph';
+import type { LogEntry, RoomDoc } from '../lib/types';
 
 const MEDAL_EMOJIS = ['🥇', '🥈', '🥉'];
 
@@ -27,9 +34,15 @@ type GameDoc = {
   playerCount: number;
   results: GameResult[];
   source?: string;
+  log?: LogEntry[];
 };
 
 type GameRow = GameDoc & { id: string };
+
+type GameDetail =
+  | { mode: 'view'; game: GameRow }
+  | { mode: 'confirmDelete'; game: GameRow }
+  | { mode: 'deleting'; game: GameRow };
 
 type PlayerRow = {
   id: string;
@@ -102,6 +115,8 @@ export function History() {
   const [sortAsc, setSortAsc] = useState(false);
   const [detail, setDetail] = useState<DetailState | null>(null);
   const [mergeError, setMergeError] = useState<string | null>(null);
+  const [gameDetail, setGameDetail] = useState<GameDetail | null>(null);
+  const [gameDeleteError, setGameDeleteError] = useState<string | null>(null);
 
   async function loadPlayers() {
     const playersQ = query(
@@ -360,7 +375,15 @@ export function History() {
                     (a, b) => a.rank - b.rank,
                   );
                   return (
-                    <div key={game.id} className="card-gold p-3">
+                    <button
+                      type="button"
+                      key={game.id}
+                      onClick={() => {
+                        setGameDeleteError(null);
+                        setGameDetail({ mode: 'view', game });
+                      }}
+                      className="w-full text-left card-gold p-3 active:bg-navy-700/30 transition-colors"
+                    >
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-gold-200/70 text-xs">
                           {formatDate(game.date)} — {game.roundCount} round
@@ -417,7 +440,7 @@ export function History() {
                           );
                         })}
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -460,6 +483,50 @@ export function History() {
                 setDetail({
                   mode: 'pickMergeTarget',
                   player: detail.alias,
+                });
+              }
+            }}
+          />
+        )}
+
+        {gameDetail && (
+          <GameDetailOverlay
+            state={gameDetail}
+            deleteError={gameDeleteError}
+            onClose={() => {
+              setGameDetail(null);
+              setGameDeleteError(null);
+            }}
+            onStartDelete={() => {
+              if (gameDetail.mode === 'view') {
+                setGameDeleteError(null);
+                setGameDetail({ mode: 'confirmDelete', game: gameDetail.game });
+              }
+            }}
+            onCancelDelete={() => {
+              if (gameDetail.mode === 'confirmDelete') {
+                setGameDetail({ mode: 'view', game: gameDetail.game });
+              }
+            }}
+            onConfirmDelete={async () => {
+              if (gameDetail.mode !== 'confirmDelete') return;
+              const targetId = gameDetail.game.id;
+              setGameDeleteError(null);
+              setGameDetail({ mode: 'deleting', game: gameDetail.game });
+              try {
+                await deleteHistoryGame(targetId);
+                setGames((prev) =>
+                  (prev ?? []).filter((g) => g.id !== targetId),
+                );
+                await loadPlayers();
+                setGameDetail(null);
+              } catch (err) {
+                setGameDeleteError(
+                  err instanceof Error ? err.message : 'Delete failed.',
+                );
+                setGameDetail({
+                  mode: 'confirmDelete',
+                  game: gameDetail.game,
                 });
               }
             }}
@@ -778,6 +845,315 @@ function Stat({ label, value }: { label: string; value: string | number }) {
       </p>
       <p className="text-sm font-bold text-gold-100 tabular-nums leading-tight mt-1">
         {value}
+      </p>
+    </div>
+  );
+}
+
+function formatDateLong(ts: Timestamp | null): string {
+  if (!ts) return '—';
+  const d = ts.toDate();
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+type GameDetailProps = {
+  state: GameDetail;
+  deleteError: string | null;
+  onClose: () => void;
+  onStartDelete: () => void;
+  onCancelDelete: () => void;
+  onConfirmDelete: () => void;
+};
+
+function GameDetailOverlay({
+  state,
+  deleteError,
+  onClose,
+  onStartDelete,
+  onCancelDelete,
+  onConfirmDelete,
+}: GameDetailProps) {
+  const isDeleting = state.mode === 'deleting';
+  const game = state.game;
+  const sortedResults = [...(game.results ?? [])].sort(
+    (a, b) => a.rank - b.rank,
+  );
+  const breakdown: GameRoundBreakdown[] = game.log
+    ? roundBreakdownFromLog(game.log)
+    : [];
+
+  // ScoreLineGraph reads only `log` + `playerOrder` off its room prop.
+  // Use seat order from the log's first `deal` entry when available
+  // (preserves the colors that were assigned during play), otherwise
+  // fall back to results order.
+  const playerOrder = (() => {
+    const dealPlayers: string[] = [];
+    if (game.log) {
+      const seen = new Set<string>();
+      for (const e of game.log) {
+        if (e.t === 'bid' && !seen.has(e.player)) {
+          dealPlayers.push(e.player);
+          seen.add(e.player);
+        }
+        if (dealPlayers.length === game.playerCount) break;
+      }
+    }
+    if (dealPlayers.length === game.playerCount) return dealPlayers;
+    return sortedResults.map((r) => r.name);
+  })();
+  const fakeRoom = {
+    log: game.log ?? [],
+    playerOrder,
+  } as unknown as RoomDoc;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-navy-900/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-3"
+      onClick={isDeleting ? undefined : onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md card-gold p-4 space-y-3 max-h-[85vh] overflow-y-auto"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-gold-200 text-base font-bold leading-tight">
+              {formatDateLong(game.date)}
+            </p>
+            <p className="text-navy-200 text-xs mt-0.5">
+              {game.roundCount} round{game.roundCount !== 1 ? 's' : ''} ·{' '}
+              {game.playerCount} player{game.playerCount !== 1 ? 's' : ''}
+            </p>
+          </div>
+          {!isDeleting && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-navy-200 text-sm px-2 py-0.5 rounded hover:bg-navy-700/60"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        {breakdown.length > 0 && (
+          <div className="rounded-md bg-navy-900/50 border border-gold-700/30 p-2">
+            <ScoreLineGraph room={fakeRoom} autoStartDelayMs={400} />
+          </div>
+        )}
+
+        <div className="rounded-md bg-navy-900/50 border border-gold-700/30 p-2.5">
+          <p className="text-xs uppercase tracking-wider text-navy-200 mb-1.5">
+            Final standings
+          </p>
+          <div className="space-y-1">
+            {sortedResults.map((r, ri) => {
+              const medal = ri < 3 ? MEDAL_EMOJIS[ri] : null;
+              return (
+                <div
+                  key={`${r.playerId ?? r.name}-${ri}`}
+                  className="flex items-center justify-between text-sm"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className={`text-xs font-bold w-6 ${
+                        ri === 0 ? 'text-gold-200' : 'text-navy-200'
+                      }`}
+                    >
+                      {medal || `${r.rank}.`}
+                    </span>
+                    <span
+                      className={`truncate ${
+                        ri === 0 ? 'text-white font-medium' : 'text-gray-300'
+                      }`}
+                    >
+                      {r.name}
+                    </span>
+                  </div>
+                  <span
+                    className={`font-semibold tabular-nums ${
+                      r.score > 0
+                        ? 'text-emerald-400'
+                        : r.score < 0
+                          ? 'text-rose-400'
+                          : 'text-navy-200'
+                    }`}
+                  >
+                    {r.score}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {breakdown.length > 0 && (
+          <RoundBreakdownTable
+            breakdown={breakdown}
+            playerOrder={playerOrder}
+          />
+        )}
+
+        {breakdown.length === 0 && (
+          <p className="text-navy-300 text-xs italic text-center">
+            No round-by-round data was stored for this game.
+          </p>
+        )}
+
+        <div className="pt-1 border-t border-gold-700/30">
+          {state.mode === 'view' && (
+            <button
+              type="button"
+              onClick={onStartDelete}
+              className="w-full rounded-lg py-2.5 text-sm font-semibold bg-navy-900 border border-rose-700/60 text-rose-200 active:scale-[0.99]"
+            >
+              Delete this game…
+            </button>
+          )}
+
+          {(state.mode === 'confirmDelete' || isDeleting) && (
+            <div className="space-y-2">
+              <p className="text-sm text-rose-100">
+                Delete this game permanently?
+              </p>
+              <ul className="text-xs text-navy-200 space-y-0.5">
+                <li>• The game disappears from Past Games.</li>
+                <li>
+                  • Each player's GP, wins, and total score roll back by
+                  this game's contribution.
+                </li>
+                <li>
+                  • Best/worst score columns are NOT recomputed — they
+                  may show a slightly stale value until the affected
+                  player finishes another game.
+                </li>
+              </ul>
+              {deleteError && (
+                <p className="text-rose-300 text-sm text-center">
+                  {deleteError}
+                </p>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={onCancelDelete}
+                  disabled={isDeleting}
+                  className="flex-1 rounded-lg py-2.5 text-sm font-semibold bg-navy-800 border border-gold-700/60 text-navy-100 active:scale-[0.99] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={onConfirmDelete}
+                  disabled={isDeleting}
+                  className="flex-1 rounded-lg py-2.5 text-sm font-semibold bg-rose-700/60 border border-rose-500/70 text-white active:scale-[0.99] disabled:opacity-50"
+                >
+                  {isDeleting ? 'Deleting…' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RoundBreakdownTable({
+  breakdown,
+  playerOrder,
+}: {
+  breakdown: GameRoundBreakdown[];
+  playerOrder: string[];
+}) {
+  // Running cumulative per player as we walk through rounds.
+  const cumulative: Record<string, number> = {};
+  for (const n of playerOrder) cumulative[n] = 0;
+  return (
+    <div className="rounded-md bg-navy-900/50 border border-gold-700/30 p-2.5">
+      <p className="text-xs uppercase tracking-wider text-navy-200 mb-1.5">
+        Round-by-round
+      </p>
+      <div className="overflow-x-auto -mx-0.5">
+        <table className="w-full text-[11px] tabular-nums">
+          <thead>
+            <tr className="text-navy-300">
+              <th className="text-left font-normal pr-1 sticky left-0 bg-navy-900/50 z-10">
+                R
+              </th>
+              {playerOrder.map((n) => (
+                <th
+                  key={n}
+                  className="font-normal px-1 text-right truncate max-w-[60px]"
+                  title={n}
+                >
+                  {n.length > 6 ? `${n.slice(0, 5)}…` : n}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {breakdown.map((r) => {
+              for (const n of playerOrder) {
+                cumulative[n] =
+                  (cumulative[n] ?? 0) + (r.deltas[n] ?? 0);
+              }
+              return (
+                <tr
+                  key={r.round}
+                  className="border-t border-gold-700/15 align-top"
+                >
+                  <td className="pr-1 text-gold-200 sticky left-0 bg-navy-900/50 z-10 py-1">
+                    {r.round}
+                  </td>
+                  {playerOrder.map((n) => {
+                    const bid = r.bids[n];
+                    const won = r.tricks[n] ?? 0;
+                    const delta = r.deltas[n] ?? 0;
+                    const total = cumulative[n] ?? 0;
+                    const hit = bid !== undefined && bid === won;
+                    return (
+                      <td
+                        key={n}
+                        className="px-1 text-right py-1 leading-tight"
+                      >
+                        <div
+                          className={`text-[11px] ${
+                            hit ? 'text-emerald-300' : 'text-navy-100'
+                          }`}
+                        >
+                          {bid !== undefined ? `${won}/${bid}` : '—'}
+                        </div>
+                        <div
+                          className={`text-[10px] ${
+                            delta > 0
+                              ? 'text-emerald-400'
+                              : delta < 0
+                                ? 'text-rose-400'
+                                : 'text-navy-300'
+                          }`}
+                        >
+                          {delta > 0 ? '+' : ''}
+                          {delta}
+                        </div>
+                        <div className="text-[10px] text-gold-200">{total}</div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[10px] text-navy-300 mt-1.5">
+        Each cell: won/bid · Δ · running total
       </p>
     </div>
   );
