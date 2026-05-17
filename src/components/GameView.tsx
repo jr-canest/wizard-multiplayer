@@ -187,13 +187,18 @@ export function GameView({ room, players, myName }: Props) {
   const inActiveTrickPhase =
     room.status === 'playing' || room.status === 'scoring';
   const lastTrickLen = room.trickHistory.length;
-  const lastTrickPlays = room.trickHistory[lastTrickLen - 1]?.plays;
+  const lastTrick = room.trickHistory[lastTrickLen - 1];
+  // Only hold a trick that belongs to the current round. On refresh
+  // trickClearedKey resets to 0, which would otherwise cause the last
+  // trick of a previous round to be re-rendered on the table.
+  const lastTrickIsCurrentRound =
+    !!lastTrick && lastTrick.round === room.currentRound;
   const heldTrick =
     inActiveTrickPhase &&
     room.trickInProgress.length === 0 &&
-    lastTrickPlays &&
+    lastTrickIsCurrentRound &&
     trickClearedKey !== lastTrickLen
-      ? lastTrickPlays
+      ? lastTrick.plays
       : null;
   const baseDisplayedPlays =
     room.trickInProgress.length > 0

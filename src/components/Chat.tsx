@@ -12,16 +12,42 @@ type Props = {
   myName: string;
 };
 
+type ChatMessage = { player: string; text: string; ts: number };
+type DisplayMessage = ChatMessage & { pending?: boolean };
+
 /**
  * Compact chat used in the lobby, round-end scoreboard, and final
  * scoreboard. Renders the {@link VISIBLE_CHAT_COUNT} most recent
  * messages plus an input. Doc-backed via room.chat — see sendChat.
+ * Locally-sent messages render optimistically (greyed out) the instant
+ * they're sent, then snap to full opacity once the server echoes them
+ * back through room.chat.
  */
 export function Chat({ room, myName }: Props) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [optimistic, setOptimistic] = useState<ChatMessage[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
-  const allMessages = room.chat ?? [];
+  const serverMessages = room.chat ?? [];
+
+  // Drop optimistic messages once the server's chat array contains a
+  // matching {player,text,ts}. arrayUnion preserves ts so equality holds.
+  useEffect(() => {
+    if (optimistic.length === 0) return;
+    setOptimistic((prev) =>
+      prev.filter(
+        (o) =>
+          !serverMessages.some(
+            (m) => m.player === o.player && m.text === o.text && m.ts === o.ts,
+          ),
+      ),
+    );
+  }, [serverMessages, optimistic.length]);
+
+  const allMessages: DisplayMessage[] = [
+    ...serverMessages.map((m) => ({ ...m, pending: false })),
+    ...optimistic.map((m) => ({ ...m, pending: true })),
+  ];
   const messages = allMessages.slice(-VISIBLE_CHAT_COUNT);
 
   // Stick to the bottom whenever a new message arrives.
@@ -37,10 +63,15 @@ export function Chat({ room, myName }: Props) {
     if (!v || sending) return;
     setSending(true);
     setText('');
+    const ts = Date.now();
+    const draft: ChatMessage = { player: myName, text: v, ts };
+    setOptimistic((prev) => [...prev, draft]);
     try {
       await sendChat(room.code, myName, v);
     } catch {
-      // Restore the text so a flaky network doesn't eat the message.
+      // Drop the optimistic copy and restore the input so the send
+      // doesn't silently vanish on a flaky network.
+      setOptimistic((prev) => prev.filter((o) => o.ts !== ts));
       setText(v);
     } finally {
       setSending(false);
@@ -70,9 +101,12 @@ export function Chat({ room, myName }: Props) {
             const c = playerColor(m.player, room.playerOrder);
             const isMe = m.player === myName;
             const distanceFromNewest = messages.length - 1 - i;
-            const opacity =
+            const baseOpacity =
               FADE_BY_DISTANCE[distanceFromNewest] ??
               FADE_BY_DISTANCE[FADE_BY_DISTANCE.length - 1];
+            // Pending (optimistic) messages render greyed out, then snap
+            // to baseOpacity the instant the server echoes them back.
+            const opacity = m.pending ? baseOpacity * 0.4 : baseOpacity;
             return (
               <div
                 key={`${m.ts}-${i}`}
@@ -85,6 +119,14 @@ export function Chat({ room, myName }: Props) {
                   {m.player}
                 </span>
                 <span className="text-navy-50">: {m.text}</span>
+                {m.pending && (
+                  <span
+                    className="text-[10px] text-navy-300 ml-1 italic"
+                    aria-label="sending"
+                  >
+                    sending…
+                  </span>
+                )}
               </div>
             );
           })

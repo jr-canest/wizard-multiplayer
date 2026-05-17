@@ -2,10 +2,12 @@ import {
   collection,
   doc,
   addDoc,
+  getDoc,
   getDocs,
   query,
   where,
   limit,
+  runTransaction,
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore';
@@ -28,6 +30,13 @@ export type PlayerDoc = {
   pinHash?: string;
   pinSalt?: string;
   pinSetAt?: unknown;
+  // Names that have been merged into this player. Display-only; the
+  // canonical doc carries all aggregate stats. Past game records still
+  // show the original name as recorded.
+  aliases?: string[];
+  // If set, this doc has been merged into another. Its stats are zeroed
+  // and the History view hides it. The canonical doc's id is stored here.
+  mergedInto?: string;
 };
 
 export type AuthResult =
@@ -115,4 +124,111 @@ export async function claimOrAuthPlayer(
     player: { id: ref.id, ...newDoc, pinSetAt: undefined },
     status: 'created',
   };
+}
+
+export class MergePlayerError extends Error {
+  code:
+    | 'notFound'
+    | 'sameDoc'
+    | 'aliasAlreadyMerged'
+    | 'canonicalIsMerged';
+  constructor(code: MergePlayerError['code']) {
+    super(code);
+    this.code = code;
+  }
+}
+
+/**
+ * Fold the alias player's aggregate stats into the canonical player and
+ * mark the alias doc with `mergedInto: canonicalId`. Past `games` docs
+ * keep their recorded name — the History view aggregates by player doc,
+ * so collapsing the alias doc is enough to dedupe.
+ *
+ * Transactional — concurrent reads of either doc see one consistent
+ * before/after state.
+ */
+export async function mergePlayerInto(
+  canonicalId: string,
+  aliasId: string,
+): Promise<void> {
+  if (canonicalId === aliasId) throw new MergePlayerError('sameDoc');
+  const canonRef = doc(db, 'players', canonicalId);
+  const aliasRef = doc(db, 'players', aliasId);
+
+  await runTransaction(db, async (tx) => {
+    const [canonSnap, aliasSnap] = await Promise.all([
+      tx.get(canonRef),
+      tx.get(aliasRef),
+    ]);
+    if (!canonSnap.exists() || !aliasSnap.exists()) {
+      throw new MergePlayerError('notFound');
+    }
+    const c = canonSnap.data() as Omit<PlayerDoc, 'id'>;
+    const a = aliasSnap.data() as Omit<PlayerDoc, 'id'>;
+    if (c.mergedInto) throw new MergePlayerError('canonicalIsMerged');
+    if (a.mergedInto) throw new MergePlayerError('aliasAlreadyMerged');
+
+    const sumGp = (c.gamesPlayed ?? 0) + (a.gamesPlayed ?? 0);
+    const sumWins = (c.wins ?? 0) + (a.wins ?? 0);
+    const sumScore = (c.totalScore ?? 0) + (a.totalScore ?? 0);
+    const sumShame =
+      (c.totalShamePoints ?? 0) + (a.totalShamePoints ?? 0);
+    const mergedBest =
+      a.bestScore === undefined || a.bestScore === null
+        ? (c.bestScore ?? null)
+        : c.bestScore === undefined || c.bestScore === null
+          ? a.bestScore
+          : Math.max(c.bestScore, a.bestScore);
+    const mergedWorst =
+      a.worstScore === undefined || a.worstScore === null
+        ? (c.worstScore ?? null)
+        : c.worstScore === undefined || c.worstScore === null
+          ? a.worstScore
+          : Math.min(c.worstScore, a.worstScore);
+    const aliasName = a.name ?? '';
+    const nextAliases = Array.from(
+      new Set([...(c.aliases ?? []), ...(a.aliases ?? []), aliasName]),
+    ).filter(Boolean);
+
+    tx.update(canonRef, {
+      gamesPlayed: sumGp,
+      wins: sumWins,
+      totalScore: sumScore,
+      totalShamePoints: sumShame,
+      bestScore: mergedBest,
+      worstScore: mergedWorst,
+      aliases: nextAliases,
+    });
+    tx.update(aliasRef, {
+      mergedInto: canonicalId,
+      gamesPlayed: 0,
+      wins: 0,
+      totalScore: 0,
+      totalShamePoints: 0,
+      bestScore: null,
+      worstScore: null,
+    });
+  });
+}
+
+/**
+ * Reverse a prior merge: clears `mergedInto` on the alias doc. Stats
+ * are NOT split back — the original per-doc breakdown is gone after a
+ * merge. The alias re-appears in the History list with zeroed stats
+ * until its next game.
+ */
+export async function unmergePlayer(aliasId: string): Promise<void> {
+  const aliasRef = doc(db, 'players', aliasId);
+  const aliasSnap = await getDoc(aliasRef);
+  if (!aliasSnap.exists()) throw new MergePlayerError('notFound');
+  const a = aliasSnap.data() as Omit<PlayerDoc, 'id'>;
+  if (!a.mergedInto) return;
+  const canonRef = doc(db, 'players', a.mergedInto);
+  const canonSnap = await getDoc(canonRef);
+  await updateDoc(aliasRef, { mergedInto: null });
+  if (canonSnap.exists()) {
+    const c = canonSnap.data() as Omit<PlayerDoc, 'id'>;
+    const nextAliases = (c.aliases ?? []).filter((n) => n !== a.name);
+    await updateDoc(canonRef, { aliases: nextAliases });
+  }
 }

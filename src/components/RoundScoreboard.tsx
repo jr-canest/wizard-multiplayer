@@ -40,8 +40,11 @@ export function RoundScoreboard({ room, myName }: Props) {
   const isFinalRound = room.currentRound >= room.totalRounds;
 
   const realPlayers = room.playerOrder.filter((n) => !isBotName(n));
-  // Unanimous: every real player must vote to advance.
-  const threshold = Math.max(1, realPlayers.length);
+  // Mid-game advance is unanimous (no one skipped past a round); final-
+  // round finish is majority so a hold-out can't trap the table.
+  const threshold = isFinalRound
+    ? Math.floor(realPlayers.length / 2) + 1
+    : Math.max(1, realPlayers.length);
   // End-now / end-early use majority — kept separate so the wording is clear.
   const earlyThreshold = Math.floor(realPlayers.length / 2) + 1;
   const nextVotes = (room.nextRoundVotes ?? []).filter((n) =>
@@ -132,6 +135,8 @@ export function RoundScoreboard({ room, myName }: Props) {
             const total = (baseCumulative[name] ?? 0) + delta;
             const isMe = name === myName;
             const isWinner = delta === bestDelta && delta > 0;
+            const isReal = !isBotName(name);
+            const hasVoted = nextVotes.includes(name);
             return (
               <tr
                 key={name}
@@ -146,6 +151,23 @@ export function RoundScoreboard({ room, myName }: Props) {
                     isMe ? 'text-gold-100 font-bold' : 'text-navy-50'
                   }`}
                 >
+                  {isReal && (
+                    <span
+                      aria-label={hasVoted ? 'voted' : 'not voted'}
+                      title={
+                        hasVoted
+                          ? `${name} voted to ${
+                              isFinalRound ? 'finish' : 'advance'
+                            }`
+                          : `${name} hasn't voted yet`
+                      }
+                      className={`inline-block w-3 mr-1 text-center tabular-nums ${
+                        hasVoted ? 'text-emerald-300' : 'text-navy-400/50'
+                      }`}
+                    >
+                      {hasVoted ? '✓' : '·'}
+                    </span>
+                  )}
                   {name}
                   {isMe ? ' (you)' : ''}
                 </td>

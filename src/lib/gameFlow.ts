@@ -1,4 +1,5 @@
 import {
+  arrayUnion,
   collection,
   deleteDoc,
   doc,
@@ -37,14 +38,16 @@ export async function postReaction(
   });
 }
 
-const CHAT_CAP = 50;
 const CHAT_MAX_LEN = 200;
 
 /**
  * Append a freeform chat message to the room's chat. Used by the lobby
  * and the round-end scoreboard so players can keep talking through the
- * game. Capped at the most recent {@link CHAT_CAP} entries so the doc
- * stays bounded. Trims empty input and clamps long messages.
+ * game. Trims empty input and clamps long messages. Uses arrayUnion so a
+ * send is a single write (no read round-trip) — felt slow before. Chat
+ * is reset to [] on every round transition (dealNextRound +
+ * scoreAndAdvance final branch + resetForNewGame), so the array stays
+ * bounded by messages-per-window in practice.
  */
 export async function sendChat(
   code: string,
@@ -54,16 +57,8 @@ export async function sendChat(
   const trimmed = text.trim().slice(0, CHAT_MAX_LEN);
   if (!trimmed) return;
   const roomRef = doc(db, 'rooms', code);
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(roomRef);
-    if (!snap.exists()) return;
-    const room = snap.data() as RoomDoc;
-    const current = room.chat ?? [];
-    const next = [
-      ...current,
-      { player, text: trimmed, ts: Date.now() },
-    ].slice(-CHAT_CAP);
-    tx.update(roomRef, { chat: next });
+  await updateDoc(roomRef, {
+    chat: arrayUnion({ player, text: trimmed, ts: Date.now() }),
   });
 }
 
@@ -113,10 +108,9 @@ export async function voteEndEarly(
 
 /**
  * Toggle the caller's vote to advance to the next round (or finish the
- * game on the final round). UNANIMOUS — every real (non-bot) player
- * must opt in. When all have voted yes, the caller drives
- * scoreAndAdvance; subsequent calls are no-ops via scoreAndAdvance's
- * status check.
+ * game on the final round). Mid-game advance is UNANIMOUS so no one is
+ * skipped past a round they cared about. The final-round "finish game"
+ * vote is MAJORITY so a hold-out can't trap the rest of the table.
  */
 export async function voteNextRound(
   code: string,
@@ -142,7 +136,12 @@ export async function voteNextRound(
       (n) => !n.startsWith('Bot-') && realPlayers.includes(n),
     );
 
-    if (realPlayers.length > 0 && realVotes.length >= realPlayers.length) {
+    const isFinalRound = room.currentRound >= room.totalRounds;
+    const threshold = isFinalRound
+      ? Math.floor(realPlayers.length / 2) + 1
+      : realPlayers.length;
+
+    if (realPlayers.length > 0 && realVotes.length >= threshold) {
       tx.update(roomRef, { nextRoundVotes: [] });
       advance = true;
     } else {
