@@ -85,7 +85,10 @@ export function GameView({ room, players, myName }: Props) {
       const last = room.trickHistory[len - 1];
       const isRoundEnd = room.status === 'scoring';
       const duration = isRoundEnd ? LAST_TRICK_HOLD_MS : 2000;
+      // setState-in-effect is the right shape here — these are visual
+      // states that fire exactly when a new trick lands in the log.
       setWinBanner({ winner: last.winner, key: len });
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (isRoundEnd) setHoldingRoundEnd(true);
       const tBanner = window.setTimeout(() => {
         setWinBanner((b) => (b?.key === len ? null : b));
@@ -107,6 +110,9 @@ export function GameView({ room, players, myName }: Props) {
       };
     }
     lastTrickLenRef.current = len;
+    // Depend on length, not the array itself — trickHistory is append-
+    // only so length change is the only thing that matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.trickHistory.length, room.status]);
 
   // When trickClearedKey advances past what we've animated, kick off a
@@ -115,6 +121,9 @@ export function GameView({ room, players, myName }: Props) {
     if (trickClearedKey > lastClearedKeyRef.current && trickClearedKey > 0) {
       const last = room.trickHistory[trickClearedKey - 1];
       if (last) {
+        // Kick off the leave animation in sync with the cleared-key
+        // advance — this is the trigger, not derivable in render.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setLeavingPlays(last.plays);
         const t = window.setTimeout(() => setLeavingPlays(null), 420);
         lastClearedKeyRef.current = trickClearedKey;
@@ -128,6 +137,7 @@ export function GameView({ room, players, myName }: Props) {
   // the new cards take over immediately.
   useEffect(() => {
     if (room.trickInProgress.length > 0 && leavingPlays !== null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLeavingPlays(null);
     }
   }, [room.trickInProgress.length, leavingPlays]);
@@ -172,6 +182,9 @@ export function GameView({ room, players, myName }: Props) {
       (p) => p.playerName === myName,
     );
     if (inFlight || lastTrickHasMe) {
+      // Drop the optimistic ghost once the server confirms — syncing
+      // local visual state with the external (Firestore) snapshot.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setOptimisticPlay(null);
     }
   }, [room.trickInProgress, room.trickHistory, myName, optimisticPlay]);

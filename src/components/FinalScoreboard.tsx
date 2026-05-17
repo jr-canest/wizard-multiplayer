@@ -62,15 +62,21 @@ function WhiteWipe() {
 }
 
 function Sparkles() {
+  // Random positions/timings for the one-shot game-over sparkle layer.
+  // Memoized with [] so the impure Math.random() calls only run once
+  // on mount — re-randomizing on every render would make the
+  // animation restart.
   const sparkles = useMemo(
     () =>
       Array.from({ length: 30 }, (_, i) => ({
         id: i,
+        /* eslint-disable react-hooks/purity */
         left: 5 + Math.random() * 90,
         top: 5 + Math.random() * 85,
         delay: Math.random() * 2,
         duration: 0.6 + Math.random() * 0.8,
         size: 20 + Math.random() * 24,
+        /* eslint-enable react-hooks/purity */
         emoji: SPARKLE_EMOJIS[i % SPARKLE_EMOJIS.length],
       })),
     [],
@@ -142,9 +148,12 @@ export function FinalScoreboard({ room, myName }: Props) {
     };
   }, []);
 
-  // Persist to history exactly once per game.
+  // Persist to history exactly once per game. setSavingState fires
+  // synchronously when the room snapshot says the write already
+  // happened — same async-resolution pattern as DisconnectBanner.
   useEffect(() => {
     if (room.historyWritten) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSavingState('saved');
       gameIdRef.current = room.historyGameId ?? null;
       return;

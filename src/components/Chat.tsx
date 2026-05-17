@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { sendChat } from '../lib/gameFlow';
 import { playerColor } from '../lib/playerColors';
 import type { RoomSnapshot } from '../hooks/useRoom';
@@ -28,25 +28,25 @@ export function Chat({ room, myName }: Props) {
   const [sending, setSending] = useState(false);
   const [optimistic, setOptimistic] = useState<ChatMessage[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
-  const serverMessages = room.chat ?? [];
+  // Stable reference when room.chat hasn't changed — keeps the
+  // downstream filter from re-running every render.
+  const serverMessages = useMemo(() => room.chat ?? [], [room.chat]);
 
-  // Drop optimistic messages once the server's chat array contains a
-  // matching {player,text,ts}. arrayUnion preserves ts so equality holds.
-  useEffect(() => {
-    if (optimistic.length === 0) return;
-    setOptimistic((prev) =>
-      prev.filter(
-        (o) =>
-          !serverMessages.some(
-            (m) => m.player === o.player && m.text === o.text && m.ts === o.ts,
-          ),
+  // Filter out optimistic messages the server has already echoed back
+  // — derived in render rather than synced into state, so there's no
+  // setState-in-effect cleanup needed. arrayUnion preserves ts so the
+  // {player,text,ts} match is exact. The optimistic state never
+  // shrinks here, but it's bounded by the round window (chat resets
+  // on every round transition) so growth is negligible in practice.
+  const visibleOptimistic = optimistic.filter(
+    (o) =>
+      !serverMessages.some(
+        (m) => m.player === o.player && m.text === o.text && m.ts === o.ts,
       ),
-    );
-  }, [serverMessages, optimistic.length]);
-
+  );
   const allMessages: DisplayMessage[] = [
     ...serverMessages.map((m) => ({ ...m, pending: false })),
-    ...optimistic.map((m) => ({ ...m, pending: true })),
+    ...visibleOptimistic.map((m) => ({ ...m, pending: true })),
   ];
   const messages = allMessages.slice(-VISIBLE_CHAT_COUNT);
 

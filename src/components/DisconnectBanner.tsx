@@ -65,6 +65,9 @@ export function DisconnectBanner({ room, players, myName }: Props) {
     if (acting) return;
     if (tally.needed <= 0 || tally.votes < tally.needed) return;
     let cancelled = false;
+    // Loading-state setState in the effect body is intentional — the
+    // disable is for the async-kick pattern below (lock, await, release).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setActing(true);
     executeKick(room.code, currentName).finally(() => {
       if (!cancelled) setActing(false);

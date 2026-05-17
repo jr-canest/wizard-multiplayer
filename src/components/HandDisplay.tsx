@@ -65,10 +65,12 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
   }, []);
 
   // Clear stuck overlay once Firestore confirms the play (card leaves hand)
-  // or after a safety timeout if the play failed.
+  // or after a safety timeout if the play failed. The setState here
+  // syncs visual state with the external (Firestore) hand snapshot.
   useEffect(() => {
     if (!stuck) return;
     if (!hand?.some((c) => cardId(c) === stuck.cardId)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStuck(null);
       if (stuckTimerRef.current !== null) {
         window.clearTimeout(stuckTimerRef.current);

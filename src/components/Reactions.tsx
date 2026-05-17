@@ -122,7 +122,11 @@ export function Reactions({ room, myName }: Props) {
 /**
  * Whether `room.lastReaction` is still within the TTL window. Used by
  * StatusRow to slot the reaction banner into the row.
+ *
+ * Co-located with the Reactions component to keep TTL_MS private;
+ * fast refresh handles hooks fine even when they share a file.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useActiveReaction(
   room: RoomSnapshot,
 ): { player: string; text: string; ts: number } | null {
@@ -135,9 +139,15 @@ export function useActiveReaction(
     if (remaining <= 0) return;
     const id = window.setTimeout(() => setTick((n) => n + 1), remaining + 30);
     return () => window.clearTimeout(id);
+    // Depend on `r?.ts` rather than `r` so a Firestore re-emit with the
+    // same timestamp doesn't re-arm the timer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [r?.ts]);
 
   if (!r) return null;
+  // Date.now() is intentionally read during render — the setTick above
+  // forces a re-render exactly when this comparison would flip.
+  // eslint-disable-next-line react-hooks/purity
   if (Date.now() - r.ts > TTL_MS) return null;
   return r;
 }

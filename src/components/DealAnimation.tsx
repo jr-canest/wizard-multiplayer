@@ -40,6 +40,10 @@ export function DealAnimation({ room, myName, onActiveChange }: Props) {
   const [frame, setFrame] = useState<Frame | null>(null);
   const prevRoundRef = useRef(room.currentRound);
   const onActiveRef = useRef(onActiveChange);
+  // Keep the ref in sync with the latest callback. Writing a ref during
+  // render is intentional — the alternative (useEffect) would lag a
+  // frame and the layout-effect below would read the stale value.
+  // eslint-disable-next-line react-hooks/refs
   onActiveRef.current = onActiveChange;
 
   // Synchronous detection so we can hide the just-arrived cards BEFORE

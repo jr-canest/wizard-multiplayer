@@ -150,7 +150,10 @@ export function ScoreLineGraph({ room, autoStartDelayMs = 1200 }: Props) {
   );
 
   const animate = useCallback(
-    (timestamp: number) => {
+    // Named function expression so the rAF callback can re-schedule
+    // itself without depending on the outer `animate` binding (which
+    // the lint sees as a TDZ reference inside its own initializer).
+    function tick(timestamp: number) {
       if (!startTimeRef.current) startTimeRef.current = timestamp;
       const elapsed = timestamp - startTimeRef.current;
       const newProgress =
@@ -161,7 +164,7 @@ export function ScoreLineGraph({ room, autoStartDelayMs = 1200 }: Props) {
         return;
       }
       setProgress(newProgress);
-      animRef.current = requestAnimationFrame(animate);
+      animRef.current = requestAnimationFrame(tick);
     },
     [totalDuration, totalRounds],
   );
@@ -304,6 +307,10 @@ export function ScoreLineGraph({ room, autoStartDelayMs = 1200 }: Props) {
   const displayedLabelYRef = useRef<Record<string, number>>({});
   const LABEL_SMOOTHING = 0.22;
   const labelPositions: Record<string, number> = {};
+  // Label-position smoothing has to happen during render — pulling it
+  // into an effect would lag a frame behind the chart, which is what
+  // the earlier CSS-transition approach got wrong. The ref is mutated
+  // here on purpose; values are committed for the next frame to read.
   for (const p of players) {
     const target = targetLabelPositions[p.id];
     if (target === undefined) {
@@ -385,6 +392,8 @@ export function ScoreLineGraph({ room, autoStartDelayMs = 1200 }: Props) {
           </g>
         ))}
 
+        {/* pathLengths.current is measured on ref-attach then read in
+            render to compute strokeDasharray for the reveal animation. */}
         {playerLines.map((line) => {
           const reveal = getPathReveal(line.id);
           return (

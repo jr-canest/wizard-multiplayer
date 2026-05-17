@@ -60,7 +60,12 @@ export function Room() {
   useEffect(() => {
     if (!session || !uid || !room || joining) return;
     if (room.playerOrder.includes(session.playerName)) return;
+    // The error/loading messages below are user-visible and depend on
+    // the live room snapshot — derived but state-backed because they
+    // need to persist across re-renders even when the snapshot stops
+    // changing.
     if (room.status !== 'lobby') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setJoinError('That game is already in progress.');
       return;
     }

@@ -8,6 +8,11 @@ export function useMyHand(code: string, playerName: string | null) {
 
   useEffect(() => {
     if (!playerName) {
+      // Clearing on identity change is the whole point — if a viewer
+      // re-auths as someone else, they must NOT see the previous
+      // identity's hand. This is the subscription-pattern exception
+      // the rule docs call out.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHand(null);
       return;
     }

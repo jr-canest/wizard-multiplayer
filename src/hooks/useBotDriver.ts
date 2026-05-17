@@ -105,7 +105,6 @@ export function useBotDriver(room: RoomSnapshot | null, myName: string | null) {
     const fn = action;
     const timer = setTimeout(() => {
       fn().catch((err) => {
-        // eslint-disable-next-line no-console
         console.warn('[bot driver] action failed', err);
       });
     }, delay);

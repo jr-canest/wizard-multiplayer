@@ -58,6 +58,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
+// Hook lives in the same file as the provider on purpose — keeps the
+// SessionContext private. Fast refresh handles hooks fine in practice.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSession(): SessionContextValue {
   const ctx = useContext(SessionContext);
   if (!ctx) throw new Error('useSession must be used inside SessionProvider');
