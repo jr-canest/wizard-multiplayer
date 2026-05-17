@@ -48,14 +48,20 @@ type Tab = 'players' | 'games';
 const SORT_COLUMNS: Array<{
   key: 'winRate' | 'wins' | 'gamesPlayed' | 'avg' | 'bestScore';
   label: string;
-  width: string;
 }> = [
-  { key: 'winRate', label: 'Win%', width: 'w-12' },
-  { key: 'wins', label: 'W', width: 'w-8' },
-  { key: 'gamesPlayed', label: 'GP', width: 'w-8' },
-  { key: 'avg', label: 'Avg', width: 'w-12' },
-  { key: 'bestScore', label: 'Best', width: 'w-12' },
+  { key: 'winRate', label: 'Win%' },
+  { key: 'wins', label: 'W' },
+  { key: 'gamesPlayed', label: 'GP' },
+  { key: 'avg', label: 'Avg' },
+  { key: 'bestScore', label: 'Best' },
 ];
+
+// Shared grid template for the All-Time Stats header + rows. Using
+// the SAME grid template on both rules out any header/row drift —
+// changing a column width here updates both at once.
+//   rank | name (truncating) | Win% | W | GP | Avg | Best
+const STATS_GRID =
+  'grid grid-cols-[24px_minmax(0,1fr)_44px_26px_26px_44px_44px] items-center';
 
 function getPlayerSortValue(p: PlayerRow, key: typeof SORT_COLUMNS[number]['key']): number {
   const gp = p.gamesPlayed ?? 0;
@@ -241,24 +247,24 @@ export function History() {
               </div>
             ) : (
               <div className="card-gold overflow-hidden">
-                <div className="px-3 py-2 border-b border-gold-700/40">
-                  <div className="flex text-gold-200/70 text-xs font-medium">
-                    <span className="w-8" />
-                    <span className="flex-1">Player</span>
-                    {SORT_COLUMNS.map((col) => (
-                      <button
-                        key={col.key}
-                        type="button"
-                        onClick={() => handleSort(col.key)}
-                        className={`${col.width} text-center active:text-gold-100 ${
-                          col.key === 'bestScore' ? 'text-right' : ''
-                        } ${sortKey === col.key ? 'text-gold-200' : ''}`}
-                      >
-                        {col.label}
-                        {sortKey === col.key ? (sortAsc ? ' ↑' : ' ↓') : ''}
-                      </button>
-                    ))}
-                  </div>
+                <div
+                  className={`${STATS_GRID} px-3 py-2 border-b border-gold-700/40 text-gold-200/70 text-xs font-medium`}
+                >
+                  <span />
+                  <span>Player</span>
+                  {SORT_COLUMNS.map((col) => (
+                    <button
+                      key={col.key}
+                      type="button"
+                      onClick={() => handleSort(col.key)}
+                      className={`active:text-gold-100 ${
+                        col.key === 'bestScore' ? 'text-right' : 'text-center'
+                      } ${sortKey === col.key ? 'text-gold-200' : ''}`}
+                    >
+                      {col.label}
+                      {sortKey === col.key ? (sortAsc ? ' ↑' : ' ↓') : ''}
+                    </button>
+                  ))}
                 </div>
                 {sortedPlayers.map((p, i) => {
                   const gp = p.gamesPlayed ?? 0;
@@ -275,18 +281,18 @@ export function History() {
                         setMergeError(null);
                         setDetail({ mode: 'view', player: p });
                       }}
-                      className={`w-full text-left flex items-center px-3 py-2.5 border-b border-gold-700/20 last:border-0 active:bg-navy-700/40 ${
+                      className={`w-full text-left ${STATS_GRID} px-3 py-2.5 border-b border-gold-700/20 last:border-0 active:bg-navy-700/40 ${
                         i === 0 ? 'bg-gold-300/8' : ''
                       }`}
                     >
                       <span
-                        className={`text-sm font-bold w-8 ${
+                        className={`text-sm font-bold ${
                           i === 0 ? 'text-gold-200' : 'text-navy-200'
                         }`}
                       >
                         {medal || `${i + 1}.`}
                       </span>
-                      <div className="flex-1 min-w-0 pr-1">
+                      <div className="min-w-0">
                         <div className="flex items-center gap-1 min-w-0">
                           <span className="text-white font-medium text-sm truncate min-w-0">
                             {p.name}
@@ -307,17 +313,17 @@ export function History() {
                           </span>
                         )}
                       </div>
-                      <span className="w-14 text-center text-gold-100 text-sm font-semibold">
+                      <span className="text-center text-gold-100 text-sm font-semibold tabular-nums">
                         {winRate}%
                       </span>
-                      <span className="w-10 text-center text-emerald-400 text-sm font-semibold">
+                      <span className="text-center text-emerald-400 text-sm font-semibold tabular-nums">
                         {p.wins ?? 0}
                       </span>
-                      <span className="w-10 text-center text-navy-200 text-sm">
+                      <span className="text-center text-navy-200 text-sm tabular-nums">
                         {gp}
                       </span>
                       <span
-                        className={`w-14 text-center text-sm font-medium ${
+                        className={`text-center text-sm font-medium tabular-nums ${
                           avg > 0
                             ? 'text-emerald-400'
                             : avg < 0
@@ -327,7 +333,7 @@ export function History() {
                       >
                         {avg}
                       </span>
-                      <span className="w-14 text-right text-gold-200 text-sm font-medium">
+                      <span className="text-right text-gold-200 text-sm font-medium tabular-nums">
                         {p.bestScore ?? '—'}
                       </span>
                     </button>
