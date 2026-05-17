@@ -99,6 +99,15 @@ export function GameView({ room, players, myName }: Props) {
       }, duration);
       const tHold = isRoundEnd
         ? window.setTimeout(() => {
+            // Round-end: skip the trick-leave animation. The Table is
+            // about to unmount via holdingRoundEnd → false, so the
+            // collect-to-winner animation would just flash mid-way as
+            // the area disappears. Bumping lastClearedKeyRef ahead of
+            // setTrickClearedKey makes the leavingPlays effect's gate
+            // (`trickClearedKey > lastClearedKeyRef.current`) short-
+            // circuit to false. trickClearedKey is still advanced so
+            // future mid-round leaves animate the right trick.
+            lastClearedKeyRef.current = len;
             setHoldingRoundEnd(false);
             setTrickClearedKey(len);
           }, LAST_TRICK_HOLD_MS)
