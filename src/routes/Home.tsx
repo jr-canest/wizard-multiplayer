@@ -102,6 +102,14 @@ export function Home() {
 
           <button
             type="button"
+            onClick={() => navigate('/me')}
+            className="w-full rounded-xl py-2.5 text-sm font-medium text-gold-200 border border-gold-700/50 bg-navy-800/40 active:bg-navy-700/60"
+          >
+            📊 My Stats
+          </button>
+
+          <button
+            type="button"
             onClick={() => navigate('/history')}
             className="w-full rounded-xl py-2.5 text-sm font-medium text-gold-200 border border-gold-700/50 bg-navy-800/40 active:bg-navy-700/60"
           >
