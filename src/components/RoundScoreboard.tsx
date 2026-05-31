@@ -250,7 +250,7 @@ export function RoundScoreboard({ room, myName }: Props) {
                 className={`rounded-lg py-2 text-[11px] font-semibold border transition tabular-nums leading-tight ${
                   myEndGameVote
                     ? 'bg-rose-700/30 border-rose-500/60 text-rose-100'
-                    : 'bg-navy-900 border-rose-700/60 text-rose-200 active:scale-[0.98]'
+                    : 'bg-navy-900 border-rose-500/70 ring-1 ring-rose-500/30 text-rose-200 active:scale-[0.98]'
                 }`}
               >
                 {myEndGameVote ? '✓ Voted — ' : 'Vote: '}

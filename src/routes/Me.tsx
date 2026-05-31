@@ -364,12 +364,15 @@ function Stat({
   label: string;
   value: string | number;
 }) {
+  // Square-ish tiles: a min-height + centered stack keeps them from
+  // rendering as wide, stretched-looking bars (most noticeable on the
+  // larger iPad/desktop zoom). Mirrors the scorekeeper's Stat tile.
   return (
-    <div className="rounded-md bg-navy-900/50 border border-gold-700/30 px-2 py-1.5">
+    <div className="rounded-md bg-navy-900/50 border border-gold-700/30 px-2 py-2.5 min-h-[3.25rem] flex flex-col items-center justify-center gap-1">
       <p className="text-[10px] uppercase tracking-wider text-navy-300 leading-none">
         {label}
       </p>
-      <p className="text-sm font-bold text-gold-100 tabular-nums leading-tight mt-1">
+      <p className="text-base font-bold text-gold-100 tabular-nums leading-none">
         {value}
       </p>
     </div>
