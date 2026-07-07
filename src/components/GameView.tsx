@@ -10,6 +10,7 @@ import { FinalScoreboard } from './FinalScoreboard';
 import { DisconnectBanner } from './DisconnectBanner';
 import { Reactions } from './Reactions';
 import { UndoStripBar } from './OverlayBanner';
+import { CommentaryOverlay } from './CommentaryOverlay';
 import { GameMenu } from './GameMenu';
 import { Table } from './Table';
 import { DealAnimation } from './DealAnimation';
@@ -65,9 +66,15 @@ export function GameView({ room, players, myName }: Props) {
   const [playing, setPlaying] = useState(false);
   // Optimistic render of the local player's just-played card so it shows
   // up in the trick area immediately on drop instead of waiting for the
-  // Firestore round-trip. Cleared once the server's trickInProgress (or
-  // the next trickHistory entry) reflects the play.
-  const [optimisticPlay, setOptimisticPlay] = useState<Card | null>(null);
+  // Firestore round-trip. histLen records trickHistory.length at play
+  // time so the clear check can tell "the trick I played into resolved"
+  // apart from "some earlier trick has my name in it" (every completed
+  // trick contains every player, so a bare name check cleared the ghost
+  // instantly and the optimistic play never actually showed).
+  const [optimisticPlay, setOptimisticPlay] = useState<{
+    card: Card;
+    histLen: number;
+  } | null>(null);
   const [dealingActive, setDealingActive] = useState(false);
   const [winBanner, setWinBanner] = useState<{
     winner: string;
@@ -179,39 +186,46 @@ export function GameView({ room, players, myName }: Props) {
     ? sortedHand.map((s) => rawLegal[s.originalIndex])
     : rawLegal;
 
-  async function handlePlay(displayIdx: number) {
-    if (playing) return;
-    if (!sortedHand || !displayHand) return;
+  // Returns false when the play didn't go through (double-tap while one is
+  // in flight, or a server rejection) so HandDisplay can un-hide the card
+  // immediately instead of waiting for its safety timeout.
+  async function handlePlay(displayIdx: number): Promise<boolean> {
+    if (playing) return false;
+    if (!sortedHand || !displayHand) return false;
     const originalIdx = sortedHand[displayIdx]?.originalIndex ?? displayIdx;
     const card = displayHand[displayIdx];
-    setOptimisticPlay(card);
+    setOptimisticPlay({ card, histLen: room.trickHistory.length });
+    // Playing into the win-banner window: the previous trick's hold is
+    // being replaced by this new play, so drop the banner with it.
+    setWinBanner(null);
     setPlaying(true);
     setPlayError(null);
     try {
       await playCard(room.code, myName, originalIdx);
+      return true;
     } catch (err) {
       setPlayError(err instanceof Error ? err.message : 'Failed to play card.');
       setOptimisticPlay(null);
+      return false;
     } finally {
       setPlaying(false);
     }
   }
 
-  // Drop the optimistic ghost as soon as the server's view shows my play
-  // (either still in-flight or already moved into trickHistory).
+  // Drop the optimistic ghost as soon as the server's view shows my play:
+  // either it's in the in-progress trick, or my play completed the trick
+  // and trickHistory grew past the length recorded at play time.
   useEffect(() => {
     if (!optimisticPlay) return;
     const inFlight = room.trickInProgress.some((p) => p.playerName === myName);
-    const lastTrickHasMe = room.trickHistory[room.trickHistory.length - 1]?.plays.some(
-      (p) => p.playerName === myName,
-    );
-    if (inFlight || lastTrickHasMe) {
+    const trickResolved = room.trickHistory.length > optimisticPlay.histLen;
+    if (inFlight || trickResolved) {
       // Drop the optimistic ghost once the server confirms — syncing
       // local visual state with the external (Firestore) snapshot.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setOptimisticPlay(null);
     }
-  }, [room.trickInProgress, room.trickHistory, myName, optimisticPlay]);
+  }, [room.trickInProgress, room.trickHistory.length, myName, optimisticPlay]);
 
   const winnerColor = winBanner
     ? playerColor(winBanner.winner, room.playerOrder)
@@ -237,10 +251,17 @@ export function GameView({ room, players, myName }: Props) {
     trickClearedKey !== lastTrickLen
       ? lastTrick.plays
       : null;
+  // When I lead the next trick while the previous one is still held on
+  // the table (win-banner window), the optimistic play must REPLACE the
+  // held trick, not append to it — otherwise the held trick's copy of my
+  // previous card makes `myAlreadyShown` true and the new card shows up
+  // nowhere until the server round-trip completes (read as lag).
   const baseDisplayedPlays =
     room.trickInProgress.length > 0
       ? room.trickInProgress
-      : heldTrick ?? leavingPlays ?? [];
+      : optimisticPlay
+        ? []
+        : heldTrick ?? leavingPlays ?? [];
   // Append the optimistic local play when the server hasn't reflected it
   // yet so the card lands in its trick slot the instant the user drops.
   const myAlreadyShown = baseDisplayedPlays.some(
@@ -252,7 +273,7 @@ export function GameView({ room, players, myName }: Props) {
           ...baseDisplayedPlays,
           {
             playerName: myName,
-            card: optimisticPlay,
+            card: optimisticPlay.card,
             playOrder: baseDisplayedPlays.length,
           },
         ]
@@ -260,6 +281,7 @@ export function GameView({ room, players, myName }: Props) {
   const trickIsLeaving =
     room.trickInProgress.length === 0 &&
     heldTrick === null &&
+    optimisticPlay === null &&
     leavingPlays !== null;
 
   // Bid sum status — shown in the top header during bidding/playing/hold.
@@ -348,6 +370,10 @@ export function GameView({ room, players, myName }: Props) {
 
       <DisconnectBanner room={room} players={players} myName={myName} />
 
+      {/* Big transient commentary titles (your turn, streaks, wizard
+          kills, ace of spades). Fixed-centered, pointer-events-none. */}
+      <CommentaryOverlay room={room} myName={myName} active={showOpponents} />
+
       {room.awaitingTrumpChoice && isDealer && (
         <TrumpChooser code={room.code} callerName={myName} />
       )}
@@ -367,10 +393,13 @@ export function GameView({ room, players, myName }: Props) {
             room.currentRound >= room.totalRounds
           }
           centerBanner={
+            // pointer-events stay OFF: the winner leads the next trick
+            // while this banner covers the drop zone, so it must never
+            // swallow a card drop (elementFromPoint skips it).
             winBanner && winnerColor ? (
               <div
                 key={winBanner.key}
-                className="card-gold px-5 py-2.5 shadow-2xl text-center bg-navy-900/95 backdrop-blur animate-trick-banner pointer-events-auto"
+                className="card-gold px-5 py-2.5 shadow-2xl text-center bg-navy-900/95 backdrop-blur animate-trick-banner"
               >
                 <p className="text-xl font-black leading-tight">
                   {winBanner.winner === myName ? (

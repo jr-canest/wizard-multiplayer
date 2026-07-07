@@ -6,7 +6,9 @@ import { getUIZoom } from '../hooks/useUIScale';
 type Props = {
   hand: Card[] | null;
   legal?: boolean[];
-  onPlay?: (index: number) => void;
+  /** May return a promise resolving to false when the play was rejected —
+   * the card is then restored to the fan immediately. */
+  onPlay?: (index: number) => void | boolean | Promise<boolean | void>;
   isMyTurn?: boolean;
 };
 
@@ -20,10 +22,12 @@ type DragState = {
   moved: boolean;
 };
 
-type StuckState = {
+// A card the user just played (tap or drop) that the server hasn't
+// confirmed out of the hand yet. Hidden from the fan so the optimistic
+// copy in the trick area is the only one on screen — showing both read
+// as "my card is stuck".
+type PendingState = {
   cardId: string;
-  x: number;
-  y: number;
 };
 
 // Card sizes match CardImage's size prop (lg = 96, md = 64, sm = 48). Going
@@ -46,8 +50,10 @@ function cardId(card: Card): string {
 
 export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
   const [drag, setDrag] = useState<DragState | null>(null);
-  const [stuck, setStuck] = useState<StuckState | null>(null);
-  const stuckTimerRef = useRef<number | null>(null);
+  const [pending, setPending] = useState<PendingState | null>(null);
+  const pendingTimerRef = useRef<number | null>(null);
+  const moveRafRef = useRef<number | null>(null);
+  const lastMoveRef = useRef<{ x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerW, setContainerW] = useState(360);
 
@@ -64,25 +70,28 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
     return () => ro.disconnect();
   }, []);
 
-  // Clear stuck overlay once Firestore confirms the play (card leaves hand)
-  // or after a safety timeout if the play failed. The setState here
-  // syncs visual state with the external (Firestore) hand snapshot.
+  // Un-hide bookkeeping once Firestore confirms the play (card leaves the
+  // hand). The setState here syncs visual state with the external
+  // (Firestore) hand snapshot.
   useEffect(() => {
-    if (!stuck) return;
-    if (!hand?.some((c) => cardId(c) === stuck.cardId)) {
+    if (!pending) return;
+    if (!hand?.some((c) => cardId(c) === pending.cardId)) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setStuck(null);
-      if (stuckTimerRef.current !== null) {
-        window.clearTimeout(stuckTimerRef.current);
-        stuckTimerRef.current = null;
+      setPending(null);
+      if (pendingTimerRef.current !== null) {
+        window.clearTimeout(pendingTimerRef.current);
+        pendingTimerRef.current = null;
       }
     }
-  }, [hand, stuck]);
+  }, [hand, pending]);
 
   useEffect(() => {
     return () => {
-      if (stuckTimerRef.current !== null) {
-        window.clearTimeout(stuckTimerRef.current);
+      if (pendingTimerRef.current !== null) {
+        window.clearTimeout(pendingTimerRef.current);
+      }
+      if (moveRafRef.current !== null) {
+        cancelAnimationFrame(moveRafRef.current);
       }
     };
   }, []);
@@ -142,6 +151,28 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
     return useTwoRows && i >= topCount ? i - topCount : i;
   }
 
+  // Hide the card from the fan, fire the play, and restore the card right
+  // away if the play reports failure (otherwise the hand snapshot or the
+  // safety timeout below clears the pending state).
+  function playWithPending(index: number) {
+    if (!onPlay) return;
+    const id = cardId(hand![index]);
+    setPending({ cardId: id });
+    if (pendingTimerRef.current !== null) {
+      window.clearTimeout(pendingTimerRef.current);
+    }
+    // Safety: restore the card if nothing confirmed the play within 2.5s.
+    pendingTimerRef.current = window.setTimeout(() => {
+      setPending((p) => (p?.cardId === id ? null : p));
+      pendingTimerRef.current = null;
+    }, 2500);
+    Promise.resolve(onPlay(index)).then((ok) => {
+      if (ok === false) {
+        setPending((p) => (p?.cardId === id ? null : p));
+      }
+    });
+  }
+
   function handlePointerDown(e: React.PointerEvent, i: number) {
     if (!onPlay) return;
     const ok = legal ? legal[i] : true;
@@ -158,17 +189,40 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
     });
   }
 
+  // Coalesce pointer moves to one state update per animation frame —
+  // updating on every raw move re-renders the whole fan and made drags
+  // stutter on phones.
   function handlePointerMove(e: React.PointerEvent) {
     if (!drag || e.pointerId !== drag.pointerId) return;
-    const dx = e.clientX - drag.startX;
-    const dy = e.clientY - drag.startY;
-    const moved = drag.moved || dx * dx + dy * dy > 100;
-    setDrag({ ...drag, x: e.clientX, y: e.clientY, moved });
+    lastMoveRef.current = { x: e.clientX, y: e.clientY };
+    if (moveRafRef.current !== null) return;
+    moveRafRef.current = requestAnimationFrame(() => {
+      moveRafRef.current = null;
+      const m = lastMoveRef.current;
+      if (!m) return;
+      setDrag((d) => {
+        if (!d) return d;
+        const dx = m.x - d.startX;
+        const dy = m.y - d.startY;
+        const moved = d.moved || dx * dx + dy * dy > 100;
+        return { ...d, x: m.x, y: m.y, moved };
+      });
+    });
   }
 
   function handlePointerUp(e: React.PointerEvent) {
     if (!drag || e.pointerId !== drag.pointerId) return;
-    const { index, moved, x, y } = drag;
+    const { index } = drag;
+    // Recompute movement from the release point — the rAF-coalesced moved
+    // flag can lag one frame behind a fast flick.
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    const moved = drag.moved || dx * dx + dy * dy > 100;
+    // A queued rAF move is now moot — the drag is over.
+    if (moveRafRef.current !== null) {
+      cancelAnimationFrame(moveRafRef.current);
+      moveRafRef.current = null;
+    }
 
     let dropped = false;
     if (moved) {
@@ -176,27 +230,17 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
       const prevVis = node.style.visibility;
       node.style.visibility = 'hidden';
       const el = document.elementFromPoint(e.clientX, e.clientY);
-      dropped = !!el?.closest('[data-drop="trick"]');
+      // Accept the trick area itself plus the whole table frame around it
+      // (padding/border ring) so near-miss drops still count.
+      dropped = !!el?.closest('[data-drop="trick"], [data-trick-area-frame]');
       node.style.visibility = prevVis;
     }
 
     setDrag(null);
     if (!onPlay) return;
 
-    if (moved && dropped) {
-      const id = cardId(hand![index]);
-      setStuck({ cardId: id, x, y });
-      // Safety: snap back if the play didn't go through within 2.5s.
-      if (stuckTimerRef.current !== null) {
-        window.clearTimeout(stuckTimerRef.current);
-      }
-      stuckTimerRef.current = window.setTimeout(() => {
-        setStuck((s) => (s?.cardId === id ? null : s));
-        stuckTimerRef.current = null;
-      }, 2500);
-      onPlay(index);
-    } else if (!moved) {
-      onPlay(index);
+    if (!moved || dropped) {
+      playWithPending(index);
     }
   }
 
@@ -226,14 +270,14 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
           const rowOffsetY = rowIndex(i) === 0 && useTwoRows ? -ROW_GAP : 0;
           const isDragging = drag?.index === i && drag.moved;
           const id = cardId(card);
-          const isStuck = stuck?.cardId === id;
+          const isPending = pending?.cardId === id;
 
           const cardKey = `${card.kind}-${i}-${
             card.kind === 'standard' ? `${card.suit}${card.rank}` : card.id
           }`;
 
-          // Single DOM node across fan + drag + stuck states so pointer
-          // capture stays attached and drops land correctly.
+          // Single DOM node across fan + drag states so pointer capture
+          // stays attached and drops land correctly.
           // Pointer events report visual viewport pixels, but body { zoom }
           // scales position:fixed values — divide by the current zoom so
           // the dragged card stays under the cursor at any scale.
@@ -251,18 +295,7 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
                   touchAction: 'none',
                   willChange: 'transform, left, top',
                 }
-              : isStuck && stuck
-                ? {
-                    position: 'fixed',
-                    left: stuck.x / zoom,
-                    top: stuck.y / zoom,
-                    transform: 'translate(-50%, -55%)',
-                    transformOrigin: 'center center',
-                    transition: 'none',
-                    zIndex: 999,
-                    pointerEvents: 'none',
-                  }
-                : undefined;
+              : undefined;
 
           const fanStyle: React.CSSProperties = {
             position: 'absolute',
@@ -273,6 +306,12 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
             transition: 'transform 0.2s ease-out',
             zIndex: i,
             touchAction: 'none',
+            // Played-but-unconfirmed: the optimistic copy in the trick
+            // area is the visible one. Keep this node mounted (indices
+            // stay stable) but hide it.
+            ...(isPending
+              ? { visibility: 'hidden' as const, pointerEvents: 'none' as const }
+              : null),
           };
 
           return (
@@ -285,8 +324,10 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
               className={[
                 'rounded-md',
                 cardLegal ? 'cursor-grab active:cursor-grabbing' : '',
-                showGlow && !isDragging && !isStuck ? 'animate-legal-glow' : '',
-                isDragging || isStuck
+                showGlow && !isDragging && !isPending
+                  ? 'animate-legal-glow'
+                  : '',
+                isDragging
                   ? 'ring-4 ring-gold-300 shadow-[0_0_30px_rgba(254,205,70,0.95)]'
                   : '',
               ].join(' ')}

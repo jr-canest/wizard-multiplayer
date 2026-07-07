@@ -28,7 +28,9 @@ export function OverlayBanner({ room }: Props) {
       className="absolute top-1.5 left-1.5 right-1.5 z-[180] pointer-events-none animate-overlay-banner-inline flex"
       aria-live="polite"
     >
-      <div className="backdrop-blur rounded-md border border-gold-500/70 bg-navy-900/85 text-gold-100 px-2 py-1 shadow-lg pointer-events-auto text-[11px] leading-tight max-w-full">
+      {/* No pointer-events: this sits over the trick drop zone, and a
+          reaction popping up mid-drag must not swallow the card drop. */}
+      <div className="backdrop-blur rounded-md border border-gold-500/70 bg-navy-900/85 text-gold-100 px-2 py-1 shadow-lg text-[11px] leading-tight max-w-full">
         <span className="flex items-center gap-1.5">
           <span className={`${c.text} font-bold text-sm whitespace-nowrap`}>
             {reaction.player}

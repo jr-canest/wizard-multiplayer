@@ -35,7 +35,7 @@ function findPlayerEl(name: string): HTMLElement | null {
  * tile, briefly "shuffle" in place, then fly out to every other player
  * in a staggered burst. Pure visual flair — never blocks gameplay.
  */
-export function DealAnimation({ room, myName, onActiveChange }: Props) {
+export function DealAnimation({ room, onActiveChange }: Props) {
   const [activeKey, setActiveKey] = useState(0);
   const [frame, setFrame] = useState<Frame | null>(null);
   const prevRoundRef = useRef(room.currentRound);
@@ -54,10 +54,18 @@ export function DealAnimation({ room, myName, onActiveChange }: Props) {
     if (next > prevRoundRef.current && next >= 1) {
       // Hide cards / trump immediately (parent listens via onActiveChange).
       onActiveRef.current?.(true);
+      // Fail-safe un-hide, deliberately NOT cleaned up: if the rAF below
+      // never runs (canceled, or bails on a missing tile) the hand must
+      // not stay hidden for the rest of the round. A stray late (false)
+      // is harmless — the animation is long over by then.
+      window.setTimeout(() => onActiveRef.current?.(false), 4000);
       const raf = requestAnimationFrame(() => {
         const dealerName = room.playerOrder[room.dealerIndex];
         const dealerEl = findPlayerEl(dealerName);
-        if (!dealerEl) return;
+        if (!dealerEl) {
+          onActiveRef.current?.(false);
+          return;
+        }
         // body { zoom } scales fixed children too — divide rect coords by
         // the zoom so the cards anchor where the player tiles actually
         // sit on screen (see BidModal note).
@@ -81,7 +89,10 @@ export function DealAnimation({ room, myName, onActiveChange }: Props) {
             };
           })
           .filter((t): t is NonNullable<typeof t> => t !== null);
-        if (others.length === 0) return;
+        if (others.length === 0) {
+          onActiveRef.current?.(false);
+          return;
+        }
         setFrame({ origin, targets: others });
         setActiveKey((k) => k + 1);
       });
@@ -89,7 +100,15 @@ export function DealAnimation({ room, myName, onActiveChange }: Props) {
       return () => cancelAnimationFrame(raf);
     }
     prevRoundRef.current = next;
-  }, [room.currentRound, room.dealerIndex, room.playerOrder, myName]);
+    // Trigger on the round bump ONLY. Depending on the other room fields
+    // (playerOrder is a fresh array on every snapshot) re-ran this effect
+    // whenever a second snapshot landed within a frame of the deal — the
+    // cleanup then canceled the pending rAF before it measured, so
+    // onActiveChange(false) never fired and the hand stayed hidden (and
+    // unclickable) for the entire round. Dealer/playerOrder are read
+    // inside the rAF from the bumping snapshot's closure.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.currentRound]);
 
   // Auto-clear after total animation duration.
   useEffect(() => {
