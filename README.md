@@ -11,13 +11,15 @@ npm run dev          # http://localhost:5181
 
 ## Deploy
 
-GitHub Pages, same flow as the scorekeeper:
+Push to `main` — GitHub Actions builds and deploys Firebase Hosting (site `wizard-multiplayer`) plus Firestore rules.
+
+Live at **https://wizard-multiplayer.web.app**. (The old GitHub Pages URL is a stale mirror.)
+
+Manual fallback:
 
 ```bash
-npm run deploy       # builds + pushes to gh-pages branch
+npm run build && npx firebase deploy --only hosting:multiplayer --project wizard-scores-2521c
 ```
-
-Site lives at `https://jr-canest.github.io/wizard-multiplayer/` (once the repo is created and the `gh-pages` branch is pushed).
 
 ## Stack
 
