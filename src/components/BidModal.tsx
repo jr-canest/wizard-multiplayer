@@ -76,10 +76,21 @@ export function BidModal({ room, myName }: Props) {
       aria-modal="true"
       role="dialog"
     >
-      <div className="relative card-gold p-3 w-full pointer-events-auto shadow-2xl ring-2 ring-gold-300 shadow-[0_0_24px_rgba(254,205,70,0.5)] bg-navy-900/85 backdrop-blur">
-        <h3 className="text-center text-[11px] uppercase tracking-[0.2em] font-black text-gold-100 mb-2">
-          Place your bid
-        </h3>
+      <div
+        className="relative rounded-[10px] p-2.5 px-3 w-full pointer-events-auto"
+        style={{
+          border: '1px solid #d4a843',
+          background: 'linear-gradient(180deg,rgba(38,32,20,.92),rgba(10,16,32,.95))',
+          boxShadow: '0 0 26px rgba(212,168,67,.35), 0 10px 24px rgba(0,0,0,.6)',
+        }}
+      >
+        <div className="flex items-center gap-2 mb-2">
+          <span className="flex-1 h-px bg-gradient-to-r from-transparent to-gold-300/45" />
+          <h3 className="text-[10px] uppercase tracking-[0.24em] font-bold text-cream-bright leading-none">
+            Place your bid
+          </h3>
+          <span className="flex-1 h-px bg-gradient-to-l from-transparent to-gold-300/45" />
+        </div>
         <BidButtonsBar room={room} myName={myName} />
       </div>
     </div>,

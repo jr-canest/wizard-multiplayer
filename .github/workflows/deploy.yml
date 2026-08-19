@@ -1,41 +1,29 @@
-name: Deploy to GitHub Pages
-
+# Push to main → typecheck+build, deploy Firebase Hosting (multiplayer
+# site) + Firestore rules. Lets phone/cloud Claude sessions ship changes
+# without a Mac. (Replaced the old GitHub Pages workflow — the GH Pages
+# mirror is stale and no longer canonical; wizard-multiplayer.web.app is.)
+name: Deploy
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
-
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run build
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Deploy hosting + rules
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_WIZARD }}
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx firebase-tools deploy --only hosting:multiplayer,firestore:rules --project wizard-scores-2521c --non-interactive
+          rm "$RUNNER_TEMP/sa.json"

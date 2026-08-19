@@ -109,22 +109,20 @@ export function RoundScoreboard({ room, myName }: Props) {
     <Chat room={room} myName={myName} />
     <div className="card-gold p-4 space-y-4">
       <div className="flex items-baseline justify-between">
-        <span className="text-xs uppercase tracking-wider text-navy-200">
-          Round {room.currentRound} results
-        </span>
-        <span className="text-xs text-navy-300">
+        <span className="section-label">Round {room.currentRound} results</span>
+        <span className="font-display font-semibold text-[15px] text-navy-300 tabular-nums">
           {room.currentRound}/{room.totalRounds}
         </span>
       </div>
 
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-xs text-navy-300 uppercase tracking-wider">
-            <th className="text-left font-normal pb-1">Player</th>
-            <th className="text-right font-normal pb-1">Bid</th>
-            <th className="text-right font-normal pb-1">Won</th>
-            <th className="text-right font-normal pb-1">Δ</th>
-            <th className="text-right font-normal pb-1">Total</th>
+          <tr>
+            <th className="section-label text-left font-bold pb-1.5">Player</th>
+            <th className="section-label text-right font-bold pb-1.5">Bid</th>
+            <th className="section-label text-right font-bold pb-1.5">Won</th>
+            <th className="section-label text-right font-bold pb-1.5">Δ</th>
+            <th className="section-label text-right font-bold pb-1.5">Total</th>
           </tr>
         </thead>
         <tbody>
@@ -142,13 +140,13 @@ export function RoundScoreboard({ room, myName }: Props) {
                 key={name}
                 className={
                   isWinner
-                    ? 'bg-gold-900/30'
+                    ? 'bg-gold-300/[.07]'
                     : ''
                 }
               >
                 <td
-                  className={`py-1.5 ${
-                    isMe ? 'text-gold-100 font-bold' : 'text-navy-50'
+                  className={`py-1.5 font-display font-semibold text-[17px] ${
+                    isMe ? 'text-cream-bright font-bold' : 'text-cream'
                   }`}
                 >
                   {isReal && (
@@ -171,28 +169,28 @@ export function RoundScoreboard({ room, myName }: Props) {
                   {name}
                   {isMe ? ' (you)' : ''}
                 </td>
-                <td className="text-right tabular-nums text-navy-100">{bid}</td>
+                <td className="text-right tabular-nums font-display font-medium text-[16px] text-cream">{bid}</td>
                 <td
-                  className={`text-right tabular-nums ${
-                    bid === won ? 'text-emerald-300' : 'text-rose-300'
+                  className={`text-right tabular-nums font-display font-semibold text-[16px] ${
+                    bid === won ? 'text-[#6ee7b7]' : 'text-[#fda4af]'
                   }`}
                 >
                   {won}
                 </td>
                 <td
-                  className={`text-right tabular-nums font-bold ${
+                  className={`text-right tabular-nums text-[10px] font-semibold ${
                     delta > 0
-                      ? 'text-emerald-300'
+                      ? 'text-[#6ee7b7]'
                       : delta < 0
-                        ? 'text-rose-300'
-                        : 'text-navy-100'
+                        ? 'text-[#fda4af]'
+                        : 'text-navy-200'
                   }`}
                 >
-                  {delta > 0 ? '+' : ''}
-                  {delta}
+                  {delta > 0 ? '+' : delta < 0 ? '−' : ''}
+                  {Math.abs(delta)}
                 </td>
-                <td className="text-right tabular-nums text-gold-100 font-bold">
-                  {total}
+                <td className="text-right tabular-nums font-display font-semibold text-[19px] text-gold-text">
+                  {total < 0 ? `−${Math.abs(total)}` : total}
                 </td>
               </tr>
             );
@@ -204,10 +202,10 @@ export function RoundScoreboard({ room, myName }: Props) {
         type="button"
         onClick={handleAdvance}
         disabled={advancing}
-        className={`w-full rounded-xl py-3 font-semibold border transition tabular-nums ${
+        className={`w-full h-12 rounded-lg font-semibold border transition tabular-nums ${
           myNextVote
-            ? 'bg-emerald-700/30 border-emerald-500/60 text-emerald-100'
-            : 'btn-gold border-gold-400 active:scale-[0.99]'
+            ? 'bg-[rgba(6,78,59,.3)] border-[rgba(16,185,129,.6)] text-emerald-100'
+            : 'btn-gold active:scale-[0.99]'
         }`}
       >
         {advancing
@@ -227,8 +225,8 @@ export function RoundScoreboard({ room, myName }: Props) {
                 disabled={voting}
                 className={`rounded-lg py-2 text-[11px] font-semibold border transition tabular-nums leading-tight ${
                   myEarlyVote
-                    ? 'bg-emerald-700/30 border-emerald-500/60 text-emerald-100'
-                    : 'bg-navy-800 border-gold-700/60 text-gold-200 active:scale-[0.98]'
+                    ? 'bg-[rgba(6,78,59,.3)] border-[rgba(16,185,129,.6)] text-emerald-100'
+                    : 'bg-[rgba(20,26,44,.8)] border-gold-300/25 text-navy-200 active:scale-[0.98]'
                 }`}
               >
                 {myEarlyVote ? '✓ Voted — ' : 'Vote: '}
@@ -250,7 +248,7 @@ export function RoundScoreboard({ room, myName }: Props) {
                 className={`rounded-lg py-2 text-[11px] font-semibold border transition tabular-nums leading-tight ${
                   myEndGameVote
                     ? 'bg-rose-700/30 border-rose-500/60 text-rose-100'
-                    : 'bg-navy-900 border-rose-500/70 ring-1 ring-rose-500/30 text-rose-200 active:scale-[0.98]'
+                    : 'bg-transparent border-[rgba(248,113,113,.3)] text-[rgba(252,165,165,.75)] active:scale-[0.98]'
                 }`}
               >
                 {myEndGameVote ? '✓ Voted — ' : 'Vote: '}

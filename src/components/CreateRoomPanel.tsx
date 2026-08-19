@@ -5,17 +5,23 @@ import { useSession } from '../hooks/useSession';
 import { useAnonymousAuth } from '../hooks/useAnonymousAuth';
 import { setActiveRoomCode } from '../hooks/useActiveRoom';
 
+// Hidden test link (?test) unlocks the bots panel in production and
+// pre-checks it — games with bots never reach the shared history.
+const isTestLink = new URLSearchParams(window.location.search).has('test');
+
 export function CreateRoomPanel() {
   const navigate = useNavigate();
   const { session } = useSession();
   const { uid } = useAnonymousAuth();
   const [canadianRule, setCanadianRule] = useState(true);
-  const [withBots, setWithBots] = useState(false);
+  const [withBots, setWithBots] = useState(isTestLink);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const devModeEnabled =
-    import.meta.env.DEV || session?.playerName.trim().toLowerCase() === 'test';
+    import.meta.env.DEV ||
+    isTestLink ||
+    session?.playerName.trim().toLowerCase() === 'test';
 
   async function handleCreate() {
     if (!session || !uid || submitting) return;
@@ -53,9 +59,9 @@ export function CreateRoomPanel() {
       {devModeEnabled && (
         <label className="flex items-center justify-between gap-3 rounded-md border border-dashed border-gold-700/60 px-3 py-2">
           <span>
-            <span className="block text-sm text-gold-100">Dev: add 3 bots</span>
+            <span className="block text-sm text-gold-100">Test: add 3 bots</span>
             <span className="block text-xs text-navy-200">
-              Solo-test with 3 bot opponents. Visible in dev only.
+              Solo-test with 3 bot opponents. Bot games are never saved to history.
             </span>
           </span>
           <input

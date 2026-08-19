@@ -268,17 +268,18 @@ export function FinalScoreboard({ room, myName }: Props) {
         }`}
       >
         <div className="text-center">
-          <div className="text-xs uppercase tracking-wider text-navy-200">
-            Game over
-          </div>
-          <div className="text-2xl font-black text-gold-200 mt-1">
+          <div className="eyebrow">Game over</div>
+          <div className="font-display font-semibold text-[30px] leading-none text-cream-bright mt-2.5">
             {standings[0]?.name} wins!
+          </div>
+          <div className="ornament mt-3.5">
+            <span className="diamond" />
           </div>
         </div>
 
         {(aiLoading || displayedSummary) && (
           <div
-            className={`bg-navy-700/60 border border-gold-700/30 rounded-xl px-4 py-3 text-center relative ${
+            className={`card-gold-subtle px-4 py-3.5 text-center relative ${
               aiLoading ? 'wm-summary-shimmer' : ''
             }`}
           >
@@ -319,7 +320,7 @@ export function FinalScoreboard({ room, myName }: Props) {
             ) : (
               <p
                 key={displayedSummary}
-                className="wm-summary-text text-gold-100 text-sm leading-relaxed"
+                className="wm-summary-text font-display text-cream text-[17px] leading-[1.6]"
                 dangerouslySetInnerHTML={{ __html: displayedSummary ?? '' }}
               />
             )}
@@ -338,37 +339,37 @@ export function FinalScoreboard({ room, myName }: Props) {
             return (
               <li
                 key={s.name}
-                className={`flex items-center justify-between rounded-md px-3 py-2 ${
-                  isFirst ? 'bg-gold-300/10' : 'bg-navy-800/60'
+                className={`card-gold-subtle flex items-center justify-between px-3 py-2 ${
+                  isFirst ? 'bg-gold-300/[.07]' : ''
                 }`}
               >
                 <span className="flex items-center gap-2">
                   <span
                     className={`text-sm w-7 text-center ${
-                      isFirst ? 'text-gold-200' : 'text-navy-200'
+                      isFirst ? 'text-gold-text' : 'text-navy-200'
                     }`}
                   >
                     {medal}
                   </span>
                   <span
-                    className={
-                      isMe ? 'font-bold text-gold-100' : 'text-navy-50'
-                    }
+                    className={`font-display font-semibold text-[17px] ${
+                      isMe ? 'text-cream-bright' : 'text-cream'
+                    }`}
                   >
                     {s.name}
                     {isMe ? ' (you)' : ''}
                   </span>
                 </span>
                 <span
-                  className={`font-bold tabular-nums text-lg ${
+                  className={`font-display font-semibold tabular-nums text-[26px] leading-none ${
                     s.score > 0
-                      ? 'text-emerald-300'
+                      ? 'text-[#6ee7b7]'
                       : s.score < 0
-                        ? 'text-rose-300'
-                        : 'text-navy-200'
+                        ? 'text-[#fda4af]'
+                        : 'text-cream'
                   }`}
                 >
-                  {s.score}
+                  {s.score < 0 ? `−${Math.abs(s.score)}` : s.score}
                 </span>
               </li>
             );
@@ -386,10 +387,10 @@ export function FinalScoreboard({ room, myName }: Props) {
           type="button"
           onClick={handlePlayAgain}
           disabled={resetting}
-          className={`w-full rounded-xl py-3 font-bold border tabular-nums transition ${
+          className={`w-full h-12 rounded-lg font-bold border tabular-nums transition ${
             myPlayAgainVote
-              ? 'bg-emerald-700/30 border-emerald-500/60 text-emerald-100'
-              : 'btn-gold border-gold-400'
+              ? 'bg-[rgba(6,78,59,.3)] border-[rgba(16,185,129,.6)] text-emerald-100'
+              : 'btn-gold'
           }`}
         >
           {resetting

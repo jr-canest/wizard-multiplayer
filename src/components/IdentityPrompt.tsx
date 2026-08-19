@@ -53,40 +53,36 @@ export function IdentityPrompt({ title, subtitle, onAuthed }: Props) {
   return (
     <form onSubmit={handleSubmit} className="card-gold p-5 w-full max-w-sm space-y-4">
       <div>
-        <h2 className="text-gold-200 text-xl font-bold mb-1">
+        <h2 className="font-display font-semibold text-[24px] leading-none text-cream-bright mb-2">
           {title ?? 'Who’s playing?'}
         </h2>
-        <p className="text-navy-100 text-sm">
+        <p className="text-navy-200 text-sm">
           {subtitle ?? 'Pick a name and a 4-digit PIN. The PIN keeps your name yours across devices.'}
         </p>
       </div>
 
       <label className="block">
-        <span className="block text-xs uppercase tracking-wider text-navy-200 mb-1">
-          Name
-        </span>
+        <span className="section-label block mb-1.5">Name</span>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={20}
           autoCapitalize="words"
           spellCheck={false}
-          className="w-full rounded-lg bg-navy-800 border border-navy-500 px-3 py-2 text-lg text-gold-100"
+          className="w-full h-11 rounded-lg bg-[rgba(20,26,44,.8)] border border-gold-300/25 px-3 text-lg text-cream placeholder-navy-300 focus:border-gold-300 focus:outline-none"
           placeholder="Jorge"
         />
       </label>
 
       <label className="block">
-        <span className="block text-xs uppercase tracking-wider text-navy-200 mb-1">
-          PIN (4 digits)
-        </span>
+        <span className="section-label block mb-1.5">PIN (4 digits)</span>
         <input
           value={pin}
           onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
           inputMode="numeric"
           autoComplete="off"
           maxLength={4}
-          className="w-full rounded-lg bg-navy-800 border border-navy-500 px-3 py-2 text-2xl font-mono tracking-[0.6em] text-center text-gold-100"
+          className="w-full rounded-lg bg-[rgba(20,26,44,.8)] border border-gold-300/25 px-3 py-2 font-display font-semibold text-2xl tracking-[0.6em] text-center text-cream placeholder-navy-300 focus:border-gold-300 focus:outline-none"
           placeholder="• • • •"
         />
       </label>
@@ -99,7 +95,7 @@ export function IdentityPrompt({ title, subtitle, onAuthed }: Props) {
 
       <button
         type="submit"
-        className="btn-gold w-full rounded-lg py-3"
+        className="btn-gold w-full h-12 text-base"
         disabled={!canSubmit}
       >
         {submitting ? 'Checking…' : 'Continue'}

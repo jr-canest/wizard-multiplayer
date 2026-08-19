@@ -29,6 +29,9 @@ type Props = {
   trickPlays: Array<{ playerName: string; card: Card; playOrder?: number }>;
   trickIsLeaving: boolean;
   isMyTurn: boolean;
+  /** True while the two-row bid picker sits inline below the table —
+   * the felt gives up height to pay for it. */
+  shortFelt?: boolean;
   hideTrump?: boolean;
   /** When true the trump slot shows "LAST ROUND / NO TRUMP" instead of
    * the trump card. */
@@ -51,6 +54,7 @@ export function Table({
   trickPlays,
   trickIsLeaving,
   isMyTurn,
+  shortFelt = false,
   hideTrump = false,
   isLastRoundNoTrump = false,
   centerBanner,
@@ -89,7 +93,7 @@ export function Table({
         <div className="flex justify-center gap-1">
           {topRow.map((name, i) =>
             name ? (
-              <div key={name} className="w-[56px] shrink-0">
+              <div key={name} className="w-[62px] shrink-0">
                 <OpponentTile
                   room={room}
                   myName={myName}
@@ -98,7 +102,7 @@ export function Table({
                 />
               </div>
             ) : (
-              <div key={`top-${i}`} className="w-[56px]" />
+              <div key={`top-${i}`} className="w-[62px]" />
             ),
           )}
         </div>
@@ -108,7 +112,7 @@ export function Table({
       <div className="flex items-stretch gap-1">
         {/* Left column */}
         {leftCol.length > 0 && (
-          <div className="flex flex-col justify-around gap-1 w-[56px] shrink-0">
+          <div className="flex flex-col justify-around gap-1 w-[62px] shrink-0">
             {leftCol.map((name, i) =>
               name ? (
                 <OpponentTile
@@ -128,7 +132,9 @@ export function Table({
         {/* Table center: trick area + trump in middle */}
         <div
           data-trick-area-frame
-          className="flex-1 relative card-gold-subtle border-2 border-gold-700/50 rounded-xl overflow-hidden p-2 min-h-[306px]"
+          className={`felt flex-1 relative overflow-hidden p-2 ${
+            shortFelt ? 'min-h-[210px]' : 'min-h-[306px]'
+          }`}
         >
           {/* Trump card centered behind the trick fan. Hidden during the
               deal animation so the deal can finish before revealing it. */}
@@ -163,7 +169,7 @@ export function Table({
 
         {/* Right column */}
         {rightCol.length > 0 && (
-          <div className="flex flex-col justify-around gap-1 w-[56px] shrink-0">
+          <div className="flex flex-col justify-around gap-1 w-[62px] shrink-0">
             {rightCol.map((name, i) =>
               name ? (
                 <OpponentTile
@@ -217,12 +223,12 @@ function TrumpCenter({
           panel that wraps the card AND the TRUMP label. Trick cards are
           positioned to never enter this frame; z-[200] keeps the trump
           on top of any trick card that does drift close. */}
-      <div className="flex flex-col items-center gap-1 p-1 rounded-lg border border-gold-500/60 shadow-[0_0_18px_rgba(254,205,70,0.2)] bg-navy-900/45">
+      <div className="flex flex-col items-center gap-1 p-1 rounded-lg border border-gold-300/55 shadow-[0_0_20px_rgba(212,168,67,0.2)] bg-[rgba(7,20,17,0.55)]">
         {trumpCard ? (
           <CardImage
             card={trumpCard}
             size="sm"
-            className="ring-1 ring-gold-300/70 shadow-[0_0_8px_rgba(254,205,70,0.55)]"
+            className="shadow-[0_0_0_1px_rgba(226,197,121,0.7)]"
           />
         ) : lastRoundNoTrump ? (
           // No-trump final round: card slot reads "LAST ROUND" — the
@@ -251,7 +257,7 @@ function TrumpCenter({
             );
           }
           return (
-            <span className="w-12 text-[9px] uppercase tracking-[0.05em] font-bold text-gold-200 flex items-center justify-center gap-0.5 leading-none">
+            <span className="w-12 text-[8px] uppercase tracking-[0.1em] font-bold text-gold-text flex items-center justify-center gap-0.5 leading-none">
               <span>TRUMP</span>
               {awaitingTrumpChoice ? (
                 <span className="text-gold-300">…</span>

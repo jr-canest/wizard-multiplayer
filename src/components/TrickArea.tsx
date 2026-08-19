@@ -79,7 +79,7 @@ const TrickCard = memo(function TrickCard({
       >
       <div className="animate-play-in">
         <div
-          className={`relative rounded-md ring-2 ${color.ring} ${color.glow} bg-navy-900`}
+          className={`relative rounded-md ring-2 ${color.ring} bg-navy-900 shadow-[0_8px_18px_rgba(0,0,0,0.5)]`}
         >
           <CardImage card={card} size="md" />
           {isWinning && (
@@ -87,18 +87,15 @@ const TrickCard = memo(function TrickCard({
           )}
           {isWinning && (
             <div
-              className="absolute -top-3 -right-2 z-10 w-8 h-8 rounded-full bg-black/55 backdrop-blur-[2px] flex items-center justify-center animate-crown-pop pointer-events-none select-none"
+              className="absolute -top-[10px] -right-2 z-10 w-7 h-7 rounded-full flex items-center justify-center animate-crown-pop pointer-events-none select-none"
+              style={{
+                background: 'linear-gradient(180deg,#f0dda0 0%,#c9a141 45%,#9c7a26 100%)',
+                border: '1px solid #e2c579',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+              }}
               title="Winning card"
             >
-              <span
-                className="text-gold-300 text-2xl leading-none"
-                style={{
-                  textShadow:
-                    '0 0 4px rgba(254,205,70,0.9), 0 1px 2px rgba(0,0,0,0.9)',
-                }}
-              >
-                ♛
-              </span>
+              <span className="text-[#2a2010] text-lg leading-none">♛</span>
             </div>
           )}
         </div>

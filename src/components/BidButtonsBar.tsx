@@ -57,10 +57,15 @@ export function BidButtonsBar({ room, myName }: Props) {
     room.canadianRule &&
     room.currentRound > 1;
 
+  // Density rule: ≤6 values stay one flex row (46px chips); 7+ wrap to
+  // rows of ≤6 equal-width 42px chips.
+  const valueCount = cardsThisRound + 1;
+  const useGrid = valueCount >= 7;
+
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex flex-wrap gap-1.5 justify-center">
-        {Array.from({ length: cardsThisRound + 1 }, (_, i) => {
+      <div className={useGrid ? 'grid grid-cols-6 gap-[5px]' : 'flex gap-2'}>
+        {Array.from({ length: valueCount }, (_, i) => {
           const locked = isLocked(i);
           const submittingThis = submitting === i;
           return (
@@ -69,10 +74,9 @@ export function BidButtonsBar({ room, myName }: Props) {
               type="button"
               disabled={locked || submitting !== null}
               onClick={() => pick(i)}
-              className={`min-w-[2.25rem] rounded-md py-1 px-2 text-base font-bold border shadow ${
-                locked
-                  ? 'bg-navy-900/60 border-navy-700 text-navy-500 line-through cursor-not-allowed'
-                  : 'bg-navy-800 border-gold-500 text-gold-100 hover:bg-navy-700 active:scale-95 transition'
+              style={{ fontSize: 20 }}
+              className={`${useGrid ? 'h-[42px]' : 'flex-1 h-[46px]'} chip ${
+                locked ? 'chip-locked cursor-not-allowed' : 'active:scale-95 transition'
               }`}
             >
               {submittingThis ? '…' : i}

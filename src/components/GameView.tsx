@@ -5,6 +5,7 @@ import { useWakeLock } from '../hooks/useWakeLock';
 import { TrumpChooser } from './TrumpChooser';
 import { HandDisplay } from './HandDisplay';
 import { BidModal } from './BidModal';
+import { BidButtonsBar } from './BidButtonsBar';
 import { RoundScoreboard } from './RoundScoreboard';
 import { FinalScoreboard } from './FinalScoreboard';
 import { DisconnectBanner } from './DisconnectBanner';
@@ -301,14 +302,26 @@ export function GameView({ room, players, myName }: Props) {
     diff > 0 ? `Over ${diff}` : diff < 0 ? `Under ${-diff}` : 'Exact';
   const bidSumTone =
     diff > 0
-      ? 'text-rose-300'
+      ? 'text-[#fda4af]'
       : diff === 0
-        ? 'text-amber-300'
-        : 'text-sky-300';
+        ? 'text-[#fcd34d]'
+        : 'text-[#7dd3fc]';
 
   // My bid/won values — used by the action strip's big right-side line.
   const myBid = room.bids[myName];
   const myWon = room.tricksWon[myName] ?? 0;
+
+  // Bid-picker density rule: with ≤6 values the picker floats over the
+  // felt as an anchored overlay. With 7+ values it wraps to two rows,
+  // so it takes its own place in the layout instead (anchoring a tall
+  // panel at the felt's bottom edge would hide the side-column tiles)
+  // and the felt shrinks to pay for it.
+  const isMyBidTurn =
+    room.status === 'bidding' &&
+    room.playerOrder[room.currentPlayerIndex] === myName &&
+    myBid === undefined;
+  const bidValueCount = cardsThisRound + 1;
+  const inlineBidPanel = isMyBidTurn && bidValueCount >= 7;
 
   return (
     <div className="w-full max-w-md space-y-2">
@@ -322,8 +335,14 @@ export function GameView({ room, players, myName }: Props) {
         const nextIsLast =
           !isLastRoundNow && room.currentRound + 1 === room.totalRounds;
         return (
-      <div className="card-gold-subtle px-3 py-1.5 flex items-center justify-between text-[12px] gap-2">
-        <span className="text-navy-100 whitespace-nowrap flex items-center gap-1.5">
+      <div
+        className="rounded-lg px-3 py-1.5 flex items-center justify-between text-[12px] gap-2"
+        style={{
+          background: 'rgba(20,26,44,.55)',
+          border: '1px solid rgba(212,168,67,.28)',
+        }}
+      >
+        <span className="text-navy-200 whitespace-nowrap flex items-center gap-1.5">
           {/* Reactions are only useful during active gameplay — the
               round-end + final scoreboards have a chat box instead. */}
           {room.status !== 'scoring' && room.status !== 'finished' && (
@@ -332,7 +351,7 @@ export function GameView({ room, players, myName }: Props) {
           <span className="flex flex-col leading-none gap-0.5">
             <span>
               Round{' '}
-              <strong className="text-gold-100">
+              <strong className="font-display font-semibold text-[15px] text-cream tabular-nums">
                 {room.currentRound}/{room.totalRounds}
               </strong>
             </span>
@@ -350,16 +369,16 @@ export function GameView({ room, players, myName }: Props) {
         </span>
         {showBidSum && (
           <span
-            className={`font-semibold tabular-nums ${bidSumTone}`}
+            className={`text-[10px] font-bold uppercase tracking-[0.14em] ${bidSumTone}`}
             title={`Total bids ${totalBids} of ${cardsThisRound}`}
           >
             {bidSumLabel}
           </span>
         )}
-        <span className="text-navy-100 whitespace-nowrap truncate flex items-center gap-1">
+        <span className="text-navy-200 whitespace-nowrap truncate flex items-center gap-1">
           <span>
             Dealer{' '}
-            <strong className="text-gold-100">{dealerName}</strong>
+            <strong className="font-display font-semibold text-[15px] text-cream">{dealerName}</strong>
             {isDealer ? ' (you)' : ''}
           </span>
           <GameMenu room={room} myName={myName} />
@@ -386,6 +405,7 @@ export function GameView({ room, players, myName }: Props) {
           trickPlays={displayedPlays}
           trickIsLeaving={trickIsLeaving}
           isMyTurn={isMyTurn}
+          shortFelt={inlineBidPanel}
           hideTrump={dealingActive}
           isLastRoundNoTrump={
             !room.trumpCard &&
@@ -419,12 +439,28 @@ export function GameView({ room, players, myName }: Props) {
         />
       )}
 
-      {/* Bid number picker modal — only while it's my turn to bid. */}
-      {room.status === 'bidding' &&
-        room.playerOrder[room.currentPlayerIndex] === myName &&
-        myBid === undefined && (
-          <BidModal room={room} myName={myName} />
-        )}
+      {/* Bid number picker — floats over the felt for ≤6 values; takes
+          its own place in the layout (with a shortened felt) for 7+. */}
+      {isMyBidTurn && !inlineBidPanel && <BidModal room={room} myName={myName} />}
+      {isMyBidTurn && inlineBidPanel && (
+        <div
+          className="relative rounded-[10px] p-2.5 px-3 animate-bid-modal-in"
+          style={{
+            border: '1px solid #d4a843',
+            background: 'linear-gradient(180deg,rgba(38,32,20,.92),rgba(10,16,32,.95))',
+            boxShadow: '0 0 26px rgba(212,168,67,.35), 0 10px 24px rgba(0,0,0,.6)',
+          }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <span className="flex-1 h-px bg-gradient-to-r from-transparent to-gold-300/45" />
+            <h3 className="text-[10px] uppercase tracking-[0.24em] font-bold text-cream-bright leading-none">
+              Place your bid
+            </h3>
+            <span className="flex-1 h-px bg-gradient-to-l from-transparent to-gold-300/45" />
+          </div>
+          <BidButtonsBar room={room} myName={myName} />
+        </div>
+      )}
 
       <DealAnimation
         room={room}
@@ -459,11 +495,11 @@ export function GameView({ room, players, myName }: Props) {
           let frame = '';
           if (isPlayingTurn) {
             primary = (
-              <span className="uppercase tracking-[0.2em] font-black text-gold-100 text-[13px] animate-pulse">
+              <span className="uppercase tracking-[0.22em] font-bold text-cream-bright text-[11px] animate-pulse">
                 YOUR TURN
               </span>
             );
-            frame = 'ring-2 ring-gold-300 shadow-[0_0_14px_rgba(254,205,70,0.4)]';
+            frame = 'card-gold card-gold-active';
           } else if (isBiddingTurn) {
             // BidModal is up — no need for a redundant "place your bid"
             // line in the strip. Leave primary empty; subtitle still shows.
@@ -523,20 +559,20 @@ export function GameView({ room, players, myName }: Props) {
           // My own big won/bid line — same visual treatment as the
           // opponent tiles' middle row (text-[18px] tabular, color-coded).
           let myBigLine: React.ReactNode = null;
-          let myBigTone = 'text-navy-400';
+          let myBigTone = 'text-steel';
           if (myBid === undefined) {
             myBigLine = '—';
           } else if (room.status === 'bidding') {
             myBigLine = myBid;
-            myBigTone = 'text-gold-100';
+            myBigTone = 'text-cream';
           } else {
             myBigLine = `${myWon}/${myBid}`;
             myBigTone =
               myWon > myBid
-                ? 'text-rose-300'
+                ? 'text-[#fda4af]'
                 : myWon === myBid
-                  ? 'text-emerald-300'
-                  : 'text-sky-300';
+                  ? 'text-[#6ee7b7]'
+                  : 'text-[#7dd3fc]';
           }
           // Undo slots in on the left when there's a pending action the
           // viewer can request/vote on. When active, it suppresses the
@@ -548,7 +584,7 @@ export function GameView({ room, players, myName }: Props) {
           return (
             <div
               data-action-strip
-              className={`relative card-gold-subtle px-3 py-1 min-h-[48px] flex items-stretch transition-shadow ${frame}`}
+              className={`relative px-3 py-1 min-h-[48px] flex items-stretch transition-shadow ${frame || 'card-gold-subtle'}`}
             >
               {/* Left-side undo. Lives inside the strip (no layout push)
                   and overrides the centered primary so the player isn't
@@ -578,7 +614,7 @@ export function GameView({ room, players, myName }: Props) {
               {/* Spacer + right-side big won/bid (mirror to keep balance). */}
               <div className="flex-1" />
               <div
-                className={`relative shrink-0 flex items-center justify-end pl-2 ml-2 border-l border-gold-700/40 ${myBigTone} font-black tabular-nums text-[18px] leading-none`}
+                className={`relative shrink-0 flex items-center justify-end pl-2.5 ml-2 border-l border-gold-300/25 ${myBigTone} font-display font-semibold tabular-nums text-[26px] leading-none`}
                 title={
                   myBid === undefined
                     ? 'Waiting to bid'

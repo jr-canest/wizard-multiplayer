@@ -95,18 +95,18 @@ export function OpponentTile({
   let bigTone = 'text-navy-300';
   if (bid === undefined) {
     bigLine = '—';
-    bigTone = 'text-navy-400';
+    bigTone = 'text-steel';
   } else if (isBidding) {
     bigLine = bid;
-    bigTone = 'text-gold-100';
+    bigTone = 'text-cream';
   } else {
     bigLine = `${won}/${bid}`;
     bigTone =
       won > bid
-        ? 'text-rose-300'
+        ? 'text-[#fda4af]'
         : won === bid
-          ? 'text-emerald-300'
-          : 'text-sky-300';
+          ? 'text-[#6ee7b7]'
+          : 'text-[#7dd3fc]';
   }
 
   return (
@@ -119,20 +119,16 @@ export function OpponentTile({
       </div>
     <div
       data-player={playerName}
-      className={`relative rounded-md py-1 px-1 border bg-navy-900/65 ${
-        color.border
-      } transition-opacity flex flex-col items-center justify-center min-h-[48px] ${
+      className={`relative rounded-lg py-1.5 px-1 border transition-opacity flex flex-col items-center justify-center min-h-[48px] ${
         isActive
-          ? `ring-2 ${color.ring} ${color.glow} animate-[pulse_2s_ease-in-out_infinite]`
-          : acted
-            ? ''
-            : isBidding || isPlaying
-              ? 'opacity-55'
-              : ''
+          ? 'card-gold-active'
+          : `bg-[rgba(12,18,36,.6)] ${color.border} ${
+              acted ? '' : isBidding || isPlaying ? 'opacity-55' : ''
+            }`
       }`}
     >
       <div
-        className={`text-[18px] font-black tabular-nums leading-none ${bigTone}`}
+        className={`font-display font-semibold text-[20px] tabular-nums leading-none ${bigTone}`}
       >
         {bigLine}
       </div>
@@ -140,14 +136,19 @@ export function OpponentTile({
         className={`leading-none truncate w-full text-center ${
           label === '✓'
             ? 'text-[14px] font-black text-emerald-300'
-            : 'text-[8px] uppercase tracking-wider text-navy-300'
+            : 'text-[8px] font-bold uppercase tracking-[0.14em] text-navy-300'
         }`}
       >
         {label || ' '}
       </div>
       {isDealer && (
         <span
-          className="absolute -top-1.5 -left-1.5 w-[16px] h-[16px] rounded-full bg-gold-300 text-navy-900 text-[10px] font-black flex items-center justify-center shadow-md leading-none ring-1 ring-gold-100"
+          className="absolute -top-[7px] -left-[7px] w-[17px] h-[17px] rounded-full text-[10px] font-black flex items-center justify-center shadow-md leading-none"
+          style={{
+            background: 'linear-gradient(180deg,#f0dda0 0%,#c9a141 45%,#9c7a26 100%)',
+            color: '#2a2010',
+            border: '1px solid #e2c579',
+          }}
           title="Dealer"
         >
           ♛

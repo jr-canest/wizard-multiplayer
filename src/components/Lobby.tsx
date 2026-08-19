@@ -73,10 +73,8 @@ export function Lobby({ room, players, myName }: Props) {
     <div className="w-full max-w-md space-y-4">
       <div className="card-gold p-4 space-y-3">
         <div className="flex items-baseline justify-between">
-          <span className="text-xs uppercase tracking-wider text-navy-200">
-            Room code
-          </span>
-          <span className="text-3xl font-black tracking-[0.3em] text-gold-200">
+          <span className="section-label">Room code</span>
+          <span className="font-display font-bold text-[30px] leading-none tracking-[0.3em] text-gold-text">
             {room.code}
           </span>
         </div>
@@ -93,11 +91,11 @@ export function Lobby({ room, players, myName }: Props) {
 
       <div className="card-gold p-4 space-y-2">
         <div className="flex items-baseline justify-between mb-1">
-          <span className="text-xs uppercase tracking-wider text-navy-200">
+          <span className="section-label">
             Players ({room.playerOrder.length}/{MAX_PLAYERS})
           </span>
           {room.canadianRule && (
-            <span className="text-xs text-gold-300">Canadian rules</span>
+            <span className="text-xs text-gold-text">Canadian rules</span>
           )}
         </div>
         <ul className="space-y-1.5">
@@ -108,18 +106,16 @@ export function Lobby({ room, players, myName }: Props) {
             return (
               <li
                 key={name}
-                className="flex items-center justify-between rounded-md bg-navy-800/60 px-3 py-2"
+                className="card-gold-subtle flex items-center justify-between px-3 h-10"
               >
                 <span className="flex items-center gap-2">
                   <span className="text-navy-300 text-xs w-4 text-right">
                     {idx + 1}
                   </span>
                   <span
-                    className={
-                      isMe
-                        ? 'font-bold text-gold-100'
-                        : 'text-navy-50'
-                    }
+                    className={`font-display font-semibold text-[17px] ${
+                      isMe ? 'text-cream-bright' : 'text-cream'
+                    }`}
                   >
                     {name}
                     {isMe ? ' (you)' : ''}
@@ -154,12 +150,12 @@ export function Lobby({ room, players, myName }: Props) {
               htmlFor="rounds"
               className="flex items-center justify-between text-sm"
             >
-              <span className="text-gold-100 font-semibold">Rounds</span>
+              <span className="text-cream font-semibold">Rounds</span>
               <select
                 id="rounds"
                 value={displayedChosen === null ? '' : String(displayedChosen)}
                 onChange={handleRoundsChange}
-                className="rounded-md bg-navy-800 border border-gold-700/60 px-2 py-1 text-gold-100 text-sm"
+                className="h-[30px] rounded-lg bg-[rgba(20,26,44,.8)] border border-gold-300/40 px-2 text-cream text-xs font-semibold"
               >
                 <option value="">
                   Auto · max {maxRounds}
@@ -180,7 +176,7 @@ export function Lobby({ room, players, myName }: Props) {
             type="button"
             onClick={handleStart}
             disabled={!canStart}
-            className="btn-gold w-full rounded-xl py-4 text-lg"
+            className="btn-gold w-full h-[52px] text-lg"
           >
             {starting ? 'Dealing…' : 'Start game'}
           </button>

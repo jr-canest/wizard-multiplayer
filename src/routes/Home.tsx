@@ -20,40 +20,40 @@ export function Home() {
 
   return (
     <div className="min-h-svh flex flex-col items-center px-6 pt-10 pb-10">
-      <img
-        src={`${import.meta.env.BASE_URL}wizard-logo.svg`}
-        alt="Wizard"
-        className="h-14 mb-1"
-      />
-      <p className="text-gold-100/60 text-xs tracking-[0.3em] uppercase mb-8">
-        Multiplayer
-      </p>
+      <div className="flex items-center gap-2.5 mb-2">
+        <span className="diamond" />
+        <img
+          src={`${import.meta.env.BASE_URL}wizard-logo.svg`}
+          alt="Wizard"
+          className="h-12"
+        />
+        <span className="diamond" />
+      </div>
+      <p className="eyebrow mb-8">Multiplayer</p>
 
       {!session ? (
         <IdentityPrompt />
       ) : (
-        <div className="w-full max-w-sm space-y-4">
-          <div className="card-gold-subtle px-4 py-3 flex items-center justify-between">
-            <span className="text-sm text-navy-100">
+        <div className="w-full max-w-sm space-y-3">
+          <div className="card-gold-subtle px-4 h-11 flex items-center justify-between">
+            <span className="text-sm text-navy-200">
               Playing as{' '}
-              <strong className="text-gold-100">{session.playerName}</strong>
+              <strong className="font-display font-semibold text-[16px] text-cream-bright">{session.playerName}</strong>
             </span>
             <button
               type="button"
               onClick={clearSession}
-              className="text-xs text-navy-200 underline underline-offset-2 hover:text-gold-200"
+              className="text-xs text-navy-300 underline underline-offset-2 hover:text-gold-text"
             >
               switch
             </button>
           </div>
 
           {activeRoom && (
-            <div className="card-gold p-4 space-y-2 border-2 border-gold-500/60">
-              <div className="text-xs uppercase tracking-wider text-navy-200">
-                In progress
-              </div>
+            <div className="card-gold card-gold-active p-4 space-y-2.5">
+              <div className="section-label">In progress</div>
               <div className="flex items-center justify-between">
-                <span className="text-2xl font-black tracking-[0.3em] text-gold-200">
+                <span className="font-display font-bold text-[30px] leading-none tracking-[0.3em] text-gold-text">
                   {activeRoom}
                 </span>
                 <button
@@ -67,7 +67,7 @@ export function Home() {
               <button
                 type="button"
                 onClick={() => navigate(`/room/${activeRoom}`)}
-                className="btn-gold w-full rounded-xl py-3"
+                className="btn-gold w-full h-12 text-base"
               >
                 Rejoin room
               </button>
@@ -77,7 +77,7 @@ export function Home() {
           <CreateRoomPanel />
 
           <form onSubmit={handleJoin} className="card-gold p-4 space-y-3">
-            <label className="block text-sm text-navy-100" htmlFor="code">
+            <label className="section-label block" htmlFor="code">
               Join with 4-char code
             </label>
             <input
@@ -88,12 +88,12 @@ export function Home() {
               autoCapitalize="characters"
               autoCorrect="off"
               spellCheck={false}
-              className="w-full rounded-lg bg-navy-800 border border-navy-500 px-3 py-3 text-center text-2xl font-mono tracking-[0.4em] text-gold-100"
+              className="w-full rounded-lg bg-[rgba(20,26,44,.8)] border border-gold-300/25 px-3 py-2.5 text-center font-display font-semibold text-2xl tracking-[0.4em] text-cream placeholder-navy-300 focus:border-gold-300 focus:outline-none"
               placeholder="A B C D"
             />
             <button
               type="submit"
-              className="btn-gold w-full rounded-lg py-3"
+              className="btn-gold w-full h-12 text-base"
               disabled={code.trim().length !== 4}
             >
               Join
@@ -103,22 +103,22 @@ export function Home() {
           <button
             type="button"
             onClick={() => navigate('/me')}
-            className="w-full rounded-xl py-2.5 text-sm font-medium text-gold-200 border border-gold-700/50 bg-navy-800/40 active:bg-navy-700/60"
+            className="btn-secondary w-full h-11 text-sm"
           >
-            📊 My Stats
+            📊 My stats
           </button>
 
           <button
             type="button"
             onClick={() => navigate('/history')}
-            className="w-full rounded-xl py-2.5 text-sm font-medium text-gold-200 border border-gold-700/50 bg-navy-800/40 active:bg-navy-700/60"
+            className="btn-secondary w-full h-11 text-sm"
           >
-            📜 Game History
+            📜 Game history
           </button>
 
           <a
             href="https://wizard-scorekeeper.web.app/"
-            className="block w-full text-center rounded-xl py-2.5 text-sm font-medium text-gold-200 border border-gold-700/50 bg-navy-800/40 active:bg-navy-700/60 no-underline"
+            className="btn-secondary flex items-center justify-center w-full h-11 text-sm no-underline"
           >
             ↗ Open Score Keeper
           </a>
