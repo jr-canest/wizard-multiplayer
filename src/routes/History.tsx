@@ -121,6 +121,7 @@ export function History() {
   const [sortKey, setSortKey] =
     useState<typeof SORT_COLUMNS[number]['key']>('winRate');
   const [sortAsc, setSortAsc] = useState(false);
+  const [showScoreless, setShowScoreless] = useState(false);
   const [detail, setDetail] = useState<DetailState | null>(null);
   const [mergeError, setMergeError] = useState<string | null>(null);
   const [gameDetail, setGameDetail] = useState<GameDetail | null>(null);
@@ -204,12 +205,25 @@ export function History() {
   // Hide players that have been merged into another (their stats live on
   // the canonical doc; they'd otherwise show as zero rows). Sorting and
   // ranking happens on the visible list.
-  const visiblePlayers = (players ?? []).filter((p) => !p.mergedInto);
+  // Hide merged aliases and test-artifact accounts (any name starting
+  // with "test" — e.g. the dev-mode sign-in) from the board.
+  const visiblePlayers = (players ?? []).filter(
+    (p) =>
+      !p.mergedInto &&
+      !(p.name || '').toLowerCase().startsWith('test'),
+  );
 
   const sortedPlayers = visiblePlayers.slice().sort((a, b) => {
     const diff = getPlayerSortValue(b, sortKey) - getPlayerSortValue(a, sortKey);
     return sortAsc ? -diff : diff;
   });
+  // Players with zero completed games collapse behind a toggle so
+  // sign-ins that never finished a game don't clutter the board.
+  const playedPlayers = sortedPlayers.filter((p) => (p.gamesPlayed ?? 0) > 0);
+  const scorelessPlayers = sortedPlayers.filter((p) => (p.gamesPlayed ?? 0) === 0);
+  const displayPlayers = showScoreless
+    ? [...playedPlayers, ...scorelessPlayers]
+    : playedPlayers;
 
   async function applyMerge(canonical: PlayerRow, alias: PlayerRow) {
     setMergeError(null);
@@ -322,7 +336,7 @@ export function History() {
                     </button>
                   ))}
                 </div>
-                {sortedPlayers.map((p, i) => {
+                {displayPlayers.map((p, i) => {
                   const gp = p.gamesPlayed ?? 0;
                   const avg = gp > 0 ? Math.round((p.totalScore ?? 0) / gp) : 0;
                   const winRate =
@@ -395,6 +409,17 @@ export function History() {
                     </button>
                   );
                 })}
+                {scorelessPlayers.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowScoreless(!showScoreless)}
+                    className="w-full h-9 text-[11px] font-semibold uppercase tracking-[0.12em] text-navy-300 active:text-cream border-t border-gold-300/10"
+                  >
+                    {showScoreless
+                      ? 'Hide scoreless'
+                      : `Show ${scorelessPlayers.length} scoreless`}
+                  </button>
+                )}
               </div>
             )}
           </>
