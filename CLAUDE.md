@@ -7,6 +7,7 @@
 - **Design:** "1b Evolve" kit (2026-08-19), shared with wizard-scorekeeper — spec in the design handoff; kit classes in `src/index.css` (`.btn-gold`, `.card-gold(-active/-subtle)`, `.chip*`, `.felt`, `.eyebrow`, `.ornament`). Kit classes are unlayered CSS and beat Tailwind utilities.
 - **Typography rules (2026-08-20, both apps):** serif (`font-display`, Cormorant Garamond) = IDENTITY/NARRATIVE only — screen titles, player names, room codes, AI recap prose; never below 13px. Sans = ALL numerals (always `tabular-nums`, semibold/bold), labels, buttons, chips, status words. Numerals are NEVER serif.
 - Keep both apps visually in lockstep — anything added to one index.css kit should land in the other.
+- **/history parity rule:** this app's History route and the scorekeeper's HistoryScreen must stay feature-identical (Rating column via `src/lib/ratings.ts` ↔ scorekeeper `src/utils/ratings.js`, podium modal, SWR cache via `src/lib/historyCache.ts`, scoreless toggle, test* filter, online chips). Any addition to one gets ported to the other.
 
 ---
 
