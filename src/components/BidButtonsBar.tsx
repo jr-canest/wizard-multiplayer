@@ -74,7 +74,6 @@ export function BidButtonsBar({ room, myName }: Props) {
               type="button"
               disabled={locked || submitting !== null}
               onClick={() => pick(i)}
-              style={{ fontSize: 20 }}
               className={`${useGrid ? 'h-[42px]' : 'flex-1 h-[46px]'} chip ${
                 locked ? 'chip-locked cursor-not-allowed' : 'active:scale-95 transition'
               }`}

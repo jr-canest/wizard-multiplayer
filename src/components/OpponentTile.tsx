@@ -128,7 +128,7 @@ export function OpponentTile({
       }`}
     >
       <div
-        className={`font-display font-semibold text-[20px] tabular-nums leading-none ${bigTone}`}
+        className={`font-bold text-[17px] tabular-nums leading-none ${bigTone}`}
       >
         {bigLine}
       </div>

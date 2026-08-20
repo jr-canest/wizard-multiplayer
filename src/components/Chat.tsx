@@ -114,7 +114,7 @@ export function Chat({ room, myName }: Props) {
                 style={{ opacity }}
               >
                 <span
-                  className={`${isMe ? 'text-gold-100' : c.text} font-bold`}
+                  className={`${isMe ? 'text-gold-text' : c.text} font-bold`}
                 >
                   {m.player}
                 </span>
@@ -140,7 +140,7 @@ export function Chat({ room, myName }: Props) {
           maxLength={200}
           placeholder="Say something…"
           aria-label="Chat message"
-          className="flex-1 rounded-md bg-navy-800 border border-gold-700/60 px-2.5 py-1.5 text-sm text-navy-50 placeholder:text-navy-300 focus:outline-none focus:border-gold-400"
+          className="flex-1 rounded-lg bg-[rgba(20,26,44,.8)] border border-gold-300/25 px-2.5 py-1.5 text-sm text-cream placeholder:text-navy-300 focus:outline-none focus:border-gold-300"
           disabled={sending}
         />
         <button

@@ -156,7 +156,7 @@ function UndoContent({
             className={`rounded-md px-2 py-0.5 text-[10px] font-semibold border ${
               myVote
                 ? 'bg-emerald-700/40 border-emerald-500/60 text-emerald-100'
-                : 'bg-navy-800 border-gold-700/60 text-gold-200 active:scale-[0.98]'
+                : 'bg-[rgba(20,26,44,.8)] border-gold-300/25 text-navy-200 active:scale-[0.98]'
             }`}
           >
             {myVote ? '✓ Approving' : 'Approve'}

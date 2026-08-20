@@ -105,11 +105,11 @@ export function Me() {
     return (
       <div className="min-h-svh px-4 pt-6 pb-10 flex items-center justify-center">
         <div className="card-gold p-6 max-w-sm text-center space-y-3">
-          <p className="text-gold-200 font-bold">Sign in to see your stats</p>
+          <p className="font-display font-semibold text-[20px] text-cream-bright">Sign in to see your stats</p>
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="btn-gold rounded-lg px-4 py-2 text-sm"
+            className="btn-gold h-10 px-4 text-sm"
           >
             Go home
           </button>
@@ -124,9 +124,12 @@ export function Me() {
     <div className="min-h-svh px-4 pt-6 pb-10">
       <div className="max-w-md mx-auto space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-gold-200 truncate">
-            {player?.name ?? session.playerName}
-          </h1>
+          <div className="min-w-0">
+            <div className="eyebrow mb-1.5">My stats</div>
+            <h1 className="font-display font-semibold text-[28px] leading-none text-cream-bright truncate">
+              {player?.name ?? session.playerName}
+            </h1>
+          </div>
           <button
             type="button"
             onClick={() => navigate('/')}
@@ -162,7 +165,7 @@ export function Me() {
                 clearSession();
                 navigate('/');
               }}
-              className="w-full rounded-xl py-2.5 text-sm font-medium text-navy-200 border border-navy-600 active:bg-navy-700/40"
+              className="btn-secondary w-full py-2.5 text-sm"
             >
               Sign out
             </button>
@@ -208,7 +211,7 @@ function TopCardsSection({ stats }: { stats: PlayerStats }) {
   const cards = stats.topWinningCards;
   return (
     <div className="card-gold p-3 space-y-2">
-      <p className="text-xs uppercase tracking-wider text-navy-200">
+      <p className="section-label">
         Top winning cards
       </p>
       {cards.length === 0 ? (
@@ -223,7 +226,7 @@ function TopCardsSection({ stats }: { stats: PlayerStats }) {
               className="shrink-0 flex flex-col items-center gap-1"
             >
               <CardImage card={c.card} size="sm" />
-              <div className="text-[10px] text-gold-200 font-semibold leading-none">
+              <div className="text-[10px] text-gold-text font-bold tabular-nums leading-none">
                 {c.count}×
               </div>
               <div className="text-[9px] text-navy-300 leading-none">
@@ -241,7 +244,7 @@ function BidAccuracySection({ stats }: { stats: PlayerStats }) {
   const b = stats.bidStats;
   return (
     <div className="card-gold p-3 space-y-2">
-      <p className="text-xs uppercase tracking-wider text-navy-200">
+      <p className="section-label">
         Bid accuracy
       </p>
       {b.rounds === 0 ? (
@@ -268,7 +271,7 @@ function BidAccuracySection({ stats }: { stats: PlayerStats }) {
           </div>
           {b.byHandSize.length > 0 && (
             <div className="rounded-md bg-navy-900/50 border border-gold-700/30 p-2 mt-1">
-              <p className="text-[10px] uppercase tracking-wider text-navy-300 mb-1">
+              <p className="section-label mb-1.5">
                 Exact-bid % by hand size
               </p>
               <div className="space-y-0.5">
@@ -278,7 +281,7 @@ function BidAccuracySection({ stats }: { stats: PlayerStats }) {
                     className="flex items-center justify-between text-xs"
                   >
                     <span className="text-navy-100">{row.bucket} card{row.bucket === '1' ? '' : 's'}</span>
-                    <span className="text-gold-100 tabular-nums">
+                    <span className="text-cream font-semibold tabular-nums">
                       {pct(row.exact, row.rounds)} ({row.exact}/{row.rounds})
                     </span>
                   </div>
@@ -298,7 +301,7 @@ function TrickStatsSection({ stats }: { stats: PlayerStats }) {
     t.winsBySuit.H + t.winsBySuit.D + t.winsBySuit.C + t.winsBySuit.S;
   return (
     <div className="card-gold p-3 space-y-2">
-      <p className="text-xs uppercase tracking-wider text-navy-200">
+      <p className="section-label">
         Trick play
       </p>
       {t.totalTricksPlayed === 0 ? (
@@ -328,7 +331,7 @@ function TrickStatsSection({ stats }: { stats: PlayerStats }) {
           </div>
           {standardWins > 0 && (
             <div className="rounded-md bg-navy-900/50 border border-gold-700/30 p-2 mt-1">
-              <p className="text-[10px] uppercase tracking-wider text-navy-300 mb-1">
+              <p className="section-label mb-1.5">
                 Standard-card wins by suit
               </p>
               <div className="grid grid-cols-4 gap-2 text-center">
@@ -343,7 +346,7 @@ function TrickStatsSection({ stats }: { stats: PlayerStats }) {
                     >
                       {SUIT_GLYPH[suit]}
                     </span>
-                    <span className="text-xs text-gold-100 tabular-nums">
+                    <span className="text-xs text-cream font-semibold tabular-nums">
                       {t.winsBySuit[suit]}
                     </span>
                   </div>
@@ -368,11 +371,9 @@ function Stat({
   // rendering as wide, stretched-looking bars (most noticeable on the
   // larger iPad/desktop zoom). Mirrors the scorekeeper's Stat tile.
   return (
-    <div className="rounded-md bg-navy-900/50 border border-gold-700/30 px-2 py-2.5 min-h-[3.25rem] flex flex-col items-center justify-center gap-1">
-      <p className="text-[10px] uppercase tracking-wider text-navy-300 leading-none">
-        {label}
-      </p>
-      <p className="text-base font-bold text-gold-100 tabular-nums leading-none">
+    <div className="rounded-md bg-navy-900/50 border border-gold-700/30 px-2 py-2.5 min-h-[3.25rem] flex flex-col items-center justify-center gap-1.5">
+      <p className="section-label">{label}</p>
+      <p className="font-bold text-[16px] text-cream tabular-nums leading-none">
         {value}
       </p>
     </div>
@@ -517,11 +518,11 @@ function IdentityEditSection({
   if (mode === 'closed') {
     return (
       <div className="card-gold p-3 space-y-2">
-        <p className="text-xs uppercase tracking-wider text-navy-200">
+        <p className="section-label">
           Name & aliases
         </p>
         <div className="text-sm text-navy-50">
-          <span className="text-gold-100">{player.name}</span>
+          <span className="font-display font-semibold text-[16px] text-cream-bright">{player.name}</span>
           {(player.aliases ?? []).length > 0 && (
             <span className="text-navy-200">
               {' '}
@@ -538,7 +539,7 @@ function IdentityEditSection({
         <button
           type="button"
           onClick={openEditor}
-          className="w-full rounded-lg py-2 text-sm font-medium bg-navy-800 border border-gold-700/60 text-gold-200 active:scale-[0.99]"
+          className="btn-secondary w-full py-2 text-sm"
         >
           Edit name & aliases
         </button>
@@ -549,7 +550,7 @@ function IdentityEditSection({
   return (
     <div className="card-gold p-3 space-y-3">
       <div className="flex items-start justify-between">
-        <p className="text-xs uppercase tracking-wider text-navy-200">
+        <p className="section-label">
           Edit name & aliases
         </p>
         <button
@@ -563,20 +564,20 @@ function IdentityEditSection({
       </div>
 
       <label className="block">
-        <span className="block text-[11px] uppercase tracking-wider text-navy-200 mb-1">
+        <span className="section-label block mb-1.5">
           Display name
         </span>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={20}
-          className="w-full rounded-md bg-navy-800 border border-gold-700/60 px-2.5 py-1.5 text-sm text-navy-50"
+          className="w-full rounded-lg bg-[rgba(20,26,44,.8)] border border-gold-300/25 px-2.5 py-1.5 text-sm text-cream focus:border-gold-300 focus:outline-none"
           placeholder="Your name"
         />
       </label>
 
       <div>
-        <span className="block text-[11px] uppercase tracking-wider text-navy-200 mb-1">
+        <span className="section-label block mb-1.5">
           Aliases (past names that should count as you)
         </span>
         {aliases.length > 0 && (
@@ -584,7 +585,7 @@ function IdentityEditSection({
             {aliases.map((a) => (
               <span
                 key={a}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-navy-800 border border-gold-700/40 text-xs text-navy-50"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[rgba(20,26,44,.8)] border border-gold-300/25 text-xs text-cream"
               >
                 {a}
                 <button
@@ -610,13 +611,13 @@ function IdentityEditSection({
               }
             }}
             maxLength={20}
-            className="flex-1 min-w-0 rounded-md bg-navy-800 border border-gold-700/60 px-2.5 py-1.5 text-sm text-navy-50"
+            className="flex-1 min-w-0 rounded-lg bg-[rgba(20,26,44,.8)] border border-gold-300/25 px-2.5 py-1.5 text-sm text-cream focus:border-gold-300 focus:outline-none"
             placeholder="Add alias…"
           />
           <button
             type="button"
             onClick={addAliasFromInput}
-            className="rounded-md px-3 py-1.5 text-sm font-medium bg-navy-700 border border-gold-700/60 text-gold-100 active:scale-[0.99]"
+            className="btn-secondary px-3 py-1.5 text-sm"
           >
             Add
           </button>
@@ -628,7 +629,7 @@ function IdentityEditSection({
       </div>
 
       <label className="block">
-        <span className="block text-[11px] uppercase tracking-wider text-navy-200 mb-1">
+        <span className="section-label block mb-1.5">
           Confirm with your PIN
         </span>
         <input
@@ -636,7 +637,7 @@ function IdentityEditSection({
           onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
           inputMode="numeric"
           maxLength={4}
-          className="w-full rounded-md bg-navy-800 border border-gold-700/60 px-2.5 py-1.5 text-lg font-mono tracking-[0.5em] text-center text-gold-100"
+          className="w-full rounded-lg bg-[rgba(20,26,44,.8)] border border-gold-300/25 px-2.5 py-1.5 text-lg tracking-[0.5em] text-center text-cream tabular-nums focus:border-gold-300 focus:outline-none"
           placeholder="• • • •"
         />
       </label>
@@ -655,7 +656,7 @@ function IdentityEditSection({
         type="button"
         onClick={save}
         disabled={saving}
-        className="w-full rounded-lg py-2.5 text-sm font-semibold btn-gold border border-gold-400 active:scale-[0.99] disabled:opacity-50"
+        className="btn-gold w-full py-2.5 text-sm active:scale-[0.99] disabled:opacity-50"
       >
         {saving ? 'Saving…' : 'Save changes'}
       </button>

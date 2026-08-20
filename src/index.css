@@ -23,7 +23,11 @@
   --color-navy-800: #0c152e;
   --color-navy-900: #080e1f;
 
-  /* 1b "Evolve" kit tones (shared with wizard-scorekeeper) */
+  /* 1b "Evolve" kit tones (shared with wizard-scorekeeper).
+     TYPOGRAPHY RULES: serif (font-display) is for IDENTITY/NARRATIVE
+     only — screen titles, player names, room codes, AI recap prose;
+     never below 13px. Sans for ALL numerals (tabular, 600-700),
+     labels, buttons, chips, status words. Numerals are NEVER serif. */
   --color-cream: #ece0c4;        /* numerals, names on rows */
   --color-cream-bright: #f7f0dd; /* headings, player names */
   --color-gold-text: #e2c579;    /* gold text / entered numerals */
@@ -137,9 +141,8 @@ body {
   border: 1px solid rgba(212, 168, 67, 0.25);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   color: #ece0c4;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 17px;
+  font-weight: 700;
+  font-size: 16px;
   font-variant-numeric: tabular-nums;
 }
 .chip:active {

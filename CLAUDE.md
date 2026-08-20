@@ -4,7 +4,8 @@
 - **Deploy:** push to `main` = CI deploy (GitHub Actions → Firebase hosting + firestore rules). Manual fallback: `npm run build && firebase deploy --only hosting:multiplayer --project wizard-scores-2521c`.
 - **Run locally:** `npm install && npm run dev` (port 5181). Firestore writes to shared history are skipped on localhost.
 - **Test link:** `?test` on the home page unlocks the "add 3 bots" panel (pre-checked). Bot games and games with a player named `test` are never written to shared history.
-- **Design:** "1b Evolve" kit (2026-08-19), shared with wizard-scorekeeper — spec in the design handoff; kit classes in `src/index.css` (`.btn-gold`, `.card-gold(-active/-subtle)`, `.chip*`, `.felt`, `.eyebrow`, `.ornament`). Kit classes are unlayered CSS and beat Tailwind utilities. Cormorant Garamond (`font-display`) carries names/numerals.
+- **Design:** "1b Evolve" kit (2026-08-19), shared with wizard-scorekeeper — spec in the design handoff; kit classes in `src/index.css` (`.btn-gold`, `.card-gold(-active/-subtle)`, `.chip*`, `.felt`, `.eyebrow`, `.ornament`). Kit classes are unlayered CSS and beat Tailwind utilities.
+- **Typography rules (2026-08-20, both apps):** serif (`font-display`, Cormorant Garamond) = IDENTITY/NARRATIVE only — screen titles, player names, room codes, AI recap prose; never below 13px. Sans = ALL numerals (always `tabular-nums`, semibold/bold), labels, buttons, chips, status words. Numerals are NEVER serif.
 - Keep both apps visually in lockstep — anything added to one index.css kit should land in the other.
 
 ---

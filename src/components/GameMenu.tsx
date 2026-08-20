@@ -90,7 +90,7 @@ export function GameMenu({ room, myName }: Props) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label="Scores"
-        className="ml-1 w-7 h-7 rounded-full bg-navy-800/80 border border-gold-700/60 flex items-center justify-center text-xs text-gold-200 active:scale-95 transition"
+        className="ml-1 w-7 h-7 rounded-full bg-[rgba(20,26,44,.8)] border border-gold-300/40 flex items-center justify-center text-xs text-cream active:scale-95 transition"
       >
         ☰
       </button>
@@ -118,7 +118,7 @@ export function GameMenu({ room, myName }: Props) {
             }
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs uppercase tracking-wider text-gold-200">
+              <span className="section-label">
                 Total scores
               </span>
               <span className="text-[11px] tabular-nums text-navy-300">
@@ -151,7 +151,7 @@ export function GameMenu({ room, myName }: Props) {
                       </span>
                       <span
                         className={`text-sm truncate ${
-                          isMe ? 'font-bold text-gold-100' : c.text
+                          isMe ? 'font-bold text-gold-text' : c.text
                         }`}
                       >
                         {name}

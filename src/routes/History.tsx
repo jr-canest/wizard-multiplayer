@@ -236,7 +236,7 @@ export function History() {
     <div className="min-h-svh px-4 pt-6 pb-10">
       <div className="max-w-md mx-auto">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-bold text-gold-200">History</h1>
+          <h1 className="font-display font-semibold text-[28px] leading-none text-cream-bright">History</h1>
           <button
             type="button"
             onClick={() => navigate('/')}
@@ -253,7 +253,7 @@ export function History() {
             className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
               tab === 'players'
                 ? 'btn-gold'
-                : 'bg-navy-700/60 text-navy-200 active:bg-navy-600/60'
+                : 'btn-secondary'
             }`}
           >
             All-Time Stats
@@ -264,7 +264,7 @@ export function History() {
             className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
               tab === 'games'
                 ? 'btn-gold'
-                : 'bg-navy-700/60 text-navy-200 active:bg-navy-600/60'
+                : 'btn-secondary'
             }`}
           >
             Past Games
@@ -304,7 +304,7 @@ export function History() {
             ) : (
               <div className="card-gold overflow-hidden">
                 <div
-                  className={`${STATS_GRID} px-3 py-2 border-b border-gold-700/40 text-gold-200/70 text-xs font-medium`}
+                  className={`${STATS_GRID} px-3 py-2 border-b border-gold-300/20 text-navy-300 text-[10px] font-semibold uppercase tracking-[0.12em]`}
                 >
                   <span />
                   <span>Player</span>
@@ -313,9 +313,9 @@ export function History() {
                       key={col.key}
                       type="button"
                       onClick={() => handleSort(col.key)}
-                      className={`active:text-gold-100 ${
+                      className={`active:text-gold-text ${
                         col.key === 'bestScore' ? 'text-right' : 'text-center'
-                      } ${sortKey === col.key ? 'text-gold-200' : ''}`}
+                      } ${sortKey === col.key ? 'text-gold-text' : ''}`}
                     >
                       {col.label}
                       {sortKey === col.key ? (sortAsc ? ' ↑' : ' ↓') : ''}
@@ -337,59 +337,59 @@ export function History() {
                         setMergeError(null);
                         setDetail({ mode: 'view', player: p });
                       }}
-                      className={`w-full text-left ${STATS_GRID} px-3 py-2.5 border-b border-gold-700/20 last:border-0 active:bg-navy-700/40 ${
-                        i === 0 ? 'bg-gold-300/8' : ''
+                      className={`w-full text-left ${STATS_GRID} px-3 py-2.5 border-b border-gold-300/10 last:border-0 active:bg-navy-700/40 ${
+                        i === 0 ? 'bg-gold-300/[.07]' : ''
                       }`}
                     >
                       <span
                         className={`text-sm font-bold ${
-                          i === 0 ? 'text-gold-200' : 'text-navy-200'
+                          i === 0 ? 'text-gold-text' : 'text-navy-200'
                         }`}
                       >
                         {medal || `${i + 1}.`}
                       </span>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1 min-w-0">
-                          <span className="text-white font-medium text-sm truncate min-w-0">
+                          <span className="font-display font-semibold text-[15px] text-cream-bright truncate min-w-0">
                             {p.name}
                           </span>
                           {hasAliases && (
                             <span
                               aria-label={`also known as ${p.aliases!.join(', ')}`}
                               title={`Also: ${p.aliases!.join(', ')}`}
-                              className="shrink-0 text-[9px] leading-none px-1 py-0.5 rounded-full bg-navy-700/80 border border-gold-700/40 text-gold-200 font-normal tabular-nums"
+                              className="shrink-0 text-[9px] leading-none px-1 py-0.5 rounded-full bg-[rgba(20,26,44,.8)] border border-gold-300/25 text-gold-text font-normal tabular-nums"
                             >
                               ⓘ {p.aliases!.length}
                             </span>
                           )}
                         </div>
                         {(p.totalShamePoints ?? 0) > 0 && (
-                          <span className="text-rose-400 text-[10px] block">
-                            💀 {p.totalShamePoints}
+                          <span className="shame-chip mt-0.5 inline-block">
+                            shame{(p.totalShamePoints ?? 0) > 1 ? ` ×${p.totalShamePoints}` : ''}
                           </span>
                         )}
                       </div>
-                      <span className="text-center text-gold-100 text-sm font-semibold tabular-nums">
+                      <span className="text-center text-cream text-[13px] font-semibold tabular-nums">
                         {winRate}%
                       </span>
-                      <span className="text-center text-emerald-400 text-sm font-semibold tabular-nums">
+                      <span className="text-center text-[#6ee7b7] text-[13px] font-semibold tabular-nums">
                         {p.wins ?? 0}
                       </span>
-                      <span className="text-center text-navy-200 text-sm tabular-nums">
+                      <span className="text-center text-navy-200 text-[13px] font-medium tabular-nums">
                         {gp}
                       </span>
                       <span
-                        className={`text-center text-sm font-medium tabular-nums ${
+                        className={`text-center text-[13px] font-semibold tabular-nums ${
                           avg > 0
-                            ? 'text-emerald-400'
+                            ? 'text-[#6ee7b7]'
                             : avg < 0
-                              ? 'text-rose-400'
+                              ? 'text-[#fda4af]'
                               : 'text-navy-200'
                         }`}
                       >
                         {avg}
                       </span>
-                      <span className="text-right text-gold-200 text-sm font-medium tabular-nums">
+                      <span className="text-right text-gold-text text-[13px] font-semibold tabular-nums">
                         {p.bestScore ?? '—'}
                       </span>
                     </button>
@@ -426,7 +426,7 @@ export function History() {
                       className="w-full text-left card-gold p-3 active:bg-navy-700/30 transition-colors"
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-gold-200/70 text-xs">
+                        <span className="section-label">
                           {formatDate(game.date)} — {game.roundCount} round
                           {game.roundCount !== 1 ? 's' : ''}
                         </span>
@@ -446,33 +446,33 @@ export function History() {
                               <div className="flex items-center gap-2 min-w-0">
                                 <span
                                   className={`text-xs font-bold w-6 ${
-                                    ri === 0 ? 'text-gold-200' : 'text-navy-200'
+                                    ri === 0 ? 'text-gold-text' : 'text-navy-200'
                                   }`}
                                 >
                                   {medal || `${r.rank}.`}
                                 </span>
                                 <span
-                                  className={`text-sm truncate ${
+                                  className={`font-display font-semibold text-[15px] truncate ${
                                     ri === 0
-                                      ? 'text-white font-medium'
-                                      : 'text-gray-300'
+                                      ? 'text-cream-bright'
+                                      : 'text-cream'
                                   }`}
                                 >
                                   {r.name}
                                 </span>
                                 {shame > 0 && (
-                                  <span className="text-rose-400 text-[10px]">
-                                    💀{shame > 1 ? `×${shame}` : ''}
+                                  <span className="shame-chip">
+                                    shame{shame > 1 ? ` ×${shame}` : ''}
                                   </span>
                                 )}
                               </div>
                               <span
-                                className={`text-sm font-semibold tabular-nums ${
+                                className={`text-[15px] font-bold tabular-nums ${
                                   r.score > 0
-                                    ? 'text-emerald-400'
+                                    ? 'text-[#6ee7b7]'
                                     : r.score < 0
-                                      ? 'text-rose-400'
-                                      : 'text-navy-200'
+                                      ? 'text-[#fda4af]'
+                                      : 'text-cream'
                                 }`}
                               >
                                 {r.score}
@@ -677,11 +677,11 @@ function PlayerDetailHeader({
   return (
     <div className="flex items-start justify-between gap-2">
       <div className="min-w-0">
-        <p className="text-gold-200 text-base font-bold truncate">
+        <p className="font-display font-semibold text-[22px] leading-none text-cream-bright truncate">
           {player.name}
         </p>
         {subtitle && (
-          <p className="text-navy-200 text-xs uppercase tracking-wider mt-0.5">
+          <p className="section-label mt-1.5">
             {subtitle}
           </p>
         )}
@@ -740,7 +740,7 @@ function ViewBody({
         />
       </div>
       <div className="rounded-md bg-navy-900/50 border border-gold-700/30 p-2.5">
-        <p className="text-xs uppercase tracking-wider text-navy-200 mb-1">
+        <p className="section-label mb-1.5">
           Also known as
         </p>
         {aliases.length === 0 ? (
@@ -761,7 +761,7 @@ function ViewBody({
       <button
         type="button"
         onClick={onStartMerge}
-        className="w-full rounded-lg py-2.5 text-sm font-semibold bg-navy-800 border border-gold-700/60 text-gold-200 active:scale-[0.99]"
+        className="btn-secondary w-full py-2.5 text-sm"
       >
         Merge {player.name} into another player…
       </button>
@@ -787,9 +787,9 @@ function PickBody({
   return (
     <>
       <p className="text-xs text-navy-200">
-        Stats from <span className="text-gold-100">{self.name}</span> will
+        Stats from <span className="text-gold-text">{self.name}</span> will
         be folded into the player you pick, and{' '}
-        <span className="text-gold-100">{self.name}</span> will be hidden
+        <span className="text-gold-text">{self.name}</span> will be hidden
         from this list.
       </p>
       <input
@@ -797,7 +797,7 @@ function PickBody({
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
         placeholder="Search players…"
-        className="w-full rounded-md bg-navy-800 border border-gold-700/60 px-2.5 py-1.5 text-sm text-navy-50 placeholder:text-navy-300 focus:outline-none focus:border-gold-400"
+        className="w-full rounded-lg bg-[rgba(20,26,44,.8)] border border-gold-300/25 px-2.5 py-1.5 text-sm text-cream placeholder:text-navy-300 focus:outline-none focus:border-gold-300"
       />
       <div
         className="overflow-y-auto rounded-md border border-gold-700/30 divide-y divide-gold-700/20"
@@ -846,9 +846,9 @@ function ConfirmBody({
     <>
       <div className="rounded-md bg-navy-900/50 border border-gold-700/30 p-3 space-y-2 text-sm">
         <p className="text-navy-50">
-          Merge <span className="text-gold-100 font-bold">{alias.name}</span>{' '}
+          Merge <span className="text-gold-text font-bold">{alias.name}</span>{' '}
           INTO{' '}
-          <span className="text-gold-100 font-bold">{canonical.name}</span>?
+          <span className="text-gold-text font-bold">{canonical.name}</span>?
         </p>
         <ul className="text-xs text-navy-200 space-y-1">
           <li>• Stats from both rows are summed onto {canonical.name}.</li>
@@ -869,7 +869,7 @@ function ConfirmBody({
           type="button"
           onClick={onCancel}
           disabled={isMerging}
-          className="flex-1 rounded-lg py-2.5 text-sm font-semibold bg-navy-800 border border-gold-700/60 text-navy-100 active:scale-[0.99] disabled:opacity-50"
+          className="btn-secondary flex-1 py-2.5 text-sm disabled:opacity-50"
         >
           Cancel
         </button>
@@ -877,7 +877,7 @@ function ConfirmBody({
           type="button"
           onClick={onConfirm}
           disabled={isMerging}
-          className="flex-1 rounded-lg py-2.5 text-sm font-semibold btn-gold border border-gold-400 active:scale-[0.99] disabled:opacity-50"
+          className="btn-gold flex-1 py-2.5 text-sm active:scale-[0.99] disabled:opacity-50"
         >
           {isMerging ? 'Merging…' : `Merge into ${canonical.name}`}
         </button>
@@ -889,10 +889,10 @@ function ConfirmBody({
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-md bg-navy-900/50 border border-gold-700/30 px-2 py-1.5">
-      <p className="text-[10px] uppercase tracking-wider text-navy-300 leading-none">
+      <p className="section-label">
         {label}
       </p>
-      <p className="text-sm font-bold text-gold-100 tabular-nums leading-tight mt-1">
+      <p className="text-[15px] font-bold text-cream tabular-nums leading-tight mt-1.5">
         {value}
       </p>
     </div>
@@ -973,7 +973,7 @@ function GameDetailOverlay({
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-gold-200 text-base font-bold leading-tight">
+            <p className="font-display font-semibold text-[20px] text-cream-bright leading-tight">
               {formatDateLong(game.date)}
             </p>
             <p className="text-navy-200 text-xs mt-0.5">
@@ -1000,7 +1000,7 @@ function GameDetailOverlay({
         )}
 
         <div className="rounded-md bg-navy-900/50 border border-gold-700/30 p-2.5">
-          <p className="text-xs uppercase tracking-wider text-navy-200 mb-1.5">
+          <p className="section-label mb-1.5">
             Final standings
           </p>
           <div className="space-y-1">
@@ -1095,7 +1095,7 @@ function GameDetailOverlay({
                   type="button"
                   onClick={onCancelDelete}
                   disabled={isDeleting}
-                  className="flex-1 rounded-lg py-2.5 text-sm font-semibold bg-navy-800 border border-gold-700/60 text-navy-100 active:scale-[0.99] disabled:opacity-50"
+                  className="btn-secondary flex-1 py-2.5 text-sm disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -1128,7 +1128,7 @@ function RoundBreakdownTable({
   for (const n of playerOrder) cumulative[n] = 0;
   return (
     <div className="rounded-md bg-navy-900/50 border border-gold-700/30 p-2.5">
-      <p className="text-xs uppercase tracking-wider text-navy-200 mb-1.5">
+      <p className="section-label mb-1.5">
         Round-by-round
       </p>
       <div className="overflow-x-auto -mx-0.5">
@@ -1160,7 +1160,7 @@ function RoundBreakdownTable({
                   key={r.round}
                   className="border-t border-gold-700/15 align-top"
                 >
-                  <td className="pr-1 text-gold-200 sticky left-0 bg-navy-900/50 z-10 py-1">
+                  <td className="pr-1 text-gold-text font-semibold text-[11px] tabular-nums sticky left-0 bg-navy-900/50 z-10 py-1">
                     {r.round}
                   </td>
                   {playerOrder.map((n) => {
@@ -1193,7 +1193,7 @@ function RoundBreakdownTable({
                           {delta > 0 ? '+' : ''}
                           {delta}
                         </div>
-                        <div className="text-[10px] text-gold-200">{total}</div>
+                        <div className="text-[10px] text-gold-text font-semibold tabular-nums">{total}</div>
                       </td>
                     );
                   })}

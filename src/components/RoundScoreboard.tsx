@@ -110,7 +110,7 @@ export function RoundScoreboard({ room, myName }: Props) {
     <div className="card-gold p-4 space-y-4">
       <div className="flex items-baseline justify-between">
         <span className="section-label">Round {room.currentRound} results</span>
-        <span className="font-display font-semibold text-[15px] text-navy-300 tabular-nums">
+        <span className="font-bold text-[13px] text-navy-300 tabular-nums">
           {room.currentRound}/{room.totalRounds}
         </span>
       </div>
@@ -169,9 +169,9 @@ export function RoundScoreboard({ room, myName }: Props) {
                   {name}
                   {isMe ? ' (you)' : ''}
                 </td>
-                <td className="text-right tabular-nums font-display font-medium text-[16px] text-cream">{bid}</td>
+                <td className="text-right tabular-nums font-semibold text-[14px] text-cream">{bid}</td>
                 <td
-                  className={`text-right tabular-nums font-display font-semibold text-[16px] ${
+                  className={`text-right tabular-nums font-semibold text-[14px] ${
                     bid === won ? 'text-[#6ee7b7]' : 'text-[#fda4af]'
                   }`}
                 >
@@ -189,7 +189,7 @@ export function RoundScoreboard({ room, myName }: Props) {
                   {delta > 0 ? '+' : delta < 0 ? '−' : ''}
                   {Math.abs(delta)}
                 </td>
-                <td className="text-right tabular-nums font-display font-semibold text-[19px] text-gold-text">
+                <td className="text-right tabular-nums font-bold text-[16px] text-gold-text">
                   {total < 0 ? `−${Math.abs(total)}` : total}
                 </td>
               </tr>

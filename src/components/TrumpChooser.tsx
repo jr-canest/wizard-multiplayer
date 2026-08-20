@@ -29,7 +29,7 @@ export function TrumpChooser({
 
   return (
     <div className="card-gold p-4 max-w-md w-full space-y-3">
-      <p className="text-gold-200 font-semibold">
+      <p className="font-display font-semibold text-[18px] text-cream-bright">
         You flipped a Wizard — pick the trump suit.
       </p>
       <div className="grid grid-cols-2 gap-2">

@@ -143,7 +143,7 @@ export function Room() {
             <div className="w-full max-w-md card-gold-subtle px-4 py-2 mb-3 flex items-center justify-between">
               <span className="text-sm text-navy-100">
                 Playing as{' '}
-                <strong className="text-gold-100">{session.playerName}</strong>
+                <strong className="font-display font-semibold text-[16px] text-cream-bright">{session.playerName}</strong>
               </span>
               <button
                 type="button"

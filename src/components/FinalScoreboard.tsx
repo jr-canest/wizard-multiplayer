@@ -361,7 +361,7 @@ export function FinalScoreboard({ room, myName }: Props) {
                   </span>
                 </span>
                 <span
-                  className={`font-display font-semibold tabular-nums text-[26px] leading-none ${
+                  className={`font-bold tabular-nums text-[22px] leading-none ${
                     s.score > 0
                       ? 'text-[#6ee7b7]'
                       : s.score < 0

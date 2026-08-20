@@ -351,7 +351,7 @@ export function GameView({ room, players, myName }: Props) {
           <span className="flex flex-col leading-none gap-0.5">
             <span>
               Round{' '}
-              <strong className="font-display font-semibold text-[15px] text-cream tabular-nums">
+              <strong className="font-bold text-[13px] text-cream tabular-nums">
                 {room.currentRound}/{room.totalRounds}
               </strong>
             </span>
@@ -614,7 +614,7 @@ export function GameView({ room, players, myName }: Props) {
               {/* Spacer + right-side big won/bid (mirror to keep balance). */}
               <div className="flex-1" />
               <div
-                className={`relative shrink-0 flex items-center justify-end pl-2.5 ml-2 border-l border-gold-300/25 ${myBigTone} font-display font-semibold tabular-nums text-[26px] leading-none`}
+                className={`relative shrink-0 flex items-center justify-end pl-2.5 ml-2 border-l border-gold-300/25 ${myBigTone} font-bold tabular-nums text-[22px] leading-none`}
                 title={
                   myBid === undefined
                     ? 'Waiting to bid'
