@@ -16,6 +16,12 @@ import {
   type GameRoundBreakdown,
 } from '../lib/history';
 import { ScoreLineGraph } from '../components/ScoreLineGraph';
+import {
+  computePodiumStats,
+  ratingForPlayer,
+  type PodiumStats,
+} from '../lib/ratings';
+import { readHistoryCache, writeHistoryCache } from '../lib/historyCache';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import type { LogEntry, RoomDoc } from '../lib/types';
 
@@ -29,8 +35,12 @@ type GameResult = {
   shamePoints?: number;
 };
 
+// Cached game docs come back from localStorage with plain {seconds}
+// dates instead of Firestore Timestamps — formatters handle both.
+type DateLike = Timestamp | { seconds: number } | null;
+
 type GameDoc = {
-  date: Timestamp | null;
+  date: DateLike;
   roundCount: number;
   playerCount: number;
   results: GameResult[];
@@ -55,6 +65,7 @@ type GameDetail =
 type PlayerRow = {
   id: string;
   name: string;
+  nameLower?: string;
   gamesPlayed?: number;
   wins?: number;
   totalScore?: number;
@@ -67,26 +78,32 @@ type PlayerRow = {
 type Tab = 'players' | 'games';
 
 const SORT_COLUMNS: Array<{
-  key: 'winRate' | 'wins' | 'gamesPlayed' | 'avg' | 'bestScore';
+  key: 'rating' | 'winRate' | 'wins' | 'gamesPlayed' | 'avg';
   label: string;
 }> = [
+  { key: 'rating', label: 'Rtg' },
   { key: 'winRate', label: 'Win%' },
   { key: 'wins', label: 'W' },
   { key: 'gamesPlayed', label: 'GP' },
   { key: 'avg', label: 'Avg' },
-  { key: 'bestScore', label: 'Best' },
 ];
 
 // Shared grid template for the All-Time Stats header + rows. Using
 // the SAME grid template on both rules out any header/row drift —
 // changing a column width here updates both at once.
-//   rank | name (truncating) | Win% | W | GP | Avg | Best
+//   rank | name (truncating) | Rtg | Win% | W | GP | Avg
 const STATS_GRID =
-  'grid grid-cols-[24px_minmax(0,1fr)_44px_26px_26px_44px_44px] items-center';
+  'grid grid-cols-[24px_minmax(0,1fr)_46px_44px_26px_26px_40px] items-center';
 
-function getPlayerSortValue(p: PlayerRow, key: typeof SORT_COLUMNS[number]['key']): number {
+function getPlayerSortValue(
+  p: PlayerRow,
+  key: typeof SORT_COLUMNS[number]['key'],
+  podium: PodiumStats,
+): number {
   const gp = p.gamesPlayed ?? 0;
   switch (key) {
+    case 'rating':
+      return ratingForPlayer(p, podium);
     case 'winRate':
       return gp > 0 ? (p.wins ?? 0) / gp : 0;
     case 'wins':
@@ -95,8 +112,6 @@ function getPlayerSortValue(p: PlayerRow, key: typeof SORT_COLUMNS[number]['key'
       return gp;
     case 'avg':
       return gp > 0 ? (p.totalScore ?? 0) / gp : 0;
-    case 'bestScore':
-      return p.bestScore ?? -Infinity;
   }
 }
 
@@ -109,9 +124,18 @@ function isOnlineGame(g: GameRow): boolean {
   );
 }
 
-function formatDate(ts: Timestamp | null): string {
-  if (!ts) return '—';
-  const d = ts.toDate();
+function toDateSafe(ts: DateLike): Date | null {
+  if (!ts) return null;
+  if (typeof (ts as Timestamp).toDate === 'function') {
+    return (ts as Timestamp).toDate();
+  }
+  const secs = (ts as { seconds: number }).seconds;
+  return typeof secs === 'number' ? new Date(secs * 1000) : null;
+}
+
+function formatDate(ts: DateLike): string {
+  const d = toDateSafe(ts);
+  if (!d) return '—';
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
@@ -124,11 +148,18 @@ type DetailState =
 export function History() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('players');
-  const [games, setGames] = useState<GameRow[] | null>(null);
-  const [players, setPlayers] = useState<PlayerRow[] | null>(null);
+  // Paint instantly from the last cached result, then refresh in the
+  // background. Only the very first ever open shows the spinner.
+  const [cache] = useState(() => readHistoryCache<PlayerRow, GameRow>());
+  const [games, setGames] = useState<GameRow[] | null>(cache?.games ?? null);
+  const [players, setPlayers] = useState<PlayerRow[] | null>(
+    cache?.players ?? null,
+  );
+  const [podium, setPodium] = useState<PodiumStats>(cache?.podium ?? {});
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortKey, setSortKey] =
-    useState<typeof SORT_COLUMNS[number]['key']>('winRate');
+    useState<typeof SORT_COLUMNS[number]['key']>('rating');
   const [sortAsc, setSortAsc] = useState(false);
   const [showScoreless, setShowScoreless] = useState(false);
   const [detail, setDetail] = useState<DetailState | null>(null);
@@ -152,12 +183,14 @@ export function History() {
 
   function loadHistory() {
     setError(null);
-    setGames(null);
-    setPlayers(null);
+    const hasCache = games !== null || players !== null;
+    if (hasCache) setRefreshing(true);
+    // Fetch a wide window of games (not just the 30 shown in Past
+    // Games) so the podium Rating counts every recorded finish.
     const gamesQ = query(
       collection(db, 'games'),
       orderBy('date', 'desc'),
-      limit(100),
+      limit(300),
     );
     const playersQ = query(
       collection(db, 'players'),
@@ -174,33 +207,50 @@ export function History() {
       timeout,
     ])
       .then(([gSnap, pSnap]) => {
-        setGames(
-          gSnap.docs.map((d) => ({ id: d.id, ...(d.data() as GameDoc) })),
-        );
-        setPlayers(
-          pSnap.docs.map((d) => ({
-            id: d.id,
-            ...(d.data() as Omit<PlayerRow, 'id'>),
-          })),
-        );
+        const allGames = gSnap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as GameDoc),
+        }));
+        const freshPlayers = pSnap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<PlayerRow, 'id'>),
+        }));
+        setPlayers(freshPlayers);
+        setPodium(computePodiumStats(freshPlayers, allGames));
+        setGames(allGames.slice(0, 30));
       })
       .catch((err) => {
         console.error(err);
-        setGames([]);
-        setPlayers([]);
-        setError(
-          err?.message === 'timeout'
-            ? 'Connection seems slow. Tap Retry.'
-            : 'Could not load history.',
-        );
-      });
+        // With cached data on screen, keep it — a failed background
+        // refresh shouldn't blow away usable data.
+        if (games === null && players === null) {
+          setGames([]);
+          setPlayers([]);
+          setError(
+            err?.message === 'timeout'
+              ? 'Connection seems slow. Tap Retry.'
+              : 'Could not load history.',
+          );
+        }
+      })
+      .finally(() => setRefreshing(false));
   }
 
   useEffect(() => {
     // Initial fetch — also exposed as a button click handler (Retry).
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep the cache in sync with whatever's on screen — covers the
+  // background refresh as well as in-place mutations (delete / merge)
+  // so a stale game can't briefly resurface on the next open.
+  useEffect(() => {
+    if (games === null || players === null) return;
+    if (games.length === 0 && players.length === 0) return;
+    writeHistoryCache(players, games, podium);
+  }, [players, games, podium]);
 
   function handleSort(key: typeof SORT_COLUMNS[number]['key']) {
     if (sortKey === key) {
@@ -223,7 +273,9 @@ export function History() {
   );
 
   const sortedPlayers = visiblePlayers.slice().sort((a, b) => {
-    const diff = getPlayerSortValue(b, sortKey) - getPlayerSortValue(a, sortKey);
+    const diff =
+      getPlayerSortValue(b, sortKey, podium) -
+      getPlayerSortValue(a, sortKey, podium);
     return sortAsc ? -diff : diff;
   });
   // Players with zero completed games collapse behind a toggle so
@@ -259,7 +311,12 @@ export function History() {
     <div className="min-h-svh px-4 pt-6 pb-10">
       <div className="max-w-md mx-auto">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="font-display font-semibold text-[28px] leading-none text-cream-bright">History</h1>
+          <div className="flex items-baseline gap-2">
+            <h1 className="font-display font-semibold text-[28px] leading-none text-cream-bright">History</h1>
+            {refreshing && (
+              <span className="text-navy-200/60 text-xs">refreshing…</span>
+            )}
+          </div>
           <button
             type="button"
             onClick={() => navigate('/')}
@@ -337,7 +394,7 @@ export function History() {
                       type="button"
                       onClick={() => handleSort(col.key)}
                       className={`active:text-gold-text ${
-                        col.key === 'bestScore' ? 'text-right' : 'text-center'
+                        col.key === 'avg' ? 'text-right' : 'text-center'
                       } ${sortKey === col.key ? 'text-gold-text' : ''}`}
                     >
                       {col.label}
@@ -350,6 +407,7 @@ export function History() {
                   const avg = gp > 0 ? Math.round((p.totalScore ?? 0) / gp) : 0;
                   const winRate =
                     gp > 0 ? Math.round(((p.wins ?? 0) / gp) * 100) : 0;
+                  const rating = ratingForPlayer(p, podium);
                   const medal = i < 3 ? MEDAL_EMOJIS[i] : null;
                   const hasAliases = (p.aliases ?? []).length > 0;
                   return (
@@ -392,6 +450,9 @@ export function History() {
                           </span>
                         )}
                       </div>
+                      <span className="text-center font-bold text-[13px] text-gold-text tabular-nums">
+                        {rating.toFixed(2)}
+                      </span>
                       <span className="text-center text-cream text-[13px] font-semibold tabular-nums">
                         {winRate}%
                       </span>
@@ -402,7 +463,7 @@ export function History() {
                         {gp}
                       </span>
                       <span
-                        className={`text-center text-[13px] font-semibold tabular-nums ${
+                        className={`text-right text-[13px] font-semibold tabular-nums ${
                           avg > 0
                             ? 'text-[#6ee7b7]'
                             : avg < 0
@@ -410,10 +471,7 @@ export function History() {
                               : 'text-navy-200'
                         }`}
                       >
-                        {avg}
-                      </span>
-                      <span className="text-right text-gold-text text-[13px] font-semibold tabular-nums">
-                        {p.bestScore ?? '—'}
+                        {avg < 0 ? `−${Math.abs(avg)}` : avg}
                       </span>
                     </button>
                   );
@@ -430,6 +488,13 @@ export function History() {
                   </button>
                 )}
               </div>
+            )}
+            {sortedPlayers.length > 0 && (
+              <p className="text-[10px] text-navy-300 leading-relaxed mt-2 px-1">
+                Rtg = podium points per game (🥇 3 · 🥈 2 · 🥉 1, last place scores 0),
+                divided by games played + 3 — so one lucky night can't top the board,
+                and consistent podium finishers rise above one-game wonders.
+              </p>
             )}
           </>
         )}
@@ -532,6 +597,7 @@ export function History() {
           <PlayerDetailOverlay
             state={detail}
             visiblePlayers={visiblePlayers}
+            podium={podium}
             mergeError={mergeError}
             onClose={() => {
               setDetail(null);
@@ -620,6 +686,7 @@ export function History() {
 type OverlayProps = {
   state: DetailState;
   visiblePlayers: PlayerRow[];
+  podium: PodiumStats;
   mergeError: string | null;
   onClose: () => void;
   onStartMerge: () => void;
@@ -631,6 +698,7 @@ type OverlayProps = {
 function PlayerDetailOverlay({
   state,
   visiblePlayers,
+  podium,
   mergeError,
   onClose,
   onStartMerge,
@@ -676,7 +744,7 @@ function PlayerDetailOverlay({
         )}
 
         {state.mode === 'view' && (
-          <ViewBody player={state.player} onStartMerge={onStartMerge} />
+          <ViewBody player={state.player} podium={podium} onStartMerge={onStartMerge} />
         )}
 
         {state.mode === 'pickMergeTarget' && (
@@ -752,18 +820,22 @@ function PlayerDetailHeader({
 
 function ViewBody({
   player,
+  podium,
   onStartMerge,
 }: {
   player: PlayerRow;
+  podium: PodiumStats;
   onStartMerge: () => void;
 }) {
   const gp = player.gamesPlayed ?? 0;
   const aliases = player.aliases ?? [];
+  const pod = podium?.[player.id] ?? { firsts: 0, seconds: 0, thirds: 0 };
+  const rating = ratingForPlayer(player, podium);
   return (
     <>
       <div className="grid grid-cols-3 gap-2 text-center">
+        <Stat label="Rating" value={rating.toFixed(2)} highlight />
         <Stat label="GP" value={gp} />
-        <Stat label="Wins" value={player.wins ?? 0} />
         <Stat
           label="Win%"
           value={gp > 0 ? `${Math.round(((player.wins ?? 0) / gp) * 100)}%` : '—'}
@@ -777,6 +849,12 @@ function ViewBody({
           label="Avg"
           value={gp > 0 ? Math.round((player.totalScore ?? 0) / gp) : '—'}
         />
+      </div>
+      <div className="rounded-md bg-navy-900/50 border border-gold-700/30 px-3 py-2 flex items-center justify-center gap-4">
+        <span className="section-label">Podiums</span>
+        <span className="font-semibold text-[15px] text-cream tabular-nums">🥇 {pod.firsts}</span>
+        <span className="font-semibold text-[15px] text-cream tabular-nums">🥈 {pod.seconds}</span>
+        <span className="font-semibold text-[15px] text-cream tabular-nums">🥉 {pod.thirds}</span>
       </div>
       <div className="rounded-md bg-navy-900/50 border border-gold-700/30 p-2.5">
         <p className="section-label mb-1.5">
@@ -925,22 +1003,32 @@ function ConfirmBody({
   );
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+function Stat({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: string | number;
+  highlight?: boolean;
+}) {
   return (
     <div className="rounded-md bg-navy-900/50 border border-gold-700/30 px-2 py-1.5">
       <p className="section-label">
         {label}
       </p>
-      <p className="text-[15px] font-bold text-cream tabular-nums leading-tight mt-1.5">
+      <p className={`text-[15px] font-bold tabular-nums leading-tight mt-1.5 ${
+        highlight ? 'text-gold-text' : 'text-cream'
+      }`}>
         {value}
       </p>
     </div>
   );
 }
 
-function formatDateLong(ts: Timestamp | null): string {
-  if (!ts) return '—';
-  const d = ts.toDate();
+function formatDateLong(ts: DateLike): string {
+  const d = toDateSafe(ts);
+  if (!d) return '—';
   return d.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
