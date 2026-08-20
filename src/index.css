@@ -446,3 +446,15 @@ button:focus-visible {
 .animate-reaction-inline {
   animation: reaction-inline 7s ease-out forwards;
 }
+
+/* Marks a history game played live in the multiplayer app */
+.online-chip {
+  font-weight: 700;
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+  padding: 3px 5px;
+  border: 1px solid rgba(125, 211, 252, 0.35);
+}

@@ -100,6 +100,15 @@ function getPlayerSortValue(p: PlayerRow, key: typeof SORT_COLUMNS[number]['key'
   }
 }
 
+// Games played live in this app (vs. tallied in the scorekeeper). Older
+// multiplayer games predate the `source` field but carry a play log.
+function isOnlineGame(g: GameRow): boolean {
+  return (
+    g.source === 'multiplayer' ||
+    (!g.source && Array.isArray(g.log) && g.log.length > 0)
+  );
+}
+
 function formatDate(ts: Timestamp | null): string {
   if (!ts) return '—';
   const d = ts.toDate();
@@ -451,9 +460,14 @@ export function History() {
                       className="w-full text-left card-gold p-3 active:bg-navy-700/30 transition-colors"
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="section-label">
-                          {formatDate(game.date)} — {game.roundCount} round
-                          {game.roundCount !== 1 ? 's' : ''}
+                        <span className="flex items-center gap-1.5">
+                          <span className="section-label">
+                            {formatDate(game.date)} — {game.roundCount} round
+                            {game.roundCount !== 1 ? 's' : ''}
+                          </span>
+                          {isOnlineGame(game) && (
+                            <span className="online-chip">online</span>
+                          )}
                         </span>
                         <span className="text-navy-200/50 text-xs">
                           {game.playerCount} players
@@ -1001,9 +1015,12 @@ function GameDetailOverlay({
             <p className="font-display font-semibold text-[20px] text-cream-bright leading-tight">
               {formatDateLong(game.date)}
             </p>
-            <p className="text-navy-200 text-xs mt-0.5">
-              {game.roundCount} round{game.roundCount !== 1 ? 's' : ''} ·{' '}
-              {game.playerCount} player{game.playerCount !== 1 ? 's' : ''}
+            <p className="text-navy-200 text-xs mt-0.5 flex items-center gap-1.5">
+              <span>
+                {game.roundCount} round{game.roundCount !== 1 ? 's' : ''} ·{' '}
+                {game.playerCount} player{game.playerCount !== 1 ? 's' : ''}
+              </span>
+              {isOnlineGame(game) && <span className="online-chip">online</span>}
             </p>
           </div>
           {!isDeleting && (
