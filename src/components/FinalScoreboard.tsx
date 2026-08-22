@@ -182,6 +182,7 @@ export function FinalScoreboard({ room, myName }: Props) {
     [],
   );
   const aiClaimAttempted = useRef(false);
+  const [aiTimedOut, setAiTimedOut] = useState(false);
   const aiSummary = room.aiSummary ?? null;
   const aiClaimed = !!room.aiSummaryRequested;
   // Loading until the shared field lands (either we win the claim and
@@ -190,6 +191,17 @@ export function FinalScoreboard({ room, myName }: Props) {
     isProduction() &&
     room.playerOrder.length >= 2 &&
     aiSummary === null;
+
+  // Watchdog: if the shared summary hasn't landed after 15s (e.g. the
+  // claiming device got suspended mid-fetch — hi, iPad), fall back to
+  // the local deterministic recap so nobody is stuck on "Analyzing…"
+  // forever. Once timed out, a late AI arrival is ignored on this
+  // device — the table only ever sees ONE commentary, no swap.
+  useEffect(() => {
+    if (!aiLoading) return;
+    const t = window.setTimeout(() => setAiTimedOut(true), 15000);
+    return () => window.clearTimeout(t);
+  }, [aiLoading]);
 
   useEffect(() => {
     if (aiClaimAttempted.current) return;
@@ -233,9 +245,13 @@ export function FinalScoreboard({ room, myName }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aiSummary, aiClaimed]);
 
-  // While loading, hide the fallback. Only fall back if the AI request
-  // finished without a result (failed/null).
-  const displayedSummary = aiSummary ?? (aiLoading ? null : fallbackSummary);
+  // Single-commentary contract: show "Analyzing the game" until exactly
+  // one text is ready — the shared AI recap, or the fallback if the
+  // fetch failed/timed out. Never flash the fallback and swap it later.
+  const stillAnalyzing = aiLoading && !aiTimedOut;
+  const displayedSummary = aiTimedOut
+    ? fallbackSummary
+    : (aiSummary ?? (stillAnalyzing ? null : fallbackSummary));
 
   // Unanimous vote — every real player must opt in to start a new game.
   const realPlayers = room.playerOrder.filter((n) => !isBotName(n));
@@ -277,10 +293,12 @@ export function FinalScoreboard({ room, myName }: Props) {
           </div>
         </div>
 
-        {(aiLoading || displayedSummary) && (
+        <ScoreLineGraph room={room} />
+
+        {(stillAnalyzing || displayedSummary) && (
           <div
             className={`card-gold-subtle px-4 py-3.5 text-center relative ${
-              aiLoading ? 'wm-summary-shimmer' : ''
+              stillAnalyzing ? 'wm-summary-shimmer' : ''
             }`}
           >
             <style>{`
@@ -310,9 +328,9 @@ export function FinalScoreboard({ room, myName }: Props) {
               .wm-summary-dot:nth-child(2) { animation-delay: 0.2s; }
               .wm-summary-dot:nth-child(3) { animation-delay: 0.4s; }
             `}</style>
-            {aiLoading ? (
+            {stillAnalyzing ? (
               <p className="text-gold-100/70 text-sm italic">
-                Generating recap
+                Analyzing the game
                 <span className="wm-summary-dot">.</span>
                 <span className="wm-summary-dot">.</span>
                 <span className="wm-summary-dot">.</span>
@@ -326,8 +344,6 @@ export function FinalScoreboard({ room, myName }: Props) {
             )}
           </div>
         )}
-
-        <ScoreLineGraph room={room} />
 
         <Chat room={room} myName={myName} />
 
