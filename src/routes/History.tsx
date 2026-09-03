@@ -93,8 +93,11 @@ const SORT_COLUMNS: Array<{
 // the SAME grid template on both rules out any header/row drift —
 // changing a column width here updates both at once.
 //   rank | name (truncating) | Rtg | Win% | W | GP | Avg | Best
+// Numeric columns are sized to their widest VALUE, not the header: the
+// sort arrow hangs outside the label (see the header button) so it never
+// widens a column, and the name column keeps the leftover.
 const STATS_GRID =
-  'grid grid-cols-[20px_minmax(0,1fr)_44px_42px_24px_26px_36px_38px] items-center';
+  'grid grid-cols-[20px_minmax(0,1fr)_40px_40px_22px_24px_32px_34px] items-center';
 
 function getPlayerSortValue(
   p: PlayerRow,
@@ -387,7 +390,7 @@ export function History() {
             ) : (
               <div className="card-gold overflow-hidden">
                 <div
-                  className={`${STATS_GRID} px-2.5 py-2 border-b border-gold-300/20 text-navy-300 text-[10px] font-semibold uppercase tracking-[0.12em]`}
+                  className={`${STATS_GRID} px-2.5 pt-2 pb-[15px] border-b border-gold-300/20 text-navy-300 text-[10px] font-semibold uppercase tracking-[0.12em]`}
                 >
                   <span />
                   <span>Player</span>
@@ -400,8 +403,17 @@ export function History() {
                         col.key === 'bestScore' ? 'text-right' : 'text-center'
                       } ${sortKey === col.key ? 'text-gold-text' : ''}`}
                     >
-                      {col.label}
-                      {sortKey === col.key ? (sortAsc ? ' ↑' : ' ↓') : ''}
+                      {/* Sort arrow sits centred UNDER the active label
+                          (header has extra bottom padding for it) so it
+                          never widens a column or crowds a neighbour. */}
+                      <span className="relative whitespace-nowrap">
+                        {col.label}
+                        {sortKey === col.key && (
+                          <span className="absolute left-1/2 -translate-x-1/2 top-[12px] text-[9px] leading-none">
+                            {sortAsc ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -433,24 +445,29 @@ export function History() {
                         {medal || `${i + 1}.`}
                       </span>
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1 min-w-0">
-                          <span className="font-display font-semibold text-[15px] text-cream-bright truncate min-w-0">
-                            {p.name}
-                          </span>
-                          {hasAliases && (
-                            <span
-                              aria-label={`also known as ${p.aliases!.join(', ')}`}
-                              title={`Also: ${p.aliases!.join(', ')}`}
-                              className="shrink-0 text-[9px] leading-none px-1 py-0.5 rounded-full bg-[rgba(20,26,44,.8)] border border-gold-300/25 text-gold-text font-normal tabular-nums"
-                            >
-                              ⓘ {p.aliases!.length}
-                            </span>
-                          )}
+                        {/* Name gets the whole column; chips (shame, alias
+                            count) share one sub-line so a badge never
+                            squeezes the name into an ellipsis. */}
+                        <div className="font-display font-semibold text-[15px] text-cream-bright truncate">
+                          {p.name}
                         </div>
-                        {(p.totalShamePoints ?? 0) > 0 && (
-                          <span className="shame-chip mt-0.5 inline-block whitespace-nowrap">
-                            shame{(p.totalShamePoints ?? 0) > 1 ? ` ×${p.totalShamePoints}` : ''}
-                          </span>
+                        {((p.totalShamePoints ?? 0) > 0 || hasAliases) && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            {(p.totalShamePoints ?? 0) > 0 && (
+                              <span className="shame-chip whitespace-nowrap">
+                                shame{(p.totalShamePoints ?? 0) > 1 ? ` ×${p.totalShamePoints}` : ''}
+                              </span>
+                            )}
+                            {hasAliases && (
+                              <span
+                                aria-label={`also known as ${p.aliases!.join(', ')}`}
+                                title={`Also: ${p.aliases!.join(', ')}`}
+                                className="shrink-0 text-[9px] leading-none px-1 py-0.5 rounded-full bg-[rgba(20,26,44,.8)] border border-gold-300/25 text-gold-text font-normal tabular-nums"
+                              >
+                                ⓘ {p.aliases!.length}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                       <span className="text-center font-bold text-[13px] text-gold-text tabular-nums">
