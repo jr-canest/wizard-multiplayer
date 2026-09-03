@@ -447,6 +447,18 @@ button:focus-visible {
   animation: reaction-inline 7s ease-out forwards;
 }
 
+/* Shame marker next to a player's name (same as scorekeeper's) */
+.shame-chip {
+  font-weight: 700;
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #f87171;
+  padding: 3px 5px;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+}
+
 /* Marks a history game played live in the multiplayer app */
 .online-chip {
   font-weight: 700;

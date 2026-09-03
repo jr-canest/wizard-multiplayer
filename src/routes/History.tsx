@@ -78,7 +78,7 @@ type PlayerRow = {
 type Tab = 'players' | 'games';
 
 const SORT_COLUMNS: Array<{
-  key: 'rating' | 'winRate' | 'wins' | 'gamesPlayed' | 'avg';
+  key: 'rating' | 'winRate' | 'wins' | 'gamesPlayed' | 'avg' | 'bestScore';
   label: string;
 }> = [
   { key: 'rating', label: 'Rtg' },
@@ -86,14 +86,15 @@ const SORT_COLUMNS: Array<{
   { key: 'wins', label: 'W' },
   { key: 'gamesPlayed', label: 'GP' },
   { key: 'avg', label: 'Avg' },
+  { key: 'bestScore', label: 'Best' },
 ];
 
 // Shared grid template for the All-Time Stats header + rows. Using
 // the SAME grid template on both rules out any header/row drift —
 // changing a column width here updates both at once.
-//   rank | name (truncating) | Rtg | Win% | W | GP | Avg
+//   rank | name (truncating) | Rtg | Win% | W | GP | Avg | Best
 const STATS_GRID =
-  'grid grid-cols-[24px_minmax(0,1fr)_46px_44px_26px_26px_40px] items-center';
+  'grid grid-cols-[20px_minmax(0,1fr)_44px_42px_24px_26px_36px_38px] items-center';
 
 function getPlayerSortValue(
   p: PlayerRow,
@@ -112,6 +113,8 @@ function getPlayerSortValue(
       return gp;
     case 'avg':
       return gp > 0 ? (p.totalScore ?? 0) / gp : 0;
+    case 'bestScore':
+      return p.bestScore ?? -Infinity;
   }
 }
 
@@ -384,7 +387,7 @@ export function History() {
             ) : (
               <div className="card-gold overflow-hidden">
                 <div
-                  className={`${STATS_GRID} px-3 py-2 border-b border-gold-300/20 text-navy-300 text-[10px] font-semibold uppercase tracking-[0.12em]`}
+                  className={`${STATS_GRID} px-2.5 py-2 border-b border-gold-300/20 text-navy-300 text-[10px] font-semibold uppercase tracking-[0.12em]`}
                 >
                   <span />
                   <span>Player</span>
@@ -394,7 +397,7 @@ export function History() {
                       type="button"
                       onClick={() => handleSort(col.key)}
                       className={`active:text-gold-text ${
-                        col.key === 'avg' ? 'text-right' : 'text-center'
+                        col.key === 'bestScore' ? 'text-right' : 'text-center'
                       } ${sortKey === col.key ? 'text-gold-text' : ''}`}
                     >
                       {col.label}
@@ -418,7 +421,7 @@ export function History() {
                         setMergeError(null);
                         setDetail({ mode: 'view', player: p });
                       }}
-                      className={`w-full text-left ${STATS_GRID} px-3 py-2.5 border-b border-gold-300/10 last:border-0 active:bg-navy-700/40 ${
+                      className={`w-full text-left ${STATS_GRID} px-2.5 py-2.5 border-b border-gold-300/10 last:border-0 active:bg-navy-700/40 ${
                         i === 0 ? 'bg-gold-300/[.07]' : ''
                       }`}
                     >
@@ -445,7 +448,7 @@ export function History() {
                           )}
                         </div>
                         {(p.totalShamePoints ?? 0) > 0 && (
-                          <span className="shame-chip mt-0.5 inline-block">
+                          <span className="shame-chip mt-0.5 inline-block whitespace-nowrap">
                             shame{(p.totalShamePoints ?? 0) > 1 ? ` ×${p.totalShamePoints}` : ''}
                           </span>
                         )}
@@ -463,7 +466,7 @@ export function History() {
                         {gp}
                       </span>
                       <span
-                        className={`text-right text-[13px] font-semibold tabular-nums ${
+                        className={`text-center text-[13px] font-semibold tabular-nums ${
                           avg > 0
                             ? 'text-[#6ee7b7]'
                             : avg < 0
@@ -472,6 +475,13 @@ export function History() {
                         }`}
                       >
                         {avg < 0 ? `−${Math.abs(avg)}` : avg}
+                      </span>
+                      <span className="text-right text-cream text-[13px] font-semibold tabular-nums">
+                        {p.bestScore == null
+                          ? '—'
+                          : p.bestScore < 0
+                            ? `−${Math.abs(p.bestScore)}`
+                            : p.bestScore}
                       </span>
                     </button>
                   );

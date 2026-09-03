@@ -67,6 +67,14 @@ export function RoundScoreboard({ room, myName }: Props) {
 
   const bestDelta = Math.max(...Object.values(deltas));
 
+  // Next-up context (mirrors the scorekeeper's merged results screen):
+  // the dealer rotates one seat left, cards = round number, and the
+  // final round is played without trump (house rule).
+  const nextRound = room.currentRound + 1;
+  const nextDealer =
+    room.playerOrder[(room.dealerIndex + 1) % room.playerOrder.length];
+  const nextIsLast = !isFinalRound && nextRound >= room.totalRounds;
+
   // Show the end-early vote only when shrinking to "next round = last" would
   // actually save rounds (i.e. there are 2+ rounds remaining).
   const showEndEarly =
@@ -214,6 +222,24 @@ export function RoundScoreboard({ room, myName }: Props) {
             ? `✓ Voted · ${isFinalRound ? 'finish game' : 'next round'} ${nextVotes.length}/${threshold} (tap to cancel)`
             : `${isFinalRound ? 'Finish game' : 'Next round'} ${nextVotes.length}/${threshold}`}
       </button>
+
+      {!isFinalRound && (
+        <p className="text-[11px] text-center text-navy-300 -mt-2">
+          Next up: round{' '}
+          <strong className="font-bold text-navy-100 tabular-nums">{nextRound}</strong>
+          {' · '}
+          <span className="tabular-nums">{nextRound} card{nextRound !== 1 ? 's' : ''}</span>
+          {' · '}
+          dealer{' '}
+          <strong className="font-display font-semibold text-[13px] text-cream">
+            {nextDealer}
+          </strong>
+          {nextDealer === myName ? ' (you)' : ''}
+          {nextIsLast && (
+            <span className="text-amber-300"> · last round, no trump</span>
+          )}
+        </p>
+      )}
 
       {(showEndEarly || showEndGame) && (
         <div className="border-t border-gold-700/30 pt-3 -mt-1 space-y-1.5">
