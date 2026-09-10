@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { requestUndo, voteUndo } from '../lib/gameFlow';
-import { isBotName } from '../lib/rooms';
+import { isBot } from '../lib/rooms';
 import { colorForViewer, playerColor } from '../lib/playerColors';
 import { useActiveReaction } from './Reactions';
 import type { RoomSnapshot } from '../hooks/useRoom';
@@ -79,7 +79,7 @@ function UndoContent({
 }) {
   const pu = room.pendingUndo!;
   const isActor = pu.actor === myName;
-  const realPlayers = room.playerOrder.filter((n) => !isBotName(n));
+  const realPlayers = room.playerOrder.filter((n) => !isBot(room, n));
   const threshold = Math.floor(realPlayers.length / 2) + 1;
   const realVotes = pu.votes.filter((n) => realPlayers.includes(n));
   const myVote = realVotes.includes(myName);

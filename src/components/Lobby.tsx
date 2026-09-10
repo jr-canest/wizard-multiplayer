@@ -1,11 +1,24 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { leaveRoom, MIN_PLAYERS, MAX_PLAYERS } from '../lib/rooms';
+import {
+  addBot,
+  BOT_DIFFICULTY_LABEL,
+  botDifficultyOf,
+  isBot,
+  leaveRoom,
+  removeBot,
+  MIN_PLAYERS,
+  MAX_PLAYERS,
+} from '../lib/rooms';
 import { setChosenTotalRounds, startGame } from '../lib/gameFlow';
 import { totalRoundsFor } from '../game/deck';
 import { setActiveRoomCode } from '../hooks/useActiveRoom';
+import { useAnonymousAuth } from '../hooks/useAnonymousAuth';
 import { Chat } from './Chat';
 import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
+import type { BotDifficulty } from '../lib/types';
+
+const DIFFICULTIES: BotDifficulty[] = ['easy', 'medium', 'expert'];
 
 type Props = {
   room: RoomSnapshot;
@@ -19,8 +32,34 @@ export function Lobby({ room, players, myName }: Props) {
   const [leaving, setLeaving] = useState(false);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [botBusy, setBotBusy] = useState(false);
+  const { uid } = useAnonymousAuth();
 
   const isHost = room.hostPlayerName === myName;
+  const hasBots = room.playerOrder.some((n) => isBot(room, n));
+  const roomFull = room.playerOrder.length >= MAX_PLAYERS;
+
+  async function handleAddBot(difficulty: BotDifficulty) {
+    if (!uid || botBusy || roomFull) return;
+    setBotBusy(true);
+    try {
+      await addBot(room.code, myName, uid, difficulty);
+    } catch (err) {
+      setStartError(err instanceof Error ? err.message : 'Could not add computer.');
+    } finally {
+      setBotBusy(false);
+    }
+  }
+
+  async function handleRemoveBot(name: string) {
+    if (botBusy) return;
+    setBotBusy(true);
+    try {
+      await removeBot(room.code, myName, name);
+    } finally {
+      setBotBusy(false);
+    }
+  }
   const canStart =
     isHost && !starting && room.playerOrder.length >= MIN_PLAYERS;
   const maxRounds = totalRoundsFor(room.playerOrder.length);
@@ -103,6 +142,7 @@ export function Lobby({ room, players, myName }: Props) {
             const meta = playersByName.get(name);
             const isMe = name === myName;
             const isHostRow = name === room.hostPlayerName;
+            const difficulty = botDifficultyOf(room, name);
             return (
               <li
                 key={name}
@@ -125,13 +165,32 @@ export function Lobby({ room, players, myName }: Props) {
                       ♛
                     </span>
                   )}
+                  {difficulty && (
+                    <span className="cpu-chip">
+                      CPU · {BOT_DIFFICULTY_LABEL[difficulty]}
+                    </span>
+                  )}
                 </span>
-                <span
-                  className={`h-2 w-2 rounded-full ${
-                    meta?.connected ? 'bg-emerald-400' : 'bg-navy-400'
-                  }`}
-                  title={meta?.connected ? 'Connected' : 'Disconnected'}
-                />
+                {difficulty ? (
+                  isHost ? (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveBot(name)}
+                      disabled={botBusy}
+                      aria-label={`Remove ${name}`}
+                      className="h-7 w-7 -mr-1 rounded-md text-navy-200 hover:text-rose-300 text-base leading-none"
+                    >
+                      ×
+                    </button>
+                  ) : null
+                ) : (
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      meta?.connected ? 'bg-emerald-400' : 'bg-navy-400'
+                    }`}
+                    title={meta?.connected ? 'Connected' : 'Disconnected'}
+                  />
+                )}
               </li>
             );
           })}
@@ -141,7 +200,36 @@ export function Lobby({ room, players, myName }: Props) {
             Need at least {MIN_PLAYERS} players to start.
           </p>
         )}
+        {hasBots && (
+          <p className="text-xs text-navy-200 mt-2">
+            Games with a computer player aren’t saved to history.
+          </p>
+        )}
       </div>
+
+      {isHost && (
+        <div className="card-gold p-3 space-y-2">
+          <div className="flex items-baseline justify-between">
+            <span className="text-cream font-semibold text-sm">Add a computer</span>
+            <span className="text-[11px] text-navy-200">
+              {roomFull ? 'Room is full' : 'Plays from your device'}
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {DIFFICULTIES.map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => handleAddBot(d)}
+                disabled={botBusy || roomFull || !uid}
+                className="btn-secondary h-10 text-sm"
+              >
+                + {BOT_DIFFICULTY_LABEL[d]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {isHost ? (
         <>

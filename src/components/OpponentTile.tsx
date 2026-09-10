@@ -1,5 +1,6 @@
 import { colorForViewer } from '../lib/playerColors';
 import { isConnected } from '../lib/presence';
+import { botDifficultyOf } from '../lib/rooms';
 import type { Suit } from '../lib/types';
 import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
 
@@ -32,6 +33,7 @@ export function OpponentTile({
 }: Props) {
   const dealerName = room.playerOrder[room.dealerIndex];
   const isDealer = playerName === dealerName;
+  const botDifficulty = botDifficultyOf(room, playerName);
   const isBidding = room.status === 'bidding';
   const isPlaying = room.status === 'playing';
   const activeName =
@@ -113,9 +115,14 @@ export function OpponentTile({
     <div className="flex flex-col items-stretch min-w-0">
       <div
         className={`text-[10px] font-semibold truncate text-center leading-tight px-0.5 ${color.text}`}
-        title={playerName}
+        title={botDifficulty ? `${playerName} · computer (${botDifficulty})` : playerName}
       >
         {playerName}
+        {botDifficulty && (
+          <span className="ml-0.5 text-[8px] font-bold uppercase tracking-wider text-navy-300">
+            cpu
+          </span>
+        )}
       </div>
     <div
       data-player={playerName}

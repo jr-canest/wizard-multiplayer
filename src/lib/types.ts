@@ -6,6 +6,9 @@ export type WizardCard = { kind: 'wizard'; id: number };
 export type JesterCard = { kind: 'jester'; id: number };
 export type Card = StandardCard | WizardCard | JesterCard;
 
+/** Strength of a computer player seated in a room. */
+export type BotDifficulty = 'easy' | 'medium' | 'expert';
+
 export type RoomStatus =
   | 'lobby'
   | 'dealing'
@@ -52,6 +55,10 @@ export type RoomDoc = {
   log: LogEntry[];
   historyWritten: boolean;
   historyGameId: string | null;
+  // Computer players seated in this room, keyed by seat name. Every
+  // "real player" check (votes, presence, the history guard) reads this
+  // map; the host's device drives their moves (useBotDriver).
+  bots?: Record<string, BotDifficulty>;
   // Player names who've voted that the next round should be the last
   // (used during 'scoring' phase). Cleared once totalRounds is shrunk.
   endEarlyVotes?: string[];
@@ -121,6 +128,8 @@ export type PendingUndo = {
 
 export type RoomPlayerDoc = {
   authUid: string;
+  // Set on computer seats so presence never counts them as offline.
+  isBot?: boolean;
   connected: boolean;
   lastHeartbeatAt: unknown;
   voteKickAgainst: string | null;

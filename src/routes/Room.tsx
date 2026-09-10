@@ -81,6 +81,8 @@ export function Room() {
           if (err.code === 'roomNotFound') setJoinError('Room not found.');
           else if (err.code === 'roomFull') setJoinError('Room is full.');
           else if (err.code === 'gameStarted') setJoinError('Game already started.');
+          else if (err.code === 'nameTaken')
+            setJoinError('A computer player in this room already has that name. Pick another name to join.');
           else setJoinError('Could not join room.');
         } else {
           setJoinError(err instanceof Error ? err.message : 'Could not join room.');

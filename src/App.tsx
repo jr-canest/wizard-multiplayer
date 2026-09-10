@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import { useAnonymousAuth } from './hooks/useAnonymousAuth';
 import { useUIScale } from './hooks/useUIScale';
+import { UpdateBanner } from './components/UpdateBanner';
 
 export function App() {
   const { uid, ready, error } = useAnonymousAuth();
@@ -27,6 +28,7 @@ export function App() {
 
   return (
     <div className="min-h-svh flex flex-col" data-uid={uid}>
+      <UpdateBanner />
       <Outlet />
     </div>
   );

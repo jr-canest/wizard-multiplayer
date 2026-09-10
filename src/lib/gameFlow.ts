@@ -14,6 +14,9 @@ import { buildDeck, deal, shuffle, totalRoundsFor } from '../game/deck';
 import { getLeadInfo, isLegalPlay } from '../game/legalMoves';
 import { winningPlayIndex } from '../game/trickWinner';
 import { calcRoundScore } from '../game/scoring';
+import { violatesCanadianRule } from '../game/canadianRule';
+import { isBot } from './rooms';
+export { violatesCanadianRule };
 import type {
   HandDoc,
   LogEntry,
@@ -85,10 +88,10 @@ export async function voteEndEarly(
 
     // Threshold = majority of real (non-bot) players.
     const realPlayers = room.playerOrder.filter(
-      (n) => !n.startsWith('Bot-'),
+      (n) => !isBot(room, n),
     );
     const realVotes = [...current].filter(
-      (n) => !n.startsWith('Bot-') && realPlayers.includes(n),
+      (n) => !isBot(room, n) && realPlayers.includes(n),
     );
     const threshold = Math.floor(realPlayers.length / 2) + 1;
 
@@ -130,10 +133,10 @@ export async function voteNextRound(
     else current.delete(callerName);
 
     const realPlayers = room.playerOrder.filter(
-      (n) => !n.startsWith('Bot-'),
+      (n) => !isBot(room, n),
     );
     const realVotes = [...current].filter(
-      (n) => !n.startsWith('Bot-') && realPlayers.includes(n),
+      (n) => !isBot(room, n) && realPlayers.includes(n),
     );
 
     const isFinalRound = room.currentRound >= room.totalRounds;
@@ -177,10 +180,10 @@ export async function voteEndGame(
     else current.delete(callerName);
 
     const realPlayers = room.playerOrder.filter(
-      (n) => !n.startsWith('Bot-'),
+      (n) => !isBot(room, n),
     );
     const realVotes = [...current].filter(
-      (n) => !n.startsWith('Bot-') && realPlayers.includes(n),
+      (n) => !isBot(room, n) && realPlayers.includes(n),
     );
     const threshold = Math.floor(realPlayers.length / 2) + 1;
 
@@ -400,24 +403,6 @@ export async function chooseTrumpSuit(
     status: 'bidding',
     log: updatedLog,
   });
-}
-
-/**
- * Whether placing `bid` would violate the Canadian rule for the dealer.
- * Returns false on round 1 (single-card round is exempt) and for non-dealers.
- */
-export function violatesCanadianRule(args: {
-  isDealerBid: boolean;
-  canadianRule: boolean;
-  currentRound: number;
-  cardsThisRound: number;
-  otherBidsSum: number;
-  bid: number;
-}): boolean {
-  if (!args.canadianRule) return false;
-  if (!args.isDealerBid) return false;
-  if (args.currentRound === 1) return false;
-  return args.otherBidsSum + args.bid === args.cardsThisRound;
 }
 
 export async function placeBid(
@@ -696,10 +681,10 @@ export async function voteUndo(
     else current.delete(callerName);
 
     const realPlayers = room.playerOrder.filter(
-      (n) => !n.startsWith('Bot-'),
+      (n) => !isBot(room, n),
     );
     const realVotes = [...current].filter(
-      (n) => !n.startsWith('Bot-') && realPlayers.includes(n),
+      (n) => !isBot(room, n) && realPlayers.includes(n),
     );
     const threshold = Math.floor(realPlayers.length / 2) + 1;
 
@@ -910,10 +895,10 @@ export async function votePlayAgain(
     else current.delete(callerName);
 
     const realPlayers = room.playerOrder.filter(
-      (n) => !n.startsWith('Bot-'),
+      (n) => !isBot(room, n),
     );
     const realVotes = [...current].filter(
-      (n) => !n.startsWith('Bot-') && realPlayers.includes(n),
+      (n) => !isBot(room, n) && realPlayers.includes(n),
     );
 
     if (realPlayers.length > 0 && realVotes.length >= realPlayers.length) {

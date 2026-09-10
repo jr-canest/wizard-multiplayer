@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useActiveRoom } from '../hooks/useActiveRoom';
 import { IdentityPrompt } from '../components/IdentityPrompt';
+import { formatVersion } from '../lib/appVersion';
 import { CreateRoomPanel } from '../components/CreateRoomPanel';
 
 export function Home() {
@@ -122,6 +123,11 @@ export function Home() {
           >
             ↗ Open Score Keeper
           </a>
+
+          {/* Build stamp (date · commit) so it's obvious which build a phone is on */}
+          <p className="text-center text-navy-200/25 text-[10px] tabular-nums pt-1">
+            {formatVersion()}
+          </p>
         </div>
       )}
     </div>

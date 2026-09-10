@@ -7,7 +7,7 @@ import {
   votePlayAgain,
 } from '../lib/gameFlow';
 import { isTestGame } from '../lib/history';
-import { isBotName } from '../lib/rooms';
+import { isBot } from '../lib/rooms';
 import { ScoreLineGraph } from './ScoreLineGraph';
 import { Chat } from './Chat';
 import {
@@ -254,7 +254,7 @@ export function FinalScoreboard({ room, myName }: Props) {
     : (aiSummary ?? (stillAnalyzing ? null : fallbackSummary));
 
   // Unanimous vote — every real player must opt in to start a new game.
-  const realPlayers = room.playerOrder.filter((n) => !isBotName(n));
+  const realPlayers = room.playerOrder.filter((n) => !isBot(room, n));
   const playAgainVotes = (room.playAgainVotes ?? []).filter((n) =>
     realPlayers.includes(n),
   );

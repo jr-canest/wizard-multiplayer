@@ -17,7 +17,7 @@ export const STALE_AFTER_MS = 30_000;
 export const KICK_GRACE_MS = 60_000;
 
 function lastSeenMs(p: PlayerSnapshot): number {
-  if (isBotName(p.name)) return Date.now();
+  if (p.isBot || isBotName(p.name)) return Date.now();
   const ts = p.lastHeartbeatAt;
   if (ts instanceof Timestamp) return ts.toMillis();
   return 0;

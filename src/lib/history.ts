@@ -15,18 +15,18 @@ import {
   getDocs,
 } from 'firebase/firestore';
 import { db, isProduction } from './firebase';
-import { isBotName } from './rooms';
+import { isBot } from './rooms';
 import type { LogEntry, RoomDoc } from './types';
 
 /**
  * Test/dev signals that should keep the game out of the shared history,
  * skip AI summary calls, etc:
- *   - any bot in playerOrder (only added via the dev-mode toggle)
+ *   - any computer player in playerOrder (kept out of history by design)
  *   - any player named 'test' (the dev-mode trigger name)
  */
 export function isTestGame(room: RoomDoc): boolean {
   return room.playerOrder.some(
-    (n) => isBotName(n) || n.trim().toLowerCase() === 'test',
+    (n) => isBot(room, n) || n.trim().toLowerCase() === 'test',
   );
 }
 

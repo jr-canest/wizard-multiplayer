@@ -459,6 +459,19 @@ button:focus-visible {
   border: 1px solid rgba(248, 113, 113, 0.4);
 }
 
+/* Marks a computer seat in the lobby list */
+.cpu-chip {
+  font-weight: 700;
+  font-size: 9px;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #c4b5fd;
+  padding: 3px 5px;
+  border: 1px solid rgba(196, 181, 253, 0.35);
+  white-space: nowrap;
+}
+
 /* Marks a history game played live in the multiplayer app */
 .online-chip {
   font-weight: 700;

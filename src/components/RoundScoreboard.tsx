@@ -6,7 +6,7 @@ import {
   voteEndGame,
   voteNextRound,
 } from '../lib/gameFlow';
-import { isBotName } from '../lib/rooms';
+import { isBot } from '../lib/rooms';
 import { Chat } from './Chat';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
@@ -39,7 +39,7 @@ export function RoundScoreboard({ room, myName }: Props) {
   );
   const isFinalRound = room.currentRound >= room.totalRounds;
 
-  const realPlayers = room.playerOrder.filter((n) => !isBotName(n));
+  const realPlayers = room.playerOrder.filter((n) => !isBot(room, n));
   // Mid-game advance is unanimous (no one skipped past a round); final-
   // round finish is majority so a hold-out can't trap the table.
   const threshold = isFinalRound
@@ -141,7 +141,7 @@ export function RoundScoreboard({ room, myName }: Props) {
             const total = (baseCumulative[name] ?? 0) + delta;
             const isMe = name === myName;
             const isWinner = delta === bestDelta && delta > 0;
-            const isReal = !isBotName(name);
+            const isReal = !isBot(room, name);
             const hasVoted = nextVotes.includes(name);
             return (
               <tr
