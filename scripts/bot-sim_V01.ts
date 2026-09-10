@@ -14,7 +14,7 @@ import { legalIndices, getLeadInfo } from '../src/game/legalMoves';
 import { winningPlayIndex } from '../src/game/trickWinner';
 import { calcRoundScore } from '../src/game/scoring';
 import { violatesCanadianRule } from '../src/game/canadianRule';
-import { chooseBotBid, chooseBotCard, chooseBotTrump } from '../src/game/botAI';
+import { chooseBotBid, chooseBotCard, chooseBotTrump, inferVoids } from '../src/game/botAI';
 import type { BotDifficulty, Card, Suit } from '../src/lib/types';
 
 const games = parseInt(process.argv[2] ?? '300', 10);
@@ -54,8 +54,13 @@ function playGame(gameIdx: number): number[] {
       for (let b = 0; b <= round; b++) {
         if (!violatesCanadianRule({ isDealerBid: isDealer, canadianRule, currentRound: round, cardsThisRound: round, otherBidsSum, bid: b })) legalBids.push(b);
       }
+      const knownBids: Record<string, number> = {};
+      names.forEach((nm, j) => { if (bids[j] >= 0) knownBids[nm] = bids[j]; });
       bids[i] = chooseBotBid(
-        { hand: hands[names[i]], cardsThisRound: round, trumpSuit, playerCount: n, bidsSoFar: [...bidsSoFar], isDealer, legalBids },
+        {
+          hand: hands[names[i]], cardsThisRound: round, trumpSuit, playerCount: n, bidsSoFar: [...bidsSoFar], isDealer, legalBids, trumpCard,
+          table: { playerOrder: names, me: names[i], bids: knownBids, tricksWon: {}, voids: {}, dealerIndex: dealer },
+        },
         seats[i],
       );
       bidsSoFar.push(bids[i]);
@@ -64,12 +69,17 @@ function playGame(gameIdx: number): number[] {
     // Tricks.
     const won: number[] = new Array(n).fill(0);
     const played: Card[] = [];
+    const tricksSoFar: Array<{ plays: Array<{ playerName: string; card: Card }> }> = [];
+    const bidsByName: Record<string, number> = {};
+    names.forEach((nm, j) => { bidsByName[nm] = bids[j]; });
     let leader = (dealer + 1) % n;
     for (let trick = 1; trick <= round; trick++) {
       const plays: Array<{ playerName: string; card: Card }> = [];
       for (let k = 0; k < n; k++) {
         const i = (leader + k) % n;
         const hand = hands[names[i]];
+        const tricksWonByName: Record<string, number> = {};
+        names.forEach((nm, j) => { tricksWonByName[nm] = won[j]; });
         const idx = chooseBotCard(
           {
             hand,
@@ -80,6 +90,14 @@ function playGame(gameIdx: number): number[] {
             myBid: bids[i],
             myTricksWon: won[i],
             playersAfterMe: n - k - 1,
+            table: {
+              playerOrder: names,
+              me: names[i],
+              bids: bidsByName,
+              tricksWon: tricksWonByName,
+              voids: inferVoids([...tricksSoFar, { plays }]),
+              dealerIndex: dealer,
+            },
           },
           seats[i],
         );
@@ -95,6 +113,7 @@ function playGame(gameIdx: number): number[] {
       won[winner]++;
       leader = winner;
       for (const p of plays) played.push(p.card);
+      tricksSoFar.push({ plays });
     }
 
     for (let i = 0; i < n; i++) {

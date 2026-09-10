@@ -33,6 +33,8 @@ type GameResult = {
   score: number;
   rank: number;
   shamePoints?: number;
+  // Computer seat (difficulty). Rendered as a chip; never a stats row.
+  bot?: string;
 };
 
 // Cached game docs come back from localStorage with plain {seconds}
@@ -595,6 +597,9 @@ export function History() {
                                   <span className="shame-chip">
                                     shame{shame > 1 ? ` ×${shame}` : ''}
                                   </span>
+                                )}
+                                {r.bot && (
+                                  <span className="cpu-chip">CPU · {r.bot}</span>
                                 )}
                               </div>
                               <span
@@ -1183,6 +1188,7 @@ function GameDetailOverlay({
                     >
                       {r.name}
                     </span>
+                    {r.bot && <span className="cpu-chip">CPU · {r.bot}</span>}
                   </div>
                   <span
                     className={`font-semibold tabular-nums ${

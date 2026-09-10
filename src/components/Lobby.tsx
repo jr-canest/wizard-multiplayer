@@ -202,7 +202,7 @@ export function Lobby({ room, players, myName }: Props) {
         )}
         {hasBots && (
           <p className="text-xs text-navy-200 mt-2">
-            Games with a computer player aren’t saved to history.
+            Computers show in game history but never get player stats.
           </p>
         )}
       </div>

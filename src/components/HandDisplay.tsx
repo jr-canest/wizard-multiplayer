@@ -161,11 +161,14 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
     if (pendingTimerRef.current !== null) {
       window.clearTimeout(pendingTimerRef.current);
     }
-    // Safety: restore the card if nothing confirmed the play within 2.5s.
+    // Safety: restore the card if nothing confirmed the play within 8s.
+    // (Was 2.5s — a slow transaction on a phone outlived it, so the card
+    // popped back into the hand and then vanished again once the server
+    // confirmed. Real failures un-hide immediately via `ok === false`.)
     pendingTimerRef.current = window.setTimeout(() => {
       setPending((p) => (p?.cardId === id ? null : p));
       pendingTimerRef.current = null;
-    }, 2500);
+    }, 8000);
     Promise.resolve(onPlay(index)).then((ok) => {
       if (ok === false) {
         setPending((p) => (p?.cardId === id ? null : p));
@@ -234,6 +237,10 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
       // (padding/border ring) so near-miss drops still count.
       dropped = !!el?.closest('[data-drop="trick"], [data-trick-area-frame]');
       node.style.visibility = prevVis;
+      // A clear upward flick from the hand is an unambiguous play even
+      // when the finger lets go short of (or beside) the trick area —
+      // those near-misses were "my card came back to my hand".
+      if (!dropped && dy < -70) dropped = true;
     }
 
     setDrag(null);

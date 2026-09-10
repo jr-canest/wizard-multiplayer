@@ -202,7 +202,7 @@ export function GameView({ room, players, myName }: Props) {
     setPlaying(true);
     setPlayError(null);
     try {
-      await playCard(room.code, myName, originalIdx);
+      await playCard(room.code, myName, originalIdx, hand ? { room, hand } : undefined);
       return true;
     } catch (err) {
       setPlayError(err instanceof Error ? err.message : 'Failed to play card.');

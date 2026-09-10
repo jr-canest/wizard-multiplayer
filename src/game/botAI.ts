@@ -1,7 +1,8 @@
 import type { BotDifficulty, Card, Suit } from '../lib/types';
-import { buildDeck } from './deck';
+import { buildDeck, shuffle } from './deck';
 import { getLeadInfo, legalIndices } from './legalMoves';
 import { winningPlayIndex } from './trickWinner';
+import { calcRoundScore } from './scoring';
 
 /**
  * Computer-player brains. Pure functions over plain data so the host's
@@ -17,7 +18,24 @@ import { winningPlayIndex } from './trickWinner';
  *            that react to the table.
  */
 
-type Play = { card: Card };
+type Play = { card: Card; playerName?: string };
+
+/**
+ * What the expert's simulations need to know about the table. Optional:
+ * without it the expert falls back to its heuristics (kept for the
+ * standalone helpers and tests).
+ */
+export type TableInfo = {
+  playerOrder: string[];
+  me: string;
+  /** Bids known so far, by name. */
+  bids: Record<string, number>;
+  tricksWon: Record<string, number>;
+  /** Suits each player has shown they're out of this round (from off-suit plays). */
+  voids: Record<string, Suit[]>;
+  /** Index of the dealer in playerOrder (bidding only). */
+  dealerIndex: number;
+};
 
 export type BidContext = {
   hand: Card[];
@@ -29,6 +47,8 @@ export type BidContext = {
   isDealer: boolean;
   /** Bids the rules allow right now (Canadian rule already applied). */
   legalBids: number[];
+  trumpCard?: Card | null;
+  table?: TableInfo;
 };
 
 export type PlayContext = {
@@ -42,6 +62,7 @@ export type PlayContext = {
   myTricksWon: number;
   /** Players still to act after me in this trick. */
   playersAfterMe: number;
+  table?: TableInfo;
 };
 
 const SUITS: Suit[] = ['H', 'D', 'C', 'S'];
@@ -178,6 +199,8 @@ function nearestLegal(
 export function chooseBotBid(ctx: BidContext, difficulty: BotDifficulty): number {
   const { legalBids } = ctx;
   if (legalBids.length === 0) return 0;
+  if (legalBids.length === 1) return legalBids[0];
+  if (difficulty === 'expert' && ctx.table) return chooseBidBySimulation(ctx, ctx.table);
 
   if (difficulty === 'easy') {
     const est = estimateTricks(ctx.hand, ctx.trumpSuit, ctx.playerCount, false);
@@ -310,6 +333,9 @@ export function chooseBotCard(ctx: PlayContext, difficulty: BotDifficulty): numb
   if (legal.length === 0) return 0;
   if (legal.length === 1) return legal[0];
   if (difficulty === 'easy' && Math.random() < 0.6) return pickRandom(legal);
+  if (difficulty === 'expert' && ctx.table) {
+    return chooseCardBySimulation(ctx, ctx.table, legal);
+  }
 
   const expert = difficulty === 'expert';
   const need = ctx.myBid - ctx.myTricksWon;
@@ -382,4 +408,211 @@ export function chooseBotCard(ctx: PlayContext, difficulty: BotDifficulty): numb
   // never win this trick, so shed the most dangerous one we can.
   if (losers.length) return highestBy(losers, cost);
   return lowestBy(winners, pw);
+}
+
+// ─── Expert: simulation ───
+//
+// Flat Monte Carlo over determinized deals. For every candidate (card or
+// bid) the unseen cards are dealt to the other seats — honouring suits a
+// player has shown they're void in — the round is played out with the
+// medium policy for everyone, and the candidate with the best average
+// round score wins. Medium plays each sampled world deterministically, so
+// the noise comes only from the deals.
+
+/** Roughly how many playout decisions one choice may spend. */
+const PLAY_BUDGET = 14000;
+const BID_BUDGET = 14000;
+const MIN_SAMPLES = 6;
+const MAX_SAMPLES = 40;
+
+function samplesFor(budget: number, candidates: number, cardsLeft: number, seats: number): number {
+  const perSample = Math.max(1, candidates * cardsLeft * seats);
+  return Math.max(MIN_SAMPLES, Math.min(MAX_SAMPLES, Math.floor(budget / perSample)));
+}
+
+/**
+ * Suits each player has shown they're out of, from every off-suit play in
+ * the given tricks (a player who didn't follow the lead suit had none).
+ */
+export function inferVoids(
+  tricks: Array<{ plays: Array<{ playerName: string; card: Card }> }>,
+): Record<string, Suit[]> {
+  const voids: Record<string, Set<Suit>> = {};
+  for (const t of tricks) {
+    for (let k = 1; k < t.plays.length; k++) {
+      const { leadSuit, anyCardLegal } = getLeadInfo(t.plays.slice(0, k));
+      if (!leadSuit || anyCardLegal) continue;
+      const play = t.plays[k];
+      if (play.card.kind === 'standard' && play.card.suit !== leadSuit) {
+        (voids[play.playerName] ??= new Set()).add(leadSuit);
+      }
+    }
+  }
+  const out: Record<string, Suit[]> = {};
+  for (const [name, set] of Object.entries(voids)) out[name] = [...set];
+  return out;
+}
+
+type Need = { name: string; count: number; voids: Set<Suit> };
+
+/** Deal `pool` (already shuffled) to the seats, respecting known voids when possible. */
+function dealUnseen(pool: Card[], needs: Need[]): Record<string, Card[]> {
+  const out: Record<string, Card[]> = {};
+  let remaining = pool;
+  // Most-constrained seats first so their allowed cards aren't used up.
+  const ordered = [...needs].sort((a, b) => b.voids.size - a.voids.size);
+  for (const need of ordered) {
+    let allowed = need.voids.size
+      ? remaining.filter((c) => c.kind !== 'standard' || !need.voids.has(c.suit))
+      : remaining;
+    if (allowed.length < need.count) allowed = remaining;
+    const taken = allowed.slice(0, need.count);
+    const takenSet = new Set(taken);
+    remaining = remaining.filter((c) => !takenSet.has(c));
+    out[need.name] = taken;
+  }
+  return out;
+}
+
+type SimState = {
+  hands: Record<string, Card[]>;
+  tricksWon: Record<string, number>;
+  bids: Record<string, number>;
+  trick: Array<{ playerName: string; card: Card }>;
+  nextIdx: number;
+};
+
+/** Play the rest of the round out with the medium policy for every seat. */
+function playoutRound(
+  order: string[],
+  state: SimState,
+  trumpSuit: Suit | null,
+  trumpCard: Card | null,
+): void {
+  const n = order.length;
+  for (;;) {
+    while (state.trick.length < n) {
+      const name = order[state.nextIdx];
+      const hand = state.hands[name];
+      if (!hand || hand.length === 0) return;
+      const idx = chooseBotCard(
+        {
+          hand,
+          trickInProgress: state.trick,
+          trumpSuit,
+          trumpCard,
+          playedThisRound: [],
+          myBid: state.bids[name] ?? 0,
+          myTricksWon: state.tricksWon[name] ?? 0,
+          playersAfterMe: n - state.trick.length - 1,
+        },
+        'medium',
+      );
+      const card = hand[idx];
+      hand.splice(idx, 1);
+      state.trick.push({ playerName: name, card });
+      state.nextIdx = (state.nextIdx + 1) % n;
+    }
+    const w = winningPlayIndex(state.trick, trumpSuit);
+    const winner = state.trick[w].playerName;
+    state.tricksWon[winner] = (state.tricksWon[winner] ?? 0) + 1;
+    state.trick = [];
+    state.nextIdx = order.indexOf(winner);
+    if (state.hands[winner].length === 0) return;
+  }
+}
+
+function chooseCardBySimulation(ctx: PlayContext, table: TableInfo, legal: number[]): number {
+  const order = table.playerOrder;
+  const n = order.length;
+  const me = table.me;
+  const myIdx = order.indexOf(me);
+  if (myIdx < 0) return legal[0];
+  const unseen = unseenCards(ctx);
+  const alreadyPlayed = new Set(ctx.trickInProgress.map((p) => p.playerName));
+  const needs: Need[] = order
+    .filter((name) => name !== me)
+    .map((name) => ({
+      name,
+      count: Math.max(0, ctx.hand.length - (alreadyPlayed.has(name) ? 1 : 0)),
+      voids: new Set(table.voids[name] ?? []),
+    }));
+  const samples = samplesFor(PLAY_BUDGET, legal.length, ctx.hand.length, n);
+  const trick = ctx.trickInProgress.map((p) => ({
+    playerName: p.playerName ?? '?',
+    card: p.card,
+  }));
+
+  let bestIdx = legal[0];
+  let bestAvg = -Infinity;
+  for (const i of legal) {
+    let total = 0;
+    for (let s = 0; s < samples; s++) {
+      const dealt = dealUnseen(shuffle(unseen), needs);
+      const hands: Record<string, Card[]> = { ...dealt, [me]: ctx.hand.filter((_, k) => k !== i) };
+      const state: SimState = {
+        hands,
+        tricksWon: { ...table.tricksWon },
+        bids: table.bids,
+        trick: [...trick, { playerName: me, card: ctx.hand[i] }],
+        nextIdx: (myIdx + 1) % n,
+      };
+      playoutRound(order, state, ctx.trumpSuit, ctx.trumpCard);
+      total += calcRoundScore(ctx.myBid, state.tricksWon[me] ?? 0);
+    }
+    const avg = total / samples;
+    if (avg > bestAvg + 1e-9) {
+      bestAvg = avg;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
+function chooseBidBySimulation(ctx: BidContext, table: TableInfo): number {
+  const order = table.playerOrder;
+  const n = order.length;
+  const me = table.me;
+  if (!order.includes(me)) return ctx.legalBids[0];
+  const seen = new Set<string>(ctx.hand.map(cardKey));
+  if (ctx.trumpCard) seen.add(cardKey(ctx.trumpCard));
+  const unseen = buildDeck().filter((c) => !seen.has(cardKey(c)));
+  const needs: Need[] = order
+    .filter((name) => name !== me)
+    .map((name) => ({ name, count: ctx.hand.length, voids: new Set<Suit>() }));
+  const samples = samplesFor(BID_BUDGET, ctx.legalBids.length, ctx.hand.length, n);
+  const leader = (table.dealerIndex + 1) % n;
+
+  let bestBid = ctx.legalBids[0];
+  let bestAvg = -Infinity;
+  for (const b of ctx.legalBids) {
+    let total = 0;
+    for (let s = 0; s < samples; s++) {
+      const dealt = dealUnseen(shuffle(unseen), needs);
+      const bids: Record<string, number> = { ...table.bids, [me]: b };
+      for (const name of order) {
+        if (name === me || bids[name] !== undefined) continue;
+        // Seats that haven't bid yet: assume they bid what medium would.
+        bids[name] = Math.max(
+          0,
+          Math.min(ctx.cardsThisRound, Math.round(estimateTricks(dealt[name], ctx.trumpSuit, n, false))),
+        );
+      }
+      const state: SimState = {
+        hands: { ...dealt, [me]: ctx.hand.slice() },
+        tricksWon: {},
+        bids,
+        trick: [],
+        nextIdx: leader,
+      };
+      playoutRound(order, state, ctx.trumpSuit, ctx.trumpCard ?? null);
+      total += calcRoundScore(b, state.tricksWon[me] ?? 0);
+    }
+    const avg = total / samples;
+    if (avg > bestAvg + 1e-9) {
+      bestAvg = avg;
+      bestBid = b;
+    }
+  }
+  return bestBid;
 }

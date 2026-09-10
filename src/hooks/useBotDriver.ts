@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import { useEffect, useRef, useState } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { botDifficultyOf, isBot } from '../lib/rooms';
 import {
@@ -8,18 +8,41 @@ import {
   playCard,
   violatesCanadianRule,
 } from '../lib/gameFlow';
-import { chooseBotBid, chooseBotCard, chooseBotTrump } from '../game/botAI';
+import { chooseBotBid, chooseBotCard, chooseBotTrump, inferVoids } from '../game/botAI';
 import type { Card, HandDoc } from '../lib/types';
 import type { RoomSnapshot } from './useRoom';
 
-const BOT_ACTION_DELAY_MS = 600;
-/** Longer pause before a bot leads a new trick so the human sees the prior winner banner. */
-const BOT_NEW_TRICK_DELAY_MS = 2100;
+// Short "think" so a computer's card doesn't land the same instant the
+// previous one does, but no longer — every extra 100 ms here is felt by
+// the human waiting for their turn.
+const BOT_ACTION_DELAY_MS = 250;
+/** Pause before a bot leads a new trick so the humans see the winner banner. */
+const BOT_NEW_TRICK_DELAY_MS = 1400;
 
-async function readHand(code: string, name: string): Promise<Card[] | null> {
-  const snap = await getDoc(doc(db, 'rooms', code, 'hands', name));
-  if (!snap.exists()) return null;
-  return (snap.data() as HandDoc).cards;
+/**
+ * Live hands of every computer seat, kept in sync by snapshot listeners
+ * so a bot move never pays a separate server read first.
+ */
+function useBotHands(room: RoomSnapshot | null, active: boolean): Record<string, Card[]> {
+  const [hands, setHands] = useState<Record<string, Card[]>>({});
+  const code = room?.code ?? null;
+  const botNames = room && active ? room.playerOrder.filter((n) => isBot(room, n)) : [];
+  const key = botNames.join('|');
+
+  useEffect(() => {
+    if (!code || botNames.length === 0) return;
+    const unsubs = botNames.map((name) =>
+      onSnapshot(doc(db, 'rooms', code, 'hands', name), (snap) => {
+        const cards = snap.exists() ? (snap.data() as HandDoc).cards : [];
+        setHands((h) => ({ ...h, [name]: cards }));
+      }),
+    );
+    return () => unsubs.forEach((u) => u());
+    // botNames is derived from `key`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, key]);
+
+  return hands;
 }
 
 /**
@@ -29,6 +52,8 @@ async function readHand(code: string, name: string): Promise<Card[] | null> {
  */
 export function useBotDriver(room: RoomSnapshot | null, myName: string | null) {
   const lastIntentRef = useRef<string | null>(null);
+  const isHost = !!room && !!myName && room.hostPlayerName === myName;
+  const hands = useBotHands(room, isHost);
 
   useEffect(() => {
     if (!room || !myName) return;
@@ -46,7 +71,7 @@ export function useBotDriver(room: RoomSnapshot | null, myName: string | null) {
       const difficulty = botDifficultyOf(room, dealerName) ?? 'medium';
       intent = `trump:${room.currentRound}:${dealerName}`;
       action = async () => {
-        const hand = (await readHand(room.code, dealerName)) ?? [];
+        const hand = hands[dealerName] ?? [];
         await chooseTrumpSuit(room.code, dealerName, chooseBotTrump(hand, difficulty));
       };
     } else if (room.status === 'bidding' && isBot(room, currentName)) {
@@ -73,7 +98,7 @@ export function useBotDriver(room: RoomSnapshot | null, myName: string | null) {
             legalBids.push(i);
           }
         }
-        const hand = (await readHand(room.code, currentName)) ?? [];
+        const hand = hands[currentName] ?? [];
         // Bids so far in bidding order (dealer + 1 first).
         const bidsSoFar: number[] = [];
         for (let k = 1; k <= playerCount; k++) {
@@ -90,20 +115,29 @@ export function useBotDriver(room: RoomSnapshot | null, myName: string | null) {
             bidsSoFar,
             isDealer: isDealerBid,
             legalBids,
+            trumpCard: room.trumpCard,
+            table: {
+              playerOrder: room.playerOrder,
+              me: currentName,
+              bids: room.bids,
+              tricksWon: {},
+              voids: {},
+              dealerIndex: room.dealerIndex,
+            },
           },
           difficulty,
         );
-        await placeBid(room.code, currentName, bid);
+        await placeBid(room.code, currentName, bid, room);
       };
     } else if (room.status === 'playing' && isBot(room, currentName)) {
       const difficulty = botDifficultyOf(room, currentName) ?? 'medium';
       intent = `play:${room.currentRound}:${room.currentTrick}:${currentName}:${room.trickInProgress.length}`;
       action = async () => {
-        const hand = await readHand(room.code, currentName);
+        const hand = hands[currentName];
         if (!hand || hand.length === 0) return;
         const playedThisRound: Card[] = [];
-        for (const t of room.trickHistory) {
-          if (t.round !== room.currentRound) continue;
+        const roundTricks = room.trickHistory.filter((t) => t.round === room.currentRound);
+        for (const t of roundTricks) {
           for (const p of t.plays) playedThisRound.push(p.card);
         }
         const idx = chooseBotCard(
@@ -116,14 +150,25 @@ export function useBotDriver(room: RoomSnapshot | null, myName: string | null) {
             myBid: room.bids[currentName] ?? 0,
             myTricksWon: room.tricksWon[currentName] ?? 0,
             playersAfterMe: playerCount - room.trickInProgress.length - 1,
+            table: {
+              playerOrder: room.playerOrder,
+              me: currentName,
+              bids: room.bids,
+              tricksWon: room.tricksWon,
+              voids: inferVoids([...roundTricks, { plays: room.trickInProgress }]),
+              dealerIndex: room.dealerIndex,
+            },
           },
           difficulty,
         );
-        await playCard(room.code, currentName, idx);
+        await playCard(room.code, currentName, idx, { room, hand });
       };
     }
 
     if (!intent || !action) return;
+    // Wait for the seat's hand snapshot (bidding/playing only) so the
+    // intent isn't consumed before the cards are known.
+    if (!room.awaitingTrumpChoice && !hands[currentName]) return;
     if (lastIntentRef.current === intent) return;
     lastIntentRef.current = intent;
 
@@ -143,5 +188,5 @@ export function useBotDriver(room: RoomSnapshot | null, myName: string | null) {
     }, delay);
 
     return () => clearTimeout(timer);
-  }, [room, myName]);
+  }, [room, myName, hands]);
 }

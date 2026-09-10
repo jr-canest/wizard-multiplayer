@@ -43,7 +43,7 @@ export function BidButtonsBar({ room, myName }: Props) {
     setSubmitting(value);
     setError(null);
     try {
-      await placeBid(room.code, myName, value);
+      await placeBid(room.code, myName, value, room);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to place bid.');
     } finally {

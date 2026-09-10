@@ -27,7 +27,7 @@ import type { LogEntry } from '../lib/types';
 
 type GameDoc = {
   log?: LogEntry[];
-  results?: Array<{ name: string }>;
+  results?: Array<{ name: string; bot?: string }>;
 };
 
 const SUIT_GLYPH: Record<'H' | 'D' | 'C' | 'S', string> = {
@@ -96,7 +96,7 @@ export function Me() {
     // Cap to games this player appears in — saves walking unrelated logs.
     const nameSet = new Set(names.map((n) => n.toLowerCase()));
     const mine = games.filter((g) =>
-      (g.results ?? []).some((r) => nameSet.has(r.name.toLowerCase())),
+      (g.results ?? []).some((r) => !r.bot && nameSet.has(r.name.toLowerCase())),
     );
     return computePlayerStats(mine, names);
   }, [player, games, names]);

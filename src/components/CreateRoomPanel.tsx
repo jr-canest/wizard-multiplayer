@@ -7,7 +7,7 @@ import { setActiveRoomCode } from '../hooks/useActiveRoom';
 
 // Hidden test link (?test) unlocks the quick "3 computers" toggle in
 // production and pre-checks it. Any lobby host can add computers one at a
-// time; games with computers never reach the shared history.
+// time. Games named 'test' never reach the shared history.
 const isTestLink = new URLSearchParams(window.location.search).has('test');
 
 export function CreateRoomPanel() {
@@ -62,7 +62,7 @@ export function CreateRoomPanel() {
           <span>
             <span className="block text-sm text-gold-100">Test: add 3 computers</span>
             <span className="block text-xs text-navy-200">
-              Solo-test against 3 medium computers. You can also add computers from the lobby. Games with computers are never saved to history.
+              Solo-test against 3 medium computers. You can also add computers from the lobby.
             </span>
           </span>
           <input

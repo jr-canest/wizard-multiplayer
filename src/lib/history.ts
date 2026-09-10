@@ -15,19 +15,19 @@ import {
   getDocs,
 } from 'firebase/firestore';
 import { db, isProduction } from './firebase';
-import { isBot } from './rooms';
-import type { LogEntry, RoomDoc } from './types';
+import { botDifficultyOf } from './rooms';
+import type { BotDifficulty, LogEntry, RoomDoc } from './types';
 
 /**
  * Test/dev signals that should keep the game out of the shared history,
  * skip AI summary calls, etc:
- *   - any computer player in playerOrder (kept out of history by design)
  *   - any player named 'test' (the dev-mode trigger name)
+ * Games with computer players ARE recorded (Jorge, 2026-09-09): the game
+ * shows in Past Games with the computer seats flagged, but computers
+ * never get a `players` doc, so All-time stats stay human-only.
  */
 export function isTestGame(room: RoomDoc): boolean {
-  return room.playerOrder.some(
-    (n) => isBot(room, n) || n.trim().toLowerCase() === 'test',
-  );
+  return room.playerOrder.some((n) => n.trim().toLowerCase() === 'test');
 }
 
 type RankedResult = {
@@ -36,6 +36,9 @@ type RankedResult = {
   score: number;
   rank: number;
   shamePoints: number;
+  // Set on computer seats (difficulty). Both History screens render a
+  // chip for it and skip these rows in every player-stat computation.
+  bot?: BotDifficulty;
 };
 
 /**
@@ -93,7 +96,7 @@ export async function saveMultiplayerGame(
     if (room.historyWritten) {
       return { go: false as const, existingId: room.historyGameId };
     }
-    // Belt-and-braces: never write test/bot games into the shared history,
+    // Belt-and-braces: never write test games into the shared history,
     // even when running on the production URL.
     if (isTestGame(room)) {
       tx.update(roomRef, { historyWritten: true });
@@ -112,19 +115,28 @@ export async function saveMultiplayerGame(
   }));
   const ranked = computeRanks(playerScores);
 
-  // Resolve firebase IDs for all players (parallel).
+  // Resolve firebase IDs for the humans (parallel). Computer seats are
+  // never looked up — a human who happens to share a wizard name must
+  // not be credited with the computer's result.
   const idEntries = await Promise.all(
-    ranked.map(async (r) => [r.name, await lookupPlayerId(r.name)] as const),
+    ranked.map(async (r) => {
+      if (botDifficultyOf(room, r.name)) return [r.name, null] as const;
+      return [r.name, await lookupPlayerId(r.name)] as const;
+    }),
   );
   const idsByName = new Map(idEntries);
 
-  const results: RankedResult[] = ranked.map((r) => ({
-    playerId: idsByName.get(r.name) ?? '',
-    name: r.name,
-    score: r.score,
-    rank: r.rank,
-    shamePoints: 0,
-  }));
+  const results: RankedResult[] = ranked.map((r) => {
+    const bot = botDifficultyOf(room, r.name);
+    return {
+      playerId: idsByName.get(r.name) ?? '',
+      name: r.name,
+      score: r.score,
+      rank: r.rank,
+      shamePoints: 0,
+      ...(bot ? { bot } : {}),
+    };
+  });
 
   const winnerScore = ranked[0]?.score ?? 0;
   const winners = ranked.filter((r) => r.score === winnerScore);
@@ -286,6 +298,7 @@ async function resolveCanonicalPlayerId(playerId: string): Promise<string> {
 type StoredGameResult = {
   playerId?: string;
   name: string;
+  bot?: string;
   score: number;
   rank: number;
 };
@@ -317,7 +330,7 @@ async function findBestWorstForNames(
   for (const d of snap.docs) {
     const data = d.data() as StoredGameDoc;
     for (const r of data.results ?? []) {
-      if (!nameSet.has(r.name)) continue;
+      if (r.bot || !nameSet.has(r.name)) continue;
       if (best === null || r.score > best) best = r.score;
       if (worst === null || r.score < worst) worst = r.score;
     }
@@ -360,7 +373,7 @@ export async function deleteHistoryGame(gameId: string): Promise<void> {
   };
   const resolved: Array<Resolved | null> = await Promise.all(
     results.map(async (r): Promise<Resolved | null> => {
-      if (!r.playerId) return null;
+      if (r.bot || !r.playerId) return null;
       const canonicalId = await resolveCanonicalPlayerId(r.playerId);
       const pSnap = await getDoc(doc(db, 'players', canonicalId));
       if (!pSnap.exists()) return null;

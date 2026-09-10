@@ -29,7 +29,7 @@ type RatablePlayer = {
 
 type RatableGame = {
   playerCount?: number;
-  results?: Array<{ playerId?: string; name: string; rank: number }>;
+  results?: Array<{ playerId?: string; name: string; rank: number; bot?: string }>;
 };
 
 export type PodiumStats = Record<
@@ -98,6 +98,7 @@ export function computePodiumStats(
     const results = Array.isArray(game?.results) ? game.results : [];
     const playerCount = game.playerCount || results.length;
     for (const r of results) {
+      if (r.bot) continue; // computer seat — no player doc, no rating
       const canonicalId =
         (r.playerId && idToCanonical.get(r.playerId)) ||
         (typeof r.name === 'string'

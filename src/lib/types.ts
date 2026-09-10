@@ -104,14 +104,21 @@ export type UndoSnapshot = {
   leadSuit: Suit | null;
   status: RoomStatus;
   tricksWon: Record<string, number>;
-  trickHistory: Array<{
+  currentTrick: number;
+  // `log` and `trickHistory` only ever GROW between the snapshot and the
+  // undo, so the snapshot stores their lengths and the undo truncates.
+  // Copying the arrays doubled the room document on every play (each
+  // phone downloads the whole doc per move — read as lag late in games).
+  logLen?: number;
+  trickHistoryLen?: number;
+  // Legacy shape (pre 2026-09-09): full copies. Still honoured on restore.
+  trickHistory?: Array<{
     round: number;
     trickNum: number;
     plays: Array<{ playerName: string; card: Card }>;
     winner: string;
   }>;
-  currentTrick: number;
-  log: LogEntry[];
+  log?: LogEntry[];
   // Only set for 'play' kind — the actor's hand BEFORE the play.
   handCards?: Card[];
 };
