@@ -18,8 +18,6 @@ type Props = {
   myName: string;
 };
 
-type DisplayMessage = ChatMessage & { pending?: boolean };
-
 /**
  * Compact chat used in the lobby, round-end scoreboard, and final
  * scoreboard. Renders the {@link VISIBLE_CHAT_COUNT} most recent
@@ -60,10 +58,7 @@ export function Chat({ room, myName }: Props) {
         (m) => m.player === o.player && m.text === o.text && m.ts === o.ts,
       ),
   );
-  const allMessages: DisplayMessage[] = [
-    ...serverMessages.map((m) => ({ ...m, pending: false })),
-    ...visibleOptimistic.map((m) => ({ ...m, pending: true })),
-  ];
+  const allMessages: ChatMessage[] = [...serverMessages, ...visibleOptimistic];
   const messages = allMessages.slice(-VISIBLE_CHAT_COUNT);
 
   // Stick to the bottom whenever a new message arrives.
