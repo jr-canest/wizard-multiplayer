@@ -17,6 +17,8 @@ type Props = {
   myName: string;
   playerName: string;
   playerMeta: PlayerSnapshot | undefined;
+  /** An undo vote is open: the table is stopped, so no turn cues. */
+  paused?: boolean;
 };
 
 /**
@@ -30,12 +32,13 @@ export function OpponentTile({
   myName,
   playerName,
   playerMeta,
+  paused = false,
 }: Props) {
   const dealerName = room.playerOrder[room.dealerIndex];
   const isDealer = playerName === dealerName;
   const botDifficulty = botDifficultyOf(room, playerName);
-  const isBidding = room.status === 'bidding';
-  const isPlaying = room.status === 'playing';
+  const isBidding = !paused && room.status === 'bidding';
+  const isPlaying = !paused && room.status === 'playing';
   const activeName =
     isBidding || isPlaying
       ? room.playerOrder[room.currentPlayerIndex]

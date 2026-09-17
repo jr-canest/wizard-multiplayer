@@ -16,6 +16,7 @@ import { winningPlayIndex } from '../game/trickWinner';
 import { calcRoundScore } from '../game/scoring';
 import { violatesCanadianRule } from '../game/canadianRule';
 import { isBot } from './rooms';
+import { UNDO_VOTE_TTL_MS } from './types';
 export { violatesCanadianRule };
 import type {
   Card,
@@ -221,7 +222,9 @@ export class FlowError extends Error {
     | 'invalidCard'
     | 'illegalPlay'
     | 'notScoring'
-    | 'notFinished';
+    | 'notFinished'
+    // An undo vote is open, which pauses the table for everyone.
+    | 'undoVoteOpen';
   constructor(code: FlowError['code']) {
     super(code);
     this.code = code;
@@ -411,6 +414,8 @@ export async function placeBid(
   }
 
   if (room.status !== 'bidding') throw new FlowError('notBidding');
+  // The table is paused while an undo vote is open.
+  if (room.pendingUndo?.requested) throw new FlowError('undoVoteOpen');
 
   const playerCount = room.playerOrder.length;
   const expectedName = room.playerOrder[room.currentPlayerIndex];
@@ -464,6 +469,8 @@ export async function placeBid(
     actor: callerName,
     requested: false,
     votes: [],
+    // Carried so the vote modal can name what is being undone.
+    bidValue: bid,
     snapshot: undoSnapshot,
   };
 
@@ -531,6 +538,8 @@ export async function playCard(
     const hand = (handSnap.data() as HandDoc).cards;
 
     if (room.status !== 'playing') throw new FlowError('notPlaying');
+    // The table is paused while an undo vote is open.
+    if (room.pendingUndo?.requested) throw new FlowError('undoVoteOpen');
     if (room.playerOrder[room.currentPlayerIndex] !== callerName) {
       throw new FlowError('notYourTurn');
     }
@@ -579,6 +588,7 @@ export async function playCard(
       actor: callerName,
       requested: false,
       votes: [],
+      card,
       snapshot: undoSnapshot,
     };
 
@@ -648,6 +658,9 @@ async function playCardFast(
   const playerCount = room.playerOrder.length;
 
   if (room.status !== 'playing') throw new FlowError('notPlaying');
+  // The table is paused while an undo vote is open. playCard already
+  // routes these to the transactional path; this is the backstop.
+  if (room.pendingUndo?.requested) throw new FlowError('undoVoteOpen');
   if (room.playerOrder[room.currentPlayerIndex] !== callerName) {
     throw new FlowError('notYourTurn');
   }
@@ -678,6 +691,7 @@ async function playCardFast(
     actor: callerName,
     requested: false,
     votes: [],
+    card,
     snapshot: {
       bids: room.bids,
       currentPlayerIndex: room.currentPlayerIndex,
@@ -744,16 +758,58 @@ async function playCardFast(
 }
 
 /**
- * The actor toggles their request to undo their last bid/play. While
- * `requested` is false only the actor sees the prompt; once true, all
- * players see the vote and can approve/reject. Toggling cancels the
- * request and clears any votes.
+ * Who actually gets a say: real (non-bot) seats. Bots never vote, and a
+ * table of one human plus computers needs the undo to just happen.
+ */
+function undoElectorate(room: RoomDoc): {
+  voters: string[];
+  threshold: number;
+} {
+  const voters = room.playerOrder.filter((n) => !isBot(room, n));
+  return { voters, threshold: Math.floor(voters.length / 2) + 1 };
+}
+
+/**
+ * The room patch that puts the table back the way it was. Shared by every
+ * path that can approve an undo, so "apply" means exactly one thing.
+ */
+function undoRestorePatch(room: RoomDoc, pu: PendingUndo): Partial<RoomDoc> {
+  const s = pu.snapshot;
+  return {
+    bids: s.bids,
+    currentPlayerIndex: s.currentPlayerIndex,
+    trickInProgress: s.trickInProgress,
+    leadSuit: s.leadSuit,
+    status: s.status,
+    tricksWon: s.tricksWon,
+    // New snapshots truncate; legacy snapshots carry full copies.
+    trickHistory:
+      s.trickHistory ??
+      room.trickHistory.slice(0, s.trickHistoryLen ?? room.trickHistory.length),
+    currentTrick: s.currentTrick,
+    log: s.log ?? room.log.slice(0, s.logLen ?? room.log.length),
+    pendingUndo: null,
+  };
+}
+
+/**
+ * The actor toggles their request to undo their last bid/play. Until they
+ * tap it only they see the prompt; once requested, the table is PAUSED
+ * (placeBid/playCard refuse, the bot driver holds) and everyone gets the
+ * center-screen vote. Toggling again cancels and resumes play.
+ *
+ * When the actor is the only real player (solo against computers) their
+ * own approval already carries the vote, so the undo applies on the spot
+ * rather than opening a vote nobody can answer, which would otherwise
+ * pause the game forever.
  */
 export async function requestUndo(
   code: string,
   callerName: string,
 ): Promise<void> {
   const roomRef = doc(db, 'rooms', code);
+  const handRefFor = (name: string) => doc(db, 'rooms', code, 'hands', name);
+
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(roomRef);
     if (!snap.exists()) return;
@@ -761,23 +817,44 @@ export async function requestUndo(
     const pu = room.pendingUndo;
     if (!pu) return;
     if (pu.actor !== callerName) return;
-    if (!pu.requested) {
+
+    if (pu.requested) {
+      // Cancel: drop the request, clear votes, play resumes.
       tx.update(roomRef, {
-        pendingUndo: { ...pu, requested: true, votes: [callerName] },
+        pendingUndo: { ...pu, requested: false, votes: [], noVotes: [] },
       });
-    } else {
-      // Cancel — drop the request and reset votes.
-      tx.update(roomRef, {
-        pendingUndo: { ...pu, requested: false, votes: [] },
-      });
+      return;
     }
+
+    const { threshold } = undoElectorate(room);
+    if (threshold <= 1) {
+      if (pu.kind === 'play' && pu.snapshot.handCards) {
+        tx.set(handRefFor(pu.actor), { cards: pu.snapshot.handCards });
+      }
+      tx.update(
+        roomRef,
+        undoRestorePatch(room, pu) as Record<string, unknown>,
+      );
+      return;
+    }
+
+    tx.update(roomRef, {
+      pendingUndo: {
+        ...pu,
+        requested: true,
+        votes: [callerName],
+        noVotes: [],
+        requestedAt: Date.now(),
+      },
+    });
   });
 }
 
 /**
- * Toggle a non-actor's vote on a pending undo. When the tally hits a
- * majority of real players (including the actor's own yes), restore the
- * snapshot and clear pendingUndo.
+ * Cast or change a vote on an open undo. Approvals that reach a majority
+ * of real players restore the snapshot; enough rejections to put that
+ * majority out of reach deny the request outright, so a table never sits
+ * paused waiting on a vote that can no longer pass.
  */
 export async function voteUndo(
   code: string,
@@ -794,49 +871,63 @@ export async function voteUndo(
     const pu = room.pendingUndo;
     if (!pu || !pu.requested) return;
 
-    // The actor's vote is immutable — they triggered the request. Other
-    // real players can toggle.
+    // The actor's approval is immutable: asking for the undo is the vote.
     if (callerName === pu.actor) return;
 
-    const current = new Set(pu.votes);
-    if (voteYes) current.add(callerName);
-    else current.delete(callerName);
+    const { voters, threshold } = undoElectorate(room);
+    if (!voters.includes(callerName)) return;
 
-    const realPlayers = room.playerOrder.filter(
-      (n) => !isBot(room, n),
-    );
-    const realVotes = [...current].filter(
-      (n) => !isBot(room, n) && realPlayers.includes(n),
-    );
-    const threshold = Math.floor(realPlayers.length / 2) + 1;
-
-    if (realVotes.length >= threshold) {
-      // Apply the snapshot. For 'play' kind also restore the actor's hand.
-      const s = pu.snapshot;
-      const restore: Partial<RoomDoc> = {
-        bids: s.bids,
-        currentPlayerIndex: s.currentPlayerIndex,
-        trickInProgress: s.trickInProgress,
-        leadSuit: s.leadSuit,
-        status: s.status,
-        tricksWon: s.tricksWon,
-        // New snapshots truncate; legacy snapshots carry full copies.
-        trickHistory:
-          s.trickHistory ??
-          room.trickHistory.slice(0, s.trickHistoryLen ?? room.trickHistory.length),
-        currentTrick: s.currentTrick,
-        log: s.log ?? room.log.slice(0, s.logLen ?? room.log.length),
-        pendingUndo: null,
-      };
-      if (pu.kind === 'play' && s.handCards) {
-        tx.set(handRefFor(pu.actor), { cards: s.handCards });
-      }
-      tx.update(roomRef, restore as Record<string, unknown>);
+    const yes = new Set(pu.votes.filter((n) => voters.includes(n)));
+    const no = new Set((pu.noVotes ?? []).filter((n) => voters.includes(n)));
+    // A vote is one or the other, never both.
+    if (voteYes) {
+      yes.add(callerName);
+      no.delete(callerName);
     } else {
-      tx.update(roomRef, {
-        pendingUndo: { ...pu, votes: [...current] },
-      });
+      no.add(callerName);
+      yes.delete(callerName);
     }
+
+    if (yes.size >= threshold) {
+      if (pu.kind === 'play' && pu.snapshot.handCards) {
+        tx.set(handRefFor(pu.actor), { cards: pu.snapshot.handCards });
+      }
+      tx.update(
+        roomRef,
+        undoRestorePatch(room, pu) as Record<string, unknown>,
+      );
+      return;
+    }
+
+    // Denied: even if every remaining voter said yes it could not pass.
+    if (voters.length - no.size < threshold) {
+      tx.update(roomRef, { pendingUndo: null });
+      return;
+    }
+
+    tx.update(roomRef, {
+      pendingUndo: { ...pu, votes: [...yes], noVotes: [...no] },
+    });
+  });
+}
+
+/**
+ * Clear an undo vote that has been open past {@link UNDO_VOTE_TTL_MS}.
+ * Any client may call it, and the guard inside makes a race harmless:
+ * whoever lands first clears it, the rest no-op. This is what keeps one
+ * backgrounded phone from pausing the table indefinitely.
+ */
+export async function resolveExpiredUndo(code: string): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) return;
+    const room = snap.data() as RoomDoc;
+    const pu = room.pendingUndo;
+    if (!pu?.requested) return;
+    const openedAt = pu.requestedAt ?? 0;
+    if (Date.now() - openedAt < UNDO_VOTE_TTL_MS) return;
+    tx.update(roomRef, { pendingUndo: null });
   });
 }
 

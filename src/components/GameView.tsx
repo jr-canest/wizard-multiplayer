@@ -13,9 +13,11 @@ import { Reactions } from './Reactions';
 import { UndoStripBar } from './OverlayBanner';
 import { CommentaryOverlay } from './CommentaryOverlay';
 import { GameMenu } from './GameMenu';
+import { UndoVoteModal } from './UndoVoteModal';
 import { Table } from './Table';
 import { DealAnimation } from './DealAnimation';
 import { playCard } from '../lib/gameFlow';
+import { bidGridLayout } from '../lib/bidLayout';
 import { legalIndices } from '../game/legalMoves';
 import { playerColor } from '../lib/playerColors';
 import { sortHandWithIndex } from '../lib/sortHand';
@@ -34,6 +36,10 @@ export function GameView({ room, players, myName }: Props) {
   const dealerName = room.playerOrder[room.dealerIndex];
   const isDealer = dealerName === myName;
   const isMyTurn = room.playerOrder[room.currentPlayerIndex] === myName;
+  // An open undo vote stops the table: no bids, no plays, no turn cues.
+  // gameFlow enforces it; this is the UI half so nothing invites an
+  // action that would be refused.
+  const votePaused = !!room.pendingUndo?.requested;
 
   // Hold the round-ending trick on screen for a beat before the round
   // scoreboard takes over. Flips to true synchronously during render
@@ -311,17 +317,20 @@ export function GameView({ room, players, myName }: Props) {
   const myBid = room.bids[myName];
   const myWon = room.tricksWon[myName] ?? 0;
 
-  // Bid-picker density rule: with ≤6 values the picker floats over the
-  // felt as an anchored overlay. With 7+ values it wraps to two rows,
-  // so it takes its own place in the layout instead (anchoring a tall
-  // panel at the felt's bottom edge would hide the side-column tiles)
-  // and the felt shrinks to pay for it.
+  // Bid-picker density rule: a single row of numbers floats over the
+  // felt as an anchored overlay. Two or more rows take their own place
+  // in the layout instead (anchoring a tall panel at the felt's bottom
+  // edge would hide the side-column tiles) and the felt shrinks to pay
+  // for it. Balanced rows mean this now only kicks in from 9 values up,
+  // where it used to start at 7.
   const isMyBidTurn =
     room.status === 'bidding' &&
     room.playerOrder[room.currentPlayerIndex] === myName &&
-    myBid === undefined;
+    myBid === undefined &&
+    !votePaused;
   const bidValueCount = cardsThisRound + 1;
-  const inlineBidPanel = isMyBidTurn && bidValueCount >= 7;
+  const inlineBidPanel =
+    isMyBidTurn && bidGridLayout(bidValueCount).rows > 1;
 
   return (
     <div className="w-full max-w-md space-y-2">
@@ -389,6 +398,9 @@ export function GameView({ room, players, myName }: Props) {
 
       <DisconnectBanner room={room} players={players} myName={myName} />
 
+      {/* Table-wide undo vote. Renders over everything and pauses play. */}
+      <UndoVoteModal room={room} myName={myName} />
+
       {/* Big transient commentary titles (your turn, streaks, wizard
           kills, ace of spades). Fixed-centered, pointer-events-none. */}
       <CommentaryOverlay room={room} myName={myName} active={showOpponents} />
@@ -404,7 +416,8 @@ export function GameView({ room, players, myName }: Props) {
           myName={myName}
           trickPlays={displayedPlays}
           trickIsLeaving={trickIsLeaving}
-          isMyTurn={isMyTurn}
+          isMyTurn={isMyTurn && !votePaused}
+          paused={votePaused}
           shortFelt={inlineBidPanel}
           hideTrump={dealingActive}
           isLastRoundNoTrump={
@@ -489,14 +502,22 @@ export function GameView({ room, players, myName }: Props) {
           // Whoever is on the clock is named in their own seat colour.
           // Gold in this strip now means one thing only: it is my turn.
           const currentColor = playerColor(currentName, room.playerOrder);
-          const isPlayingTurn = room.status === 'playing' && isMyTurn;
+          const isPlayingTurn =
+            room.status === 'playing' && isMyTurn && !votePaused;
           const isBiddingTurn =
             room.status === 'bidding' &&
             currentName === myName &&
-            myBid === undefined;
+            myBid === undefined &&
+            !votePaused;
           let primary: React.ReactNode = null;
           let frame = '';
-          if (isPlayingTurn) {
+          if (votePaused) {
+            primary = (
+              <span className="uppercase tracking-[0.2em] font-black text-rose-300 text-[11px]">
+                PAUSED
+              </span>
+            );
+          } else if (isPlayingTurn) {
             primary = (
               <span className="uppercase tracking-[0.26em] font-black text-[#fff3cf] text-[14px] drop-shadow-[0_0_10px_rgba(254,205,70,0.75)]">
                 YOUR TURN
@@ -585,7 +606,8 @@ export function GameView({ room, players, myName }: Props) {
           const showUndoInStrip =
             (room.status === 'bidding' || room.status === 'playing') &&
             !!room.pendingUndo &&
-            (room.pendingUndo.actor === myName || !!room.pendingUndo.requested);
+            room.pendingUndo.actor === myName &&
+            !room.pendingUndo.requested;
           return (
             <div
               data-action-strip
@@ -648,9 +670,11 @@ export function GameView({ room, players, myName }: Props) {
           <HandDisplay
             hand={displayHand}
             legal={legal}
-            isMyTurn={room.status === 'playing' && isMyTurn}
+            isMyTurn={room.status === 'playing' && isMyTurn && !votePaused}
             onPlay={
-              room.status === 'playing' && isMyTurn ? handlePlay : undefined
+              room.status === 'playing' && isMyTurn && !votePaused
+                ? handlePlay
+                : undefined
             }
           />
           {playError && (

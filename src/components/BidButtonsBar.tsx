@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { placeBid, violatesCanadianRule } from '../lib/gameFlow';
+import { bidGridLayout } from '../lib/bidLayout';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -10,7 +11,7 @@ type Props = {
 /**
  * The bid number-picker bar. Renders inside the trick area while it's
  * the local viewer's turn to bid (no trick cards on the table yet to
- * collide with). Standalone — no surrounding card-gold frame.
+ * collide with). Standalone, no surrounding card-gold frame.
  */
 export function BidButtonsBar({ room, myName }: Props) {
   const [submitting, setSubmitting] = useState<number | null>(null);
@@ -57,14 +58,21 @@ export function BidButtonsBar({ room, myName }: Props) {
     room.canadianRule &&
     room.currentRound > 1;
 
-  // Density rule: ≤6 values stay one flex row (46px chips); 7+ wrap to
-  // rows of ≤6 equal-width 42px chips.
   const valueCount = cardsThisRound + 1;
-  const useGrid = valueCount >= 7;
+  const { cols, rows } = bidGridLayout(valueCount);
+  const multiRow = rows > 1;
+  // Tighter gutter once the row is wide, so the chips keep their width.
+  const gap = cols > 6 ? 5 : 8;
+  // Wrapping flex rather than a grid: a partial last row then CENTRES
+  // itself under the full ones instead of hanging off the left edge.
+  const basis = `calc((100% - ${(cols - 1) * gap}px) / ${cols})`;
 
   return (
     <div className="flex flex-col gap-1">
-      <div className={useGrid ? 'grid grid-cols-6 gap-[5px]' : 'flex gap-2'}>
+      <div
+        className="flex flex-wrap justify-center"
+        style={{ gap: `${gap}px` }}
+      >
         {Array.from({ length: valueCount }, (_, i) => {
           const locked = isLocked(i);
           const submittingThis = submitting === i;
@@ -74,7 +82,8 @@ export function BidButtonsBar({ room, myName }: Props) {
               type="button"
               disabled={locked || submitting !== null}
               onClick={() => pick(i)}
-              className={`${useGrid ? 'h-[42px]' : 'flex-1 h-[46px]'} chip ${
+              style={{ flex: `0 0 ${basis}` }}
+              className={`${multiRow ? 'h-[42px]' : 'h-[46px]'} chip ${
                 locked ? 'chip-locked cursor-not-allowed' : 'active:scale-95 transition'
               }`}
             >

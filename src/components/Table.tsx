@@ -29,6 +29,8 @@ type Props = {
   trickPlays: Array<{ playerName: string; card: Card; playOrder?: number }>;
   trickIsLeaving: boolean;
   isMyTurn: boolean;
+  /** An undo vote is open: the table is stopped, so no turn cues. */
+  paused?: boolean;
   /** True while the two-row bid picker sits inline below the table —
    * the felt gives up height to pay for it. */
   shortFelt?: boolean;
@@ -54,6 +56,7 @@ export function Table({
   trickPlays,
   trickIsLeaving,
   isMyTurn,
+  paused = false,
   shortFelt = false,
   hideTrump = false,
   isLastRoundNoTrump = false,
@@ -69,7 +72,8 @@ export function Table({
   // is readable from the middle of the screen where the cards are, not
   // only from the strip under the hand. Gold halo = mine, quiet steel
   // edge = someone else's, nothing at all between rounds.
-  const inTurnPhase = room.status === 'bidding' || room.status === 'playing';
+  const inTurnPhase =
+    !paused && (room.status === 'bidding' || room.status === 'playing');
   const activeName = inTurnPhase
     ? room.playerOrder[room.currentPlayerIndex]
     : null;
@@ -114,6 +118,7 @@ export function Table({
                   myName={myName}
                   playerName={name}
                   playerMeta={playersByName.get(name)}
+                  paused={paused}
                 />
               </div>
             ) : (
@@ -136,6 +141,7 @@ export function Table({
                   myName={myName}
                   playerName={name}
                   playerMeta={playersByName.get(name)}
+                  paused={paused}
                 />
               ) : (
                 <div key={`left-${i}`} />
@@ -193,6 +199,7 @@ export function Table({
                   myName={myName}
                   playerName={name}
                   playerMeta={playersByName.get(name)}
+                  paused={paused}
                 />
               ) : (
                 <div key={`right-${i}`} />

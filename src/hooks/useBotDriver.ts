@@ -59,6 +59,10 @@ export function useBotDriver(room: RoomSnapshot | null, myName: string | null) {
     if (!room || !myName) return;
     if (room.hostPlayerName !== myName) return;
     if (!room.playerOrder.some((n) => isBot(room, n))) return;
+    // The table is paused while an undo vote is open. The computers wait
+    // it out with everyone else, otherwise they would play straight
+    // through the vote and blow away the snapshot being voted on.
+    if (room.pendingUndo?.requested) return;
 
     const dealerName = room.playerOrder[room.dealerIndex];
     const currentName = room.playerOrder[room.currentPlayerIndex];
@@ -170,7 +174,6 @@ export function useBotDriver(room: RoomSnapshot | null, myName: string | null) {
     // intent isn't consumed before the cards are known.
     if (!room.awaitingTrumpChoice && !hands[currentName]) return;
     if (lastIntentRef.current === intent) return;
-    lastIntentRef.current = intent;
 
     const isLeadingNewTrick =
       room.status === 'playing' &&
@@ -181,8 +184,19 @@ export function useBotDriver(room: RoomSnapshot | null, myName: string | null) {
       : BOT_ACTION_DELAY_MS;
 
     const fn = action;
+    const thisIntent = intent;
     const timer = setTimeout(() => {
+      // Claim the intent as the action fires, not when it is scheduled.
+      // Any room change re-runs this effect and the cleanup below kills
+      // the pending timer, so claiming it up front meant a seat could be
+      // skipped for good: the re-run saw its own intent already consumed
+      // and scheduled nothing. Pausing for an undo vote made that a
+      // reliable stall, since the vote itself is a room change.
+      lastIntentRef.current = thisIntent;
       fn().catch((err) => {
+        // Let the seat try again on the next snapshot rather than sitting
+        // out the rest of the game.
+        lastIntentRef.current = null;
         console.warn('[bot driver] action failed', err);
       });
     }, delay);

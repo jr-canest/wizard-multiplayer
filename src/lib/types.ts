@@ -132,11 +132,27 @@ export type PendingUndo = {
   kind: 'bid' | 'play';
   actor: string;
   // True once the actor has tapped their "Undo" button. Until then no one
-  // else sees a vote prompt.
+  // else sees a vote prompt. Once true the game is PAUSED: placeBid and
+  // playCard refuse, and the bot driver holds off, until the vote lands.
   requested: boolean;
+  // Approvals, seeded with the actor (asking counts as approving).
   votes: string[];
+  // Explicit rejections. Once enough players have said no that approval
+  // can no longer reach the threshold, the request is denied and play
+  // resumes immediately instead of waiting out the clock.
+  noVotes?: string[];
+  // Epoch ms the vote opened. The modal counts down from it, and any
+  // client may clear an expired vote, so one sleeping phone can never
+  // freeze the table.
+  requestedAt?: number;
+  // What is on the table, purely for the vote modal's wording.
+  bidValue?: number;
+  card?: Card;
   snapshot: UndoSnapshot;
 };
+
+/** How long a requested undo vote stays open before any client clears it. */
+export const UNDO_VOTE_TTL_MS = 45_000;
 
 export type RoomPlayerDoc = {
   authUid: string;
