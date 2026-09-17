@@ -217,6 +217,37 @@ export function CommentaryOverlay({ room, myName, active }: Props) {
       if (e.round === last.round && e.winner === last.winner) streak++;
       else break;
     }
+
+    // Overshooting the bid. The streak callout alone missed the funniest
+    // case: a player who is winning tricks they did NOT ask for. Wins
+    // past the bid get their own line, with the count and the bid in it,
+    // and it replaces the streak callout rather than queueing behind it.
+    const winnerBid = room.bids[last.winner];
+    const winnerWon = room.tricksWon[last.winner] ?? 0;
+    if (winnerBid !== undefined && winnerWon > winnerBid) {
+      const isMe = last.winner === myName;
+      const name = last.winner.toUpperCase();
+      const over = winnerWon - winnerBid;
+      const title =
+        over === 1
+          ? isMe
+            ? 'ONE TOO MANY'
+            : `${name}: ONE TOO MANY`
+          : over === 2
+            ? isMe
+              ? "YOU CAN'T STOP WINNING"
+              : `${name} CAN'T STOP WINNING`
+            : isMe
+              ? 'MAKE IT STOP'
+              : `SOMEONE STOP ${name}`;
+      const sub =
+        streak >= 2
+          ? `${streak} in a row, and nobody asked for them. ${winnerWon} won on a bid of ${winnerBid}`
+          : `${winnerWon} won on a bid of ${winnerBid}`;
+      enqueue({ title, sub, tone: 'fire', priority: 3 });
+      return;
+    }
+
     if (streak >= 2) {
       const isMe = last.winner === myName;
       const name = last.winner.toUpperCase();

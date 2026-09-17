@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { postReaction } from '../lib/gameFlow';
+import { REACTIONS, recordReactionUse } from '../lib/reactions';
+import { isTestGame } from '../lib/history';
 import { getUIZoom } from '../hooks/useUIScale';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
@@ -9,16 +11,8 @@ type Props = {
   myName: string;
 };
 
-const REACTIONS = [
-  'ouch',
-  'sorry!',
-  'thanks!',
-  'take your time',
-  'skip skip skip',
-  'no mercy',
-  'respect the game',
-  'why???',
-];
+// The phrase list lives in src/lib/reactions.ts so the usage readout on
+// /me can score against exactly what the picker offers.
 // Reactions linger long enough to be readable + give other players time
 // to glance at them, but short enough that a follow-up reaction can take
 // the slot.
@@ -70,6 +64,9 @@ export function Reactions({ room, myName }: Props) {
     if (sending) return;
     setSending(true);
     setOpen(false);
+    // All-rooms tally of which phrases actually get used, see
+    // src/lib/reactions.ts. Not awaited, and test games do not count.
+    recordReactionUse(text, isTestGame(room));
     try {
       await postReaction(room.code, myName, text);
     } finally {

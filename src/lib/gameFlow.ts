@@ -42,29 +42,12 @@ export async function postReaction(
   });
 }
 
-const CHAT_MAX_LEN = 200;
-
-/**
- * Append a freeform chat message to the room's chat. Used by the lobby
- * and the round-end scoreboard so players can keep talking through the
- * game. Trims empty input and clamps long messages. Uses arrayUnion so a
- * send is a single write (no read round-trip) — felt slow before. Chat
- * is reset to [] on every round transition (dealNextRound +
- * scoreAndAdvance final branch + resetForNewGame), so the array stays
- * bounded by messages-per-window in practice.
+/*
+ * Chat used to live here as an arrayUnion append to the room document.
+ * It now has its own subcollection, see src/lib/chat.ts. The `chat: []`
+ * wipes below stay so any message written by a client still running the
+ * old build gets cleared at the same window boundaries as before.
  */
-export async function sendChat(
-  code: string,
-  player: string,
-  text: string,
-): Promise<void> {
-  const trimmed = text.trim().slice(0, CHAT_MAX_LEN);
-  if (!trimmed) return;
-  const roomRef = doc(db, 'rooms', code);
-  await updateDoc(roomRef, {
-    chat: arrayUnion({ player, text: trimmed, ts: Date.now() }),
-  });
-}
 
 /**
  * Toggle the caller's vote that the next round should be the last. When the
@@ -363,8 +346,8 @@ export async function dealNextRound(code: string, prev: RoomDoc): Promise<void> 
     endEarlyVotes: [],
     pendingUndo: null,
     cumulativeScores: prev.cumulativeScores,
-    // Chat is per-window (lobby, each round-end, final). Wipe on every
-    // round transition so the next chat window opens fresh.
+    // Legacy chat array, see src/lib/chat.ts. Wiped at the same window
+    // boundaries as before so old-build messages do not linger.
     chat: [],
   });
 
@@ -1010,6 +993,9 @@ async function resetGameStateInternal(
     endEarlyVotes: [],
     endGameVotes: [],
     chat: [],
+    // New game, new chat window: bumping the generation means the fresh
+    // lobby does not reopen the previous game's lobby conversation.
+    chatGen: (room.chatGen ?? 0) + 1,
   });
 }
 

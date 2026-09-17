@@ -117,6 +117,11 @@ export function OpponentTile({
         className={`text-[10px] font-semibold truncate text-center leading-tight px-0.5 ${color.text}`}
         title={botDifficulty ? `${playerName} · computer (${botDifficulty})` : playerName}
       >
+        {isActive && (
+          <span className="text-[#cfe3f5] mr-0.5" aria-hidden="true">
+            ▸
+          </span>
+        )}
         {playerName}
         {botDifficulty && (
           <span className="ml-0.5 text-[8px] font-bold uppercase tracking-wider text-navy-300">
@@ -128,7 +133,10 @@ export function OpponentTile({
       data-player={playerName}
       className={`relative rounded-lg py-1.5 px-1 border transition-opacity flex flex-col items-center justify-center min-h-[48px] ${
         isActive
-          ? 'card-gold-active'
+          ? // Steel, never gold. Gold means "the table is waiting on
+            // YOU", so an opponent's turn has to read as a different
+            // thing entirely, not a quieter version of the same thing.
+            'turn-theirs'
           : `bg-[rgba(12,18,36,.6)] ${color.border} ${
               acted ? '' : isBidding || isPlaying ? 'opacity-55' : ''
             }`
@@ -143,7 +151,9 @@ export function OpponentTile({
         className={`leading-none truncate w-full text-center ${
           label === '✓'
             ? 'text-[14px] font-black text-emerald-300'
-            : 'text-[8px] font-bold uppercase tracking-[0.14em] text-navy-300'
+            : `text-[8px] font-bold uppercase tracking-[0.14em] ${
+                isActive ? 'text-[#cfe3f5]' : 'text-navy-300'
+              }`
         }`}
       >
         {label || ' '}

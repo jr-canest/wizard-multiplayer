@@ -76,10 +76,15 @@ export type RoomDoc = {
   // based on `ts` (epoch ms, client-set — no clock-skew sensitivity since
   // it's a soft TTL, not a correctness check).
   lastReaction?: { player: string; text: string; ts: number } | null;
-  // Freeform chat shown in the lobby and round-end scoreboard. Capped
-  // at the most recent entries so the doc stays small. Cleared on
-  // resetForNewGame.
+  // LEGACY freeform chat. Superseded 2026-09-17 by the rooms/{code}/chat
+  // subcollection (see src/lib/chat.ts): keeping chat on this document
+  // meant every message re-pushed the whole room doc to every phone.
+  // Still READ so a client that has not picked up the new build yet can
+  // be seen; nothing writes to it any more.
   chat?: Array<{ player: string; text: string; ts: number }>;
+  // Chat-window generation, bumped on resetForNewGame so a second game's
+  // lobby chat starts clean instead of reopening the first game's.
+  chatGen?: number;
   // Host-chosen cap on rounds. null = play the maximum allowed by the
   // deck for this player count. Clamped at startGame.
   chosenTotalRounds?: number | null;

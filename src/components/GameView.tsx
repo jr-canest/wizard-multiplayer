@@ -486,6 +486,9 @@ export function GameView({ room, players, myName }: Props) {
         room.status === 'playing' ||
         room.status === 'dealing') && (() => {
           const currentName = room.playerOrder[room.currentPlayerIndex];
+          // Whoever is on the clock is named in their own seat colour.
+          // Gold in this strip now means one thing only: it is my turn.
+          const currentColor = playerColor(currentName, room.playerOrder);
           const isPlayingTurn = room.status === 'playing' && isMyTurn;
           const isBiddingTurn =
             room.status === 'bidding' &&
@@ -495,14 +498,16 @@ export function GameView({ room, players, myName }: Props) {
           let frame = '';
           if (isPlayingTurn) {
             primary = (
-              <span className="uppercase tracking-[0.22em] font-bold text-cream-bright text-[11px] animate-pulse">
+              <span className="uppercase tracking-[0.26em] font-black text-[#fff3cf] text-[14px] drop-shadow-[0_0_10px_rgba(254,205,70,0.75)]">
                 YOUR TURN
               </span>
             );
-            frame = 'card-gold card-gold-active';
+            frame = 'card-gold turn-mine';
           } else if (isBiddingTurn) {
-            // BidModal is up — no need for a redundant "place your bid"
-            // line in the strip. Leave primary empty; subtitle still shows.
+            // The bid picker is already up, so the strip does not repeat
+            // the instruction. It still takes the gold frame, so "gold
+            // glow = they are waiting on me" holds in every phase.
+            frame = 'card-gold turn-mine';
           } else if (
             room.status === 'bidding' &&
             myBid !== undefined &&
@@ -513,7 +518,7 @@ export function GameView({ room, players, myName }: Props) {
                 Your bid: <strong className="text-gold-100">{myBid}</strong>
                 {' · '}
                 Waiting for{' '}
-                <strong className="text-gold-200">{currentName}</strong>…
+                <strong className={currentColor.text}>{currentName}</strong>…
               </span>
             );
           } else if (
@@ -523,7 +528,7 @@ export function GameView({ room, players, myName }: Props) {
             primary = (
               <span className="text-navy-200 text-[12px]">
                 Waiting for{' '}
-                <strong className="text-gold-200">{currentName}</strong>…
+                <strong className={currentColor.text}>{currentName}</strong>…
               </span>
             );
           } else {

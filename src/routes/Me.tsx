@@ -23,6 +23,10 @@ import {
   type PlayerStats,
 } from '../lib/playerStats';
 import { cardLabel } from '../lib/cardImages';
+import {
+  fetchReactionTallies,
+  type ReactionTally,
+} from '../lib/reactions';
 import type { LogEntry } from '../lib/types';
 
 type GameDoc = {
@@ -155,6 +159,7 @@ export function Me() {
             <TopCardsSection stats={stats} />
             <BidAccuracySection stats={stats} />
             <TrickStatsSection stats={stats} />
+            <ReactionUseSection />
             <IdentityEditSection
               player={player}
               onChanged={(next) => setPlayer(next)}
@@ -355,6 +360,87 @@ function TrickStatsSection({ stats }: { stats: PlayerStats }) {
             </div>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Which reaction phrases the table actually reaches for, counted across
+ * every room (see src/lib/reactions.ts). Most used at the top, never
+ * used at the bottom, so retiring a dead phrase is an easy call.
+ */
+function ReactionUseSection() {
+  const [tallies, setTallies] = useState<ReactionTally[] | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetchReactionTallies()
+      .then((rows) => {
+        if (alive) setTallies(rows);
+      })
+      .catch(() => {
+        if (alive) setFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const total = (tallies ?? []).reduce((a, r) => a + r.count, 0);
+  const top = total > 0 ? Math.max(...(tallies ?? []).map((r) => r.count)) : 0;
+
+  return (
+    <div className="card-gold p-3 space-y-2">
+      <div className="flex items-baseline justify-between">
+        <p className="section-label">Reactions used</p>
+        {total > 0 && (
+          <span className="text-[10px] text-navy-300 tabular-nums">
+            {total} sent
+          </span>
+        )}
+      </div>
+      {failed ? (
+        <p className="text-navy-300 text-xs italic">
+          Could not load reaction counts.
+        </p>
+      ) : tallies === null ? (
+        <p className="text-navy-300 text-xs italic">Loading…</p>
+      ) : total === 0 ? (
+        <p className="text-navy-300 text-xs italic">
+          No reactions sent yet.
+        </p>
+      ) : (
+        <div className="space-y-1">
+          {tallies.map((r) => (
+            <div key={r.key} className="flex items-center gap-2">
+              <span
+                className={`text-xs truncate ${
+                  r.count === 0 ? 'text-navy-400' : 'text-cream'
+                }`}
+              >
+                {r.text}
+                {r.retired && (
+                  <span className="ml-1 text-[9px] uppercase tracking-wider text-navy-400">
+                    retired
+                  </span>
+                )}
+              </span>
+              <span className="flex-1 h-[6px] rounded-full bg-navy-900/70 overflow-hidden">
+                <span
+                  className="block h-full rounded-full bg-gold-300/70"
+                  style={{
+                    width: top > 0 ? `${(r.count / top) * 100}%` : '0%',
+                  }}
+                />
+              </span>
+              <span className="text-xs text-cream font-semibold tabular-nums w-7 text-right">
+                {r.count}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

@@ -65,6 +65,21 @@ export function Table({
 
   const playersByName = new Map(players.map((p) => [p.name, p]));
 
+  // Felt edge carries the turn signal too, so the answer to "is it me?"
+  // is readable from the middle of the screen where the cards are, not
+  // only from the strip under the hand. Gold halo = mine, quiet steel
+  // edge = someone else's, nothing at all between rounds.
+  const inTurnPhase = room.status === 'bidding' || room.status === 'playing';
+  const activeName = inTurnPhase
+    ? room.playerOrder[room.currentPlayerIndex]
+    : null;
+  const feltTurnClass =
+    activeName === null
+      ? ''
+      : activeName === myName
+        ? 'felt-turn-mine'
+        : 'felt-turn-theirs';
+
   // Slot index → player. Slot 0 = me; slots 1..N-1 = others clockwise.
   // We populate sides from the seatPositions order:
   //   slots 1..left          → left column, bottom-up (so DOM top-to-bottom is reversed)
@@ -132,7 +147,7 @@ export function Table({
         {/* Table center: trick area + trump in middle */}
         <div
           data-trick-area-frame
-          className={`felt flex-1 relative overflow-hidden p-2 ${
+          className={`felt ${feltTurnClass} flex-1 relative overflow-hidden p-2 ${
             shortFelt ? 'min-h-[210px]' : 'min-h-[306px]'
           }`}
         >

@@ -1,45 +1,61 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { sendChat } from '../lib/gameFlow';
 import { playerColor } from '../lib/playerColors';
+import { useChat } from '../hooks/useChat';
+import {
+  CHAT_MAX_LEN,
+  chatWindowKey,
+  sendChatMessage,
+  type ChatMessage,
+} from '../lib/chat';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
-const VISIBLE_CHAT_COUNT = 3;
+const VISIBLE_CHAT_COUNT = 4;
 // Opacity by distance from newest: 0 = newest, last entry = oldest visible.
-const FADE_BY_DISTANCE = [1, 0.75, 0.5];
+const FADE_BY_DISTANCE = [1, 0.8, 0.62, 0.45];
 
 type Props = {
   room: RoomSnapshot;
   myName: string;
 };
 
-type ChatMessage = { player: string; text: string; ts: number };
 type DisplayMessage = ChatMessage & { pending?: boolean };
 
 /**
  * Compact chat used in the lobby, round-end scoreboard, and final
  * scoreboard. Renders the {@link VISIBLE_CHAT_COUNT} most recent
- * messages plus an input. Doc-backed via room.chat — see sendChat.
- * Locally-sent messages render optimistically (greyed out) the instant
- * they're sent, then snap to full opacity once the server echoes them
- * back through room.chat.
+ * messages plus an input.
+ *
+ * Backed by the rooms/{code}/chat subcollection (src/lib/chat.ts), so a
+ * message is a tiny doc on its own write path rather than an append to
+ * the room document. Locally-sent messages still render optimistically
+ * the instant they are sent; in practice Firestore's local echo lands
+ * first, so the optimistic copy is a safety net rather than the usual
+ * path. The input is never disabled, you can keep typing while a
+ * message is in flight.
  */
 export function Chat({ room, myName }: Props) {
   const [text, setText] = useState('');
-  const [sending, setSending] = useState(false);
   const [optimistic, setOptimistic] = useState<ChatMessage[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
-  // Stable reference when room.chat hasn't changed — keeps the
-  // downstream filter from re-running every render.
-  const serverMessages = useMemo(() => room.chat ?? [], [room.chat]);
+  const liveMessages = useChat(room.code);
+  const windowKey = chatWindowKey(room);
 
-  // Filter out optimistic messages the server has already echoed back
-  // — derived in render rather than synced into state, so there's no
-  // setState-in-effect cleanup needed. arrayUnion preserves ts so the
-  // {player,text,ts} match is exact. The optimistic state never
-  // shrinks here, but it's bounded by the round window (chat resets
-  // on every round transition) so growth is negligible in practice.
+  // Messages for the current chat window (lobby / this round-end /
+  // final). Legacy room.chat entries carry no window and were already
+  // wiped per window by gameFlow, so they belong to whatever window is
+  // open now.
+  const serverMessages = useMemo(() => {
+    const legacy = (room.chat ?? []).map((m) => ({ ...m }));
+    const live = liveMessages.filter((m) => (m.w ?? windowKey) === windowKey);
+    return [...legacy, ...live].sort((a, b) => a.ts - b.ts);
+  }, [room.chat, liveMessages, windowKey]);
+
+  // Drop optimistic copies the server has echoed back. Derived in render
+  // rather than synced into state, so there is no setState-in-effect to
+  // clean up. The ts is carried through the write, so the match is exact.
   const visibleOptimistic = optimistic.filter(
     (o) =>
+      o.w === windowKey &&
       !serverMessages.some(
         (m) => m.player === o.player && m.text === o.text && m.ts === o.ts,
       ),
@@ -57,25 +73,22 @@ export function Chat({ room, myName }: Props) {
     el.scrollTop = el.scrollHeight;
   }, [messages.length]);
 
-  async function handleSend(e: React.FormEvent) {
+  function handleSend(e: React.FormEvent) {
     e.preventDefault();
     const v = text.trim();
-    if (!v || sending) return;
-    setSending(true);
+    if (!v) return;
     setText('');
     const ts = Date.now();
-    const draft: ChatMessage = { player: myName, text: v, ts };
+    const draft: ChatMessage = { player: myName, text: v, ts, w: windowKey };
     setOptimistic((prev) => [...prev, draft]);
-    try {
-      await sendChat(room.code, myName, v);
-    } catch {
-      // Drop the optimistic copy and restore the input so the send
-      // doesn't silently vanish on a flaky network.
+    // Not awaited: the message is already on screen, and blocking the
+    // form on the server ack is exactly what made sending feel slow.
+    sendChatMessage(room.code, windowKey, myName, v, ts).catch(() => {
+      // Drop the optimistic copy and restore the input so the send does
+      // not silently vanish on a flaky network.
       setOptimistic((prev) => prev.filter((o) => o.ts !== ts));
-      setText(v);
-    } finally {
-      setSending(false);
-    }
+      setText((cur) => (cur ? cur : v));
+    });
   }
 
   return (
@@ -101,15 +114,12 @@ export function Chat({ room, myName }: Props) {
             const c = playerColor(m.player, room.playerOrder);
             const isMe = m.player === myName;
             const distanceFromNewest = messages.length - 1 - i;
-            const baseOpacity =
+            const opacity =
               FADE_BY_DISTANCE[distanceFromNewest] ??
               FADE_BY_DISTANCE[FADE_BY_DISTANCE.length - 1];
-            // Pending (optimistic) messages render greyed out, then snap
-            // to baseOpacity the instant the server echoes them back.
-            const opacity = m.pending ? baseOpacity * 0.4 : baseOpacity;
             return (
               <div
-                key={`${m.ts}-${i}`}
+                key={`${m.player}-${m.ts}-${i}`}
                 className="text-[12px] leading-snug break-words transition-opacity duration-300"
                 style={{ opacity }}
               >
@@ -119,14 +129,6 @@ export function Chat({ room, myName }: Props) {
                   {m.player}
                 </span>
                 <span className="text-navy-50">: {m.text}</span>
-                {m.pending && (
-                  <span
-                    className="text-[10px] text-navy-300 ml-1 italic"
-                    aria-label="sending"
-                  >
-                    sending…
-                  </span>
-                )}
               </div>
             );
           })
@@ -137,15 +139,14 @@ export function Chat({ room, myName }: Props) {
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          maxLength={200}
+          maxLength={CHAT_MAX_LEN}
           placeholder="Say something…"
           aria-label="Chat message"
           className="flex-1 rounded-lg bg-[rgba(20,26,44,.8)] border border-gold-300/25 px-2.5 py-1.5 text-sm text-cream placeholder:text-navy-300 focus:outline-none focus:border-gold-300"
-          disabled={sending}
         />
         <button
           type="submit"
-          disabled={sending || !text.trim()}
+          disabled={!text.trim()}
           className="px-3 py-1.5 text-sm rounded-md btn-gold disabled:opacity-50"
         >
           Send
