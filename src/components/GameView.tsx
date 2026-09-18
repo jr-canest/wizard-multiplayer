@@ -494,10 +494,14 @@ export function GameView({ room, players, myName }: Props) {
           turn callout on top + sticky last-event subtitle below. Same
           height across phases so the hand never shifts. The undo CTA
           slots in on the left side of this strip when active so it
-          stays in the player's focus zone without shifting layout. */}
+          stays in the player's focus zone without shifting layout.
+          Hidden while the two-row bid panel is inline: the panel IS the
+          call to action, the strip would just be an empty gold box
+          pushing a 15-card hand further down. */}
       {(room.status === 'bidding' ||
         room.status === 'playing' ||
-        room.status === 'dealing') && (() => {
+        room.status === 'dealing') &&
+        !inlineBidPanel && (() => {
           const currentName = room.playerOrder[room.currentPlayerIndex];
           // Whoever is on the clock is named in their own seat colour.
           // Gold in this strip now means one thing only: it is my turn.

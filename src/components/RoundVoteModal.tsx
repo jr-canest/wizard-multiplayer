@@ -16,10 +16,12 @@ type Props = {
 };
 
 /**
- * The round-end votes (next round, make the next round the last, end the
- * game now) as a center-screen yes/no in front of every real player,
- * instead of the old quiet tally buttons that people missed. Majority
- * carries it; enough no votes to put a majority out of reach dismiss it.
+ * The two round-end decisions that change the game (make the next round
+ * the last, end the game now) as a center-screen yes/no in front of
+ * every real player, instead of the old quiet tally buttons that people
+ * missed. Majority carries it; enough no votes to put a majority out of
+ * reach dismiss it. Plain "next round" is not one of these on purpose:
+ * that stays a quiet ready-tally on the score page.
  */
 export function RoundVoteModal({ room, myName }: Props) {
   if (!room.pendingVote || room.status !== 'scoring') return null;
@@ -30,15 +32,6 @@ function wording(
   kind: RoundVoteKind,
   room: RoomSnapshot,
 ): { subtitle: string; cancel: string } {
-  const isFinalRound = room.currentRound >= room.totalRounds;
-  if (kind === 'nextRound') {
-    return isFinalRound
-      ? { subtitle: 'to finish the game', cancel: 'Never mind, not yet' }
-      : {
-          subtitle: `to deal round ${room.currentRound + 1}`,
-          cancel: 'Never mind, not yet',
-        };
-  }
   if (kind === 'lastRound') {
     return {
       subtitle: `to make round ${room.currentRound + 1} the last one`,
@@ -102,13 +95,7 @@ function RoundVoteDialog({ room, myName }: Props) {
       title={
         <>
           <span className={openerColor.text}>{isOpener ? 'You' : pv.by}</span>{' '}
-          {pv.kind === 'nextRound'
-            ? isOpener
-              ? 'are ready'
-              : 'is ready'
-            : isOpener
-              ? 'want'
-              : 'wants'}
+          {isOpener ? 'want' : 'wants'}
         </>
       }
       subtitle={subtitle}

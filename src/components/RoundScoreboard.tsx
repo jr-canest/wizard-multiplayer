@@ -3,7 +3,9 @@ import {
   computeRoundDeltas,
   cumulativeScoresFromLog,
   openRoundVote,
+  voteNextRound,
 } from '../lib/gameFlow';
+import { isBot } from '../lib/rooms';
 import { Chat } from './Chat';
 import { RoundVoteModal } from './RoundVoteModal';
 import type { RoundVoteKind } from '../lib/types';
@@ -15,6 +17,7 @@ type Props = {
 };
 
 export function RoundScoreboard({ room, myName }: Props) {
+  const [advancing, setAdvancing] = useState(false);
   const [opening, setOpening] = useState<RoundVoteKind | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,10 +40,36 @@ export function RoundScoreboard({ room, myName }: Props) {
   );
   const isFinalRound = room.currentRound >= room.totalRounds;
 
-  // Every round-end decision is one shared yes/no vote in front of the
-  // whole table (RoundVoteModal). The buttons here only OPEN one; the
-  // modal carries the tally, the answers, and the countdown. A player
-  // alone against computers skips the vote and the action just happens.
+  const realPlayers = room.playerOrder.filter((n) => !isBot(room, n));
+  // "Next round" is a quiet ready-tally, not a pop-up (Jorge, 2026-09-18):
+  // mid-game advance is unanimous (no one skipped past a round); final-
+  // round finish is majority so a hold-out can't trap the table.
+  const threshold = isFinalRound
+    ? Math.floor(realPlayers.length / 2) + 1
+    : Math.max(1, realPlayers.length);
+  const nextVotes = (room.nextRoundVotes ?? []).filter((n) =>
+    realPlayers.includes(n),
+  );
+  const myNextVote = nextVotes.includes(myName);
+
+  async function handleAdvance() {
+    if (advancing) return;
+    setAdvancing(true);
+    setError(null);
+    try {
+      await voteNextRound(room.code, myName, !myNextVote);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to vote.');
+    } finally {
+      setAdvancing(false);
+    }
+  }
+
+  // The two decisions that change the game ("next round is last", "end
+  // game now") are one shared yes/no vote in front of the whole table
+  // (RoundVoteModal). The buttons here only OPEN one; the modal carries
+  // the tally, the answers, and the countdown. A player alone against
+  // computers skips the vote and the action just happens.
   const voteOpen = !!room.pendingVote;
 
   async function openVote(kind: RoundVoteKind) {
@@ -105,6 +134,8 @@ export function RoundScoreboard({ room, myName }: Props) {
             const total = (baseCumulative[name] ?? 0) + delta;
             const isMe = name === myName;
             const isWinner = delta === bestDelta && delta > 0;
+            const isReal = !isBot(room, name);
+            const hasVoted = nextVotes.includes(name);
             return (
               <tr
                 key={name}
@@ -119,6 +150,23 @@ export function RoundScoreboard({ room, myName }: Props) {
                     isMe ? 'text-cream-bright font-bold' : 'text-cream'
                   }`}
                 >
+                  {isReal && (
+                    <span
+                      aria-label={hasVoted ? 'voted' : 'not voted'}
+                      title={
+                        hasVoted
+                          ? `${name} voted to ${
+                              isFinalRound ? 'finish' : 'advance'
+                            }`
+                          : `${name} hasn't voted yet`
+                      }
+                      className={`inline-block w-3 mr-1 text-center tabular-nums ${
+                        hasVoted ? 'text-emerald-300' : 'text-navy-400/50'
+                      }`}
+                    >
+                      {hasVoted ? '✓' : '·'}
+                    </span>
+                  )}
                   {name}
                   {isMe ? ' (you)' : ''}
                 </td>
@@ -153,15 +201,19 @@ export function RoundScoreboard({ room, myName }: Props) {
 
       <button
         type="button"
-        onClick={() => openVote('nextRound')}
-        disabled={opening !== null || voteOpen}
-        className="w-full h-12 rounded-lg font-semibold border transition btn-gold active:scale-[0.99] disabled:opacity-60"
+        onClick={handleAdvance}
+        disabled={advancing}
+        className={`w-full h-12 rounded-lg font-semibold border transition tabular-nums ${
+          myNextVote
+            ? 'bg-[rgba(6,78,59,.3)] border-[rgba(16,185,129,.6)] text-emerald-100'
+            : 'btn-gold active:scale-[0.99]'
+        }`}
       >
-        {opening === 'nextRound'
+        {advancing
           ? 'Working…'
-          : isFinalRound
-            ? 'Finish game'
-            : 'Next round'}
+          : myNextVote
+            ? `✓ Voted · ${isFinalRound ? 'finish game' : 'next round'} ${nextVotes.length}/${threshold} (tap to cancel)`
+            : `${isFinalRound ? 'Finish game' : 'Next round'} ${nextVotes.length}/${threshold}`}
       </button>
 
       {!isFinalRound && (
@@ -217,7 +269,7 @@ export function RoundScoreboard({ room, myName }: Props) {
             )}
           </div>
           <p className="text-[11px] text-center text-navy-300">
-            Every vote goes to the whole table. Majority decides.
+            Either one asks the whole table. Majority decides.
           </p>
         </div>
       )}

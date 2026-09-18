@@ -52,9 +52,59 @@ export async function postReaction(
  * old build gets cleared at the same window boundaries as before.
  */
 
+/**
+ * Toggle the caller's vote to advance to the next round (or finish the
+ * game on the final round). Mid-game advance is UNANIMOUS so no one is
+ * skipped past a round they cared about. The final-round "finish game"
+ * vote is MAJORITY so a hold-out can't trap the rest of the table.
+ *
+ * This one is deliberately NOT a pop-up vote (Jorge, 2026-09-18): it is
+ * a quiet "I'm ready" tally on the score page, and the round deals when
+ * everyone has tapped it. The pop-ups are for the two decisions that
+ * change the game, see below.
+ */
+export async function voteNextRound(
+  code: string,
+  callerName: string,
+  voteYes: boolean,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  let advance = false;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) return;
+    const room = snap.data() as RoomDoc;
+    if (room.status !== 'scoring') return;
+
+    const current = new Set(room.nextRoundVotes ?? []);
+    if (voteYes) current.add(callerName);
+    else current.delete(callerName);
+
+    const realPlayers = room.playerOrder.filter(
+      (n) => !isBot(room, n),
+    );
+    const realVotes = [...current].filter(
+      (n) => !isBot(room, n) && realPlayers.includes(n),
+    );
+
+    const isFinalRound = room.currentRound >= room.totalRounds;
+    const threshold = isFinalRound
+      ? Math.floor(realPlayers.length / 2) + 1
+      : realPlayers.length;
+
+    if (realPlayers.length > 0 && realVotes.length >= threshold) {
+      tx.update(roomRef, { nextRoundVotes: [] });
+      advance = true;
+    } else {
+      tx.update(roomRef, { nextRoundVotes: [...current] });
+    }
+  });
+  if (advance) await scoreAndAdvance(code);
+}
+
 /*
- * Round-end votes: next round, make the next round the last, end the
- * game now. One vote can be open at a time. Opening one puts a yes/no
+ * Round-end pop-up votes: make the next round the last, or end the game
+ * now. One vote can be open at a time. Opening one puts a yes/no
  * modal in front of every real player (RoundVoteModal), a majority of
  * real players carries it, and enough rejections to put that majority
  * out of reach dismiss it on the spot. A vote nobody answers expires and
@@ -97,16 +147,15 @@ async function finishGameNow(code: string, room: RoomDoc): Promise<void> {
 
 /**
  * Carry out a vote that passed. `lastRound` is a one-field write and is
- * done inside the transaction by the caller; the other two rewrite the
- * room wholesale and run after it, from the snapshot the vote passed on.
+ * done inside the transaction by the caller; `endGame` rewrites the room
+ * wholesale and runs after it, from the snapshot the vote passed on.
  */
 async function applyRoundVote(
   code: string,
   kind: RoundVoteKind,
   room: RoomDoc,
 ): Promise<void> {
-  if (kind === 'nextRound') await scoreAndAdvance(code);
-  else if (kind === 'endGame') await finishGameNow(code, room);
+  if (kind === 'endGame') await finishGameNow(code, room);
 }
 
 /**

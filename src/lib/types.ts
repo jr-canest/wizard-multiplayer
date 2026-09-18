@@ -59,14 +59,17 @@ export type RoomDoc = {
   // "real player" check (votes, presence, the history guard) reads this
   // map; the host's device drives their moves (useBotDriver).
   bots?: Record<string, BotDifficulty>;
-  // LEGACY (pre 2026-09-18) round-end vote tallies. Replaced by the single
-  // `pendingVote` below; still cleared at the same points so a client on
-  // an older build does not see stale votes. Nothing reads them.
-  endEarlyVotes?: string[];
+  // Player names who've tapped "next round" on the score page (or
+  // "finish game" on the final round). Unanimous mid-game, majority on
+  // the final round. A quiet tally on purpose, not a pop-up.
   nextRoundVotes?: string[];
-  // The one round-end vote that can be open at a time: next round, make
-  // the next round the last, or end the game now. Opening one puts a
-  // yes/no modal in front of every real player (RoundVoteModal).
+  // LEGACY (pre 2026-09-18) tally for "next round is last". Replaced by
+  // `pendingVote`; still cleared at the same points so a client on an
+  // older build does not see stale votes. Nothing reads it.
+  endEarlyVotes?: string[];
+  // The one pop-up vote that can be open at a time: make the next round
+  // the last, or end the game now. Opening one puts a yes/no modal in
+  // front of every real player (RoundVoteModal).
   pendingVote?: PendingVote | null;
   // Player names who've voted to start a new game (used during
   // 'finished'). Cleared on resetForNewGame.
@@ -157,7 +160,7 @@ export type PendingUndo = {
 /** How long a requested undo vote stays open before any client clears it. */
 export const UNDO_VOTE_TTL_MS = 45_000;
 
-export type RoundVoteKind = 'nextRound' | 'lastRound' | 'endGame';
+export type RoundVoteKind = 'lastRound' | 'endGame';
 
 /**
  * A round-end vote in flight. One at a time. `yes` is seeded with the

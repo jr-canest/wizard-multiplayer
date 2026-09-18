@@ -154,7 +154,7 @@ export function Table({
         <div
           data-trick-area-frame
           className={`felt ${feltTurnClass} flex-1 relative overflow-hidden p-2 ${
-            shortFelt ? 'min-h-[210px]' : 'min-h-[306px]'
+            shortFelt ? 'min-h-[250px]' : 'min-h-[306px]'
           }`}
         >
           {/* Trump card centered behind the trick fan. Hidden during the
