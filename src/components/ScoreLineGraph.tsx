@@ -24,6 +24,64 @@ const LINE_COLORS = [
 
 const easeInOut = (t: number) => t * t * (3 - 2 * t);
 
+/*
+ * Each line segment is a cubic with horizontal tangents at both data
+ * points (control points at the segment's mid-x). For that curve:
+ *   x(t) = x0 + (x1 - x0) * (1.5t(1-t) + t^3)   (monotonic in t)
+ *   y(t) = y0 + (y1 - y0) * t^2(3 - 2t)
+ * The replay's x moves linearly with progress, so the tip of the line at
+ * a given progress is the curve point whose x matches, found by solving
+ * the first equation for t. Everything at the tip (the visible end of
+ * the line, the dot, the label, the score) is then read from that one
+ * point. Previously the line was trimmed with stroke-dasharray, i.e. as
+ * a fraction of ARC LENGTH, while the dot moved linearly in x with an
+ * eased score. Steep segments are longer, so the dot ran ahead of or
+ * behind the tip and sat off the curve. Same fix as the scorekeeper's
+ * BarChartRace (2026-09-10); keep the two in lockstep.
+ */
+function solveCurveT(u: number): number {
+  // Invert x-fraction u in [0,1] to t (bisection; g is strictly increasing).
+  let lo = 0;
+  let hi = 1;
+  for (let k = 0; k < 24; k++) {
+    const mid = (lo + hi) / 2;
+    const g = 1.5 * mid * (1 - mid) + mid * mid * mid;
+    if (g < u) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+const fmt = (n: number) => n.toFixed(2);
+function segmentString(x0: number, y0: number, x1: number, y1: number): string {
+  const m = (x0 + x1) / 2;
+  return ` C ${fmt(m)} ${fmt(y0)}, ${fmt(m)} ${fmt(y1)}, ${fmt(x1)} ${fmt(y1)}`;
+}
+// De Casteljau split of the segment at t: the partial curve's command
+// string and its end point (the tip).
+function partialSegment(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  t: number,
+): { cmd: string; x: number; y: number } {
+  const m = (x0 + x1) / 2;
+  type Pt = [number, number];
+  const P: Pt[] = [[x0, y0], [m, y0], [m, y1], [x1, y1]];
+  const L = (a: Pt, b: Pt): Pt => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  const A = L(P[0], P[1]);
+  const B = L(P[1], P[2]);
+  const C = L(P[2], P[3]);
+  const AB = L(A, B);
+  const BC = L(B, C);
+  const tip = L(AB, BC);
+  return {
+    cmd: ` C ${fmt(A[0])} ${fmt(A[1])}, ${fmt(AB[0])} ${fmt(AB[1])}, ${fmt(tip[0])} ${fmt(tip[1])}`,
+    x: tip[0],
+    y: tip[1],
+  };
+}
+
 type Props = {
   room: RoomDoc;
   // Delay before auto-play kicks in. Defaults to 1.2s to match the scorekeeper.
@@ -236,30 +294,60 @@ export function ScoreLineGraph({ room, autoStartDelayMs = 1200 }: Props) {
         if (score === undefined) continue;
         points.push({ x: xForRound(ri), y: yForScore(score), ri, score });
       }
-      if (points.length < 2) return { id: p.id, path: '', points };
-      let d = `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`;
+      if (points.length < 2) return { id: p.id, points, segs: [] as string[] };
+      // One cubic command per segment; the revealed path is a prefix of
+      // these plus a split of the segment the tip is on.
+      const segs: string[] = [];
       for (let i = 1; i < points.length; i++) {
-        const prev = points[i - 1];
-        const curr = points[i];
-        const cpx = (prev.x + curr.x) / 2;
-        d += ` C ${cpx.toFixed(2)} ${prev.y.toFixed(2)}, ${cpx.toFixed(2)} ${curr.y.toFixed(2)}, ${curr.x.toFixed(2)} ${curr.y.toFixed(2)}`;
+        segs.push(
+          segmentString(points[i - 1].x, points[i - 1].y, points[i].x, points[i].y),
+        );
       }
-      return { id: p.id, path: d, points };
+      return { id: p.id, points, segs };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [players, scoreData, totalRounds, minScore, maxScore]);
 
-  const pathLengths = useRef<Record<string, number>>({});
-
-  const getPathReveal = (playerId: string): number => {
-    const line = playerLines.find((l) => l.id === playerId);
-    if (!line || line.points.length < 2) return 0;
-    const first = line.points[0].ri;
-    const last = line.points[line.points.length - 1].ri;
-    const range = last - first;
-    if (range === 0) return 1;
-    return Math.min(1, Math.max(0, (progress - first) / range));
-  };
+  // The tip of every line at the current progress: the revealed path
+  // (cut exactly there), the point itself, and the score at that point.
+  type Tip = { path: string; x: number; y: number; score: number };
+  const tips = useMemo(() => {
+    const out: Record<string, Tip> = {};
+    for (const line of playerLines) {
+      const { points, segs } = line;
+      if (points.length < 2) continue;
+      const first = points[0];
+      const last = points[points.length - 1];
+      const head = `M ${fmt(first.x)} ${fmt(first.y)}`;
+      if (progress <= first.ri) {
+        out[line.id] = { path: head, x: first.x, y: first.y, score: first.score };
+        continue;
+      }
+      if (progress >= last.ri) {
+        out[line.id] = {
+          path: head + segs.join(''),
+          x: last.x,
+          y: last.y,
+          score: last.score,
+        };
+        continue;
+      }
+      let i = 1;
+      while (i < points.length - 1 && points[i].ri <= progress) i++;
+      const a = points[i - 1];
+      const b = points[i];
+      const u = (progress - a.ri) / (b.ri - a.ri);
+      const t = solveCurveT(u);
+      const part = partialSegment(a.x, a.y, b.x, b.y, t);
+      out[line.id] = {
+        path: head + segs.slice(0, i - 1).join('') + part.cmd,
+        x: part.x,
+        y: part.y,
+        score: a.score + (b.score - a.score) * easeInOut(t),
+      };
+    }
+    return out;
+  }, [playerLines, progress]);
 
   const gridLines = useMemo(() => {
     const step = pickStep(scoreRange);
@@ -273,7 +361,11 @@ export function ScoreLineGraph({ room, autoStartDelayMs = 1200 }: Props) {
   const targetLabelPositions = useMemo(() => {
     const active = players
       .filter((p) => isActiveAt(p.id, progress))
-      .map((p) => ({ id: p.id, dotY: yForScore(getScoreAt(p.id, progress)) }));
+      .map((p) => {
+        const tip = tips[p.id];
+        const dotY = tip ? tip.y : yForScore(getScoreAt(p.id, progress));
+        return { id: p.id, dotY };
+      });
     if (active.length === 0) return {} as Record<string, number>;
     active.sort((a, b) => a.dotY - b.dotY);
     const positions: Record<string, number> = {};
@@ -302,7 +394,7 @@ export function ScoreLineGraph({ room, autoStartDelayMs = 1200 }: Props) {
     }
     return positions;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [players, progress, getScoreAt, isActiveAt, minScore, maxScore]);
+  }, [players, progress, tips, getScoreAt, isActiveAt, minScore, maxScore]);
 
   const displayedLabelYRef = useRef<Record<string, number>>({});
   const LABEL_SMOOTHING = 0.22;
@@ -365,7 +457,7 @@ export function ScoreLineGraph({ room, autoStartDelayMs = 1200 }: Props) {
       <svg
         viewBox={`0 0 ${svgWidth} ${svgHeight}`}
         className="w-full"
-        style={{ height: 'auto', maxHeight: '360px' }}
+        style={{ height: 'auto', maxHeight: '360px', overflow: 'visible' }}
       >
         {gridLines.map((v) => (
           <g key={v}>
@@ -392,39 +484,32 @@ export function ScoreLineGraph({ room, autoStartDelayMs = 1200 }: Props) {
           </g>
         ))}
 
-        {/* pathLengths.current is measured on ref-attach then read in
-            render to compute strokeDasharray for the reveal animation. */}
+        {/* Lines, each cut exactly at its tip for the current progress. */}
         {playerLines.map((line) => {
-          const reveal = getPathReveal(line.id);
+          const tip = tips[line.id];
+          if (!tip) return null;
           return (
             <path
               key={`fg-${line.id}`}
-              d={line.path}
+              d={tip.path}
               fill="none"
               stroke={playerColors[line.id]}
               strokeWidth="3"
               strokeLinecap="round"
               strokeLinejoin="round"
-              ref={(el) => {
-                if (el && !pathLengths.current[line.id]) {
-                  pathLengths.current[line.id] = el.getTotalLength();
-                }
-              }}
-              strokeDasharray={pathLengths.current[line.id] || 1000}
-              strokeDashoffset={
-                (pathLengths.current[line.id] || 1000) * (1 - reveal)
-              }
-              style={{ opacity: reveal > 0 ? 1 : 0 }}
             />
           );
         })}
 
         {players.map((p) => {
           if (!isActiveAt(p.id, progress)) return null;
-          const rawScore = getScoreAt(p.id, progress);
+          const tip = tips[p.id];
+          // Single-point lines (a player with one data point) have no
+          // curve to sit on: fall back to the interpolated position.
+          const rawScore = tip ? tip.score : getScoreAt(p.id, progress);
           const displayScore = Math.round(rawScore);
-          const x = xForRound(Math.min(progress, totalRounds));
-          const dotY = yForScore(rawScore);
+          const x = tip ? tip.x : xForRound(Math.min(progress, totalRounds));
+          const dotY = tip ? tip.y : yForScore(rawScore);
           const labelY = labelPositions[p.id] ?? dotY - 4;
           const labelCenterY = labelY + 5;
           const dotToLabelOffset = Math.abs(labelCenterY - dotY);
