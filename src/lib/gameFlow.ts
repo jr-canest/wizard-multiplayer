@@ -16,14 +16,16 @@ import { winningPlayIndex } from '../game/trickWinner';
 import { calcRoundScore } from '../game/scoring';
 import { violatesCanadianRule } from '../game/canadianRule';
 import { isBot } from './rooms';
-import { UNDO_VOTE_TTL_MS } from './types';
+import { ROUND_VOTE_TTL_MS, UNDO_VOTE_TTL_MS } from './types';
 export { violatesCanadianRule };
 import type {
   Card,
   HandDoc,
   LogEntry,
   PendingUndo,
+  PendingVote,
   RoomDoc,
+  RoundVoteKind,
   Suit,
   UndoSnapshot,
 } from './types';
@@ -50,138 +52,27 @@ export async function postReaction(
  * old build gets cleared at the same window boundaries as before.
  */
 
-/**
- * Toggle the caller's vote that the next round should be the last. When the
- * tally reaches a majority of non-bot players, the room's totalRounds is
- * shrunk so scoreAndAdvance ends the game after the next round.
+/*
+ * Round-end votes: next round, make the next round the last, end the
+ * game now. One vote can be open at a time. Opening one puts a yes/no
+ * modal in front of every real player (RoundVoteModal), a majority of
+ * real players carries it, and enough rejections to put that majority
+ * out of reach dismiss it on the spot. A vote nobody answers expires and
+ * any client clears it. The opener alone at a table of computers carries
+ * their own vote, so the thing just happens.
  */
-export async function voteEndEarly(
-  code: string,
-  callerName: string,
-  voteYes: boolean,
-): Promise<void> {
-  const roomRef = doc(db, 'rooms', code);
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(roomRef);
-    if (!snap.exists()) return;
-    const room = snap.data() as RoomDoc;
-    if (room.status !== 'scoring') return;
 
-    const current = new Set(room.endEarlyVotes ?? []);
-    if (voteYes) current.add(callerName);
-    else current.delete(callerName);
-
-    // Threshold = majority of real (non-bot) players.
-    const realPlayers = room.playerOrder.filter(
-      (n) => !isBot(room, n),
-    );
-    const realVotes = [...current].filter(
-      (n) => !isBot(room, n) && realPlayers.includes(n),
-    );
-    const threshold = Math.floor(realPlayers.length / 2) + 1;
-
-    if (realVotes.length >= threshold) {
-      // Shrink totalRounds so the next round is the last. Scoring of round
-      // N+1 will then see currentRound >= totalRounds and finish the game.
-      const newTotal = Math.max(room.currentRound + 1, room.currentRound);
-      tx.update(roomRef, {
-        totalRounds: newTotal,
-        endEarlyVotes: [],
-      });
-    } else {
-      tx.update(roomRef, { endEarlyVotes: [...current] });
-    }
-  });
+function roundVoteElectorate(room: RoomDoc): {
+  voters: string[];
+  threshold: number;
+} {
+  const voters = room.playerOrder.filter((n) => !isBot(room, n));
+  return { voters, threshold: Math.floor(voters.length / 2) + 1 };
 }
 
-/**
- * Toggle the caller's vote to advance to the next round (or finish the
- * game on the final round). Mid-game advance is UNANIMOUS so no one is
- * skipped past a round they cared about. The final-round "finish game"
- * vote is MAJORITY so a hold-out can't trap the rest of the table.
- */
-export async function voteNextRound(
-  code: string,
-  callerName: string,
-  voteYes: boolean,
-): Promise<void> {
+/** Finish the game right now with the just-scored round folded in. */
+async function finishGameNow(code: string, room: RoomDoc): Promise<void> {
   const roomRef = doc(db, 'rooms', code);
-  let advance = false;
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(roomRef);
-    if (!snap.exists()) return;
-    const room = snap.data() as RoomDoc;
-    if (room.status !== 'scoring') return;
-
-    const current = new Set(room.nextRoundVotes ?? []);
-    if (voteYes) current.add(callerName);
-    else current.delete(callerName);
-
-    const realPlayers = room.playerOrder.filter(
-      (n) => !isBot(room, n),
-    );
-    const realVotes = [...current].filter(
-      (n) => !isBot(room, n) && realPlayers.includes(n),
-    );
-
-    const isFinalRound = room.currentRound >= room.totalRounds;
-    const threshold = isFinalRound
-      ? Math.floor(realPlayers.length / 2) + 1
-      : realPlayers.length;
-
-    if (realPlayers.length > 0 && realVotes.length >= threshold) {
-      tx.update(roomRef, { nextRoundVotes: [] });
-      advance = true;
-    } else {
-      tx.update(roomRef, { nextRoundVotes: [...current] });
-    }
-  });
-  if (advance) await scoreAndAdvance(code);
-}
-
-/**
- * Toggle the caller's vote to end the game IMMEDIATELY with current
- * cumulative scores (majority of real players). When threshold is met,
- * the room flips to 'finished' — including this round's deltas if we
- * were in scoring.
- */
-export async function voteEndGame(
-  code: string,
-  callerName: string,
-  voteYes: boolean,
-): Promise<void> {
-  const roomRef = doc(db, 'rooms', code);
-  let trigger = false;
-  let snapshotRoom: RoomDoc | null = null;
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(roomRef);
-    if (!snap.exists()) return;
-    const room = snap.data() as RoomDoc;
-    // Only available on the round-end score page.
-    if (room.status !== 'scoring') return;
-
-    const current = new Set(room.endGameVotes ?? []);
-    if (voteYes) current.add(callerName);
-    else current.delete(callerName);
-
-    const realPlayers = room.playerOrder.filter(
-      (n) => !isBot(room, n),
-    );
-    const realVotes = [...current].filter(
-      (n) => !isBot(room, n) && realPlayers.includes(n),
-    );
-    const threshold = Math.floor(realPlayers.length / 2) + 1;
-
-    if (realVotes.length >= threshold) {
-      tx.update(roomRef, { endGameVotes: [] });
-      trigger = true;
-      snapshotRoom = room;
-    } else {
-      tx.update(roomRef, { endGameVotes: [...current] });
-    }
-  });
-  if (!trigger || !snapshotRoom) return;
-  const room: RoomDoc = snapshotRoom;
   // Final = log-based cumulative + this just-finished round's deltas
   // (status was 'scoring', so the round was about to be applied).
   const baseFromLog = cumulativeScoresFromLog(room.playerOrder, room.log);
@@ -200,12 +91,161 @@ export async function voteEndGame(
     cumulativeScores: final,
     log: [...room.log, gameOverLog],
     pendingUndo: null,
+    pendingVote: null,
   });
 }
 
-// (voteEndNow / endNowVotes were the mid-game variant of "next round
-// is last". Replaced by voteEndEarly during scoring, which is the only
-// place voting can happen now.)
+/**
+ * Carry out a vote that passed. `lastRound` is a one-field write and is
+ * done inside the transaction by the caller; the other two rewrite the
+ * room wholesale and run after it, from the snapshot the vote passed on.
+ */
+async function applyRoundVote(
+  code: string,
+  kind: RoundVoteKind,
+  room: RoomDoc,
+): Promise<void> {
+  if (kind === 'nextRound') await scoreAndAdvance(code);
+  else if (kind === 'endGame') await finishGameNow(code, room);
+}
+
+/**
+ * Open a round-end vote. No-op if one is already open (the modal is
+ * covering the screen anyway) or the table is not on the score page.
+ */
+export async function openRoundVote(
+  code: string,
+  callerName: string,
+  kind: RoundVoteKind,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  let passedOn: RoomDoc | null = null;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) return;
+    const room = snap.data() as RoomDoc;
+    if (room.status !== 'scoring') return;
+    if (room.pendingVote) return;
+    const { voters, threshold } = roundVoteElectorate(room);
+    if (!voters.includes(callerName)) return;
+
+    if (threshold <= 1) {
+      // Solo human: the ask is the vote.
+      if (kind === 'lastRound') {
+        tx.update(roomRef, {
+          totalRounds: room.currentRound + 1,
+          pendingVote: null,
+        });
+      } else {
+        tx.update(roomRef, { pendingVote: null });
+        passedOn = room;
+      }
+      return;
+    }
+
+    const vote: PendingVote = {
+      kind,
+      by: callerName,
+      at: Date.now(),
+      yes: [callerName],
+      no: [],
+    };
+    tx.update(roomRef, { pendingVote: vote });
+  });
+  if (passedOn) await applyRoundVote(code, kind, passedOn);
+}
+
+/**
+ * Cast or change a yes/no on the open round-end vote. The opener's yes
+ * is fixed; everyone else can flip until it resolves.
+ */
+export async function castRoundVote(
+  code: string,
+  callerName: string,
+  voteYes: boolean,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  let passedOn: RoomDoc | null = null;
+  let passedKind: RoundVoteKind | null = null;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) return;
+    const room = snap.data() as RoomDoc;
+    const pv = room.pendingVote;
+    if (!pv || room.status !== 'scoring') return;
+    if (callerName === pv.by) return;
+
+    const { voters, threshold } = roundVoteElectorate(room);
+    if (!voters.includes(callerName)) return;
+
+    const yes = new Set(pv.yes.filter((n) => voters.includes(n)));
+    const no = new Set(pv.no.filter((n) => voters.includes(n)));
+    if (voteYes) {
+      yes.add(callerName);
+      no.delete(callerName);
+    } else {
+      no.add(callerName);
+      yes.delete(callerName);
+    }
+
+    if (yes.size >= threshold) {
+      if (pv.kind === 'lastRound') {
+        tx.update(roomRef, {
+          totalRounds: room.currentRound + 1,
+          pendingVote: null,
+        });
+      } else {
+        tx.update(roomRef, { pendingVote: null });
+        passedOn = room;
+        passedKind = pv.kind;
+      }
+      return;
+    }
+
+    // Dismissed: even if every remaining voter said yes it could not pass.
+    if (voters.length - no.size < threshold) {
+      tx.update(roomRef, { pendingVote: null });
+      return;
+    }
+
+    tx.update(roomRef, {
+      pendingVote: { ...pv, yes: [...yes], no: [...no] },
+    });
+  });
+  if (passedOn && passedKind) await applyRoundVote(code, passedKind, passedOn);
+}
+
+/** The opener takes it back. */
+export async function cancelRoundVote(
+  code: string,
+  callerName: string,
+): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) return;
+    const room = snap.data() as RoomDoc;
+    if (!room.pendingVote || room.pendingVote.by !== callerName) return;
+    tx.update(roomRef, { pendingVote: null });
+  });
+}
+
+/**
+ * Clear a round-end vote open past {@link ROUND_VOTE_TTL_MS}. Any client
+ * may call it; the guard makes a race harmless.
+ */
+export async function resolveExpiredRoundVote(code: string): Promise<void> {
+  const roomRef = doc(db, 'rooms', code);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(roomRef);
+    if (!snap.exists()) return;
+    const room = snap.data() as RoomDoc;
+    const pv = room.pendingVote;
+    if (!pv) return;
+    if (Date.now() - pv.at < ROUND_VOTE_TTL_MS) return;
+    tx.update(roomRef, { pendingVote: null });
+  });
+}
 
 export class FlowError extends Error {
   code:
@@ -347,6 +387,7 @@ export async function dealNextRound(code: string, prev: RoomDoc): Promise<void> 
     nextRoundVotes: [],
     endGameVotes: [],
     endEarlyVotes: [],
+    pendingVote: null,
     pendingUndo: null,
     cumulativeScores: prev.cumulativeScores,
     // Legacy chat array, see src/lib/chat.ts. Wiped at the same window
@@ -1083,6 +1124,7 @@ async function resetGameStateInternal(
     nextRoundVotes: [],
     endEarlyVotes: [],
     endGameVotes: [],
+    pendingVote: null,
     chat: [],
     // New game, new chat window: bumping the generation means the fresh
     // lobby does not reopen the previous game's lobby conversation.

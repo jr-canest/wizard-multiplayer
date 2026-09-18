@@ -2,12 +2,11 @@ import { useState } from 'react';
 import {
   computeRoundDeltas,
   cumulativeScoresFromLog,
-  voteEndEarly,
-  voteEndGame,
-  voteNextRound,
+  openRoundVote,
 } from '../lib/gameFlow';
-import { isBot } from '../lib/rooms';
 import { Chat } from './Chat';
+import { RoundVoteModal } from './RoundVoteModal';
+import type { RoundVoteKind } from '../lib/types';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -16,9 +15,8 @@ type Props = {
 };
 
 export function RoundScoreboard({ room, myName }: Props) {
-  const [advancing, setAdvancing] = useState(false);
+  const [opening, setOpening] = useState<RoundVoteKind | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [voting, setVoting] = useState(false);
 
   const deltas = computeRoundDeltas(
     room.playerOrder,
@@ -39,29 +37,22 @@ export function RoundScoreboard({ room, myName }: Props) {
   );
   const isFinalRound = room.currentRound >= room.totalRounds;
 
-  const realPlayers = room.playerOrder.filter((n) => !isBot(room, n));
-  // Mid-game advance is unanimous (no one skipped past a round); final-
-  // round finish is majority so a hold-out can't trap the table.
-  const threshold = isFinalRound
-    ? Math.floor(realPlayers.length / 2) + 1
-    : Math.max(1, realPlayers.length);
-  // End-now / end-early use majority — kept separate so the wording is clear.
-  const earlyThreshold = Math.floor(realPlayers.length / 2) + 1;
-  const nextVotes = (room.nextRoundVotes ?? []).filter((n) =>
-    realPlayers.includes(n),
-  );
-  const myNextVote = nextVotes.includes(myName);
+  // Every round-end decision is one shared yes/no vote in front of the
+  // whole table (RoundVoteModal). The buttons here only OPEN one; the
+  // modal carries the tally, the answers, and the countdown. A player
+  // alone against computers skips the vote and the action just happens.
+  const voteOpen = !!room.pendingVote;
 
-  async function handleAdvance() {
-    if (advancing) return;
-    setAdvancing(true);
+  async function openVote(kind: RoundVoteKind) {
+    if (opening || voteOpen) return;
+    setOpening(kind);
     setError(null);
     try {
-      await voteNextRound(room.code, myName, !myNextVote);
+      await openRoundVote(room.code, myName, kind);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to vote.');
+      setError(err instanceof Error ? err.message : 'Failed to open the vote.');
     } finally {
-      setAdvancing(false);
+      setOpening(null);
     }
   }
 
@@ -79,41 +70,14 @@ export function RoundScoreboard({ room, myName }: Props) {
   // actually save rounds (i.e. there are 2+ rounds remaining).
   const showEndEarly =
     !isFinalRound && room.totalRounds - room.currentRound >= 2;
-  const earlyVotes = (room.endEarlyVotes ?? []).filter((n) =>
-    realPlayers.includes(n),
-  );
-  const myEarlyVote = earlyVotes.includes(myName);
 
-  // End-game NOW vote — finishes immediately with current scores.
-  // Hide on the final round (advancing already finishes the game).
+  // End-game NOW vote: finishes immediately with current scores. Hidden
+  // on the final round, where advancing already finishes the game.
   const showEndGame = !isFinalRound;
-  const endGameVotes = (room.endGameVotes ?? []).filter((n) =>
-    realPlayers.includes(n),
-  );
-  const myEndGameVote = endGameVotes.includes(myName);
-
-  async function handleEndGame() {
-    if (voting) return;
-    setVoting(true);
-    try {
-      await voteEndGame(room.code, myName, !myEndGameVote);
-    } finally {
-      setVoting(false);
-    }
-  }
-
-  async function handleEndEarly() {
-    if (voting) return;
-    setVoting(true);
-    try {
-      await voteEndEarly(room.code, myName, !myEarlyVote);
-    } finally {
-      setVoting(false);
-    }
-  }
 
   return (
     <div className="space-y-2">
+    <RoundVoteModal room={room} myName={myName} />
     <Chat room={room} myName={myName} />
     <div className="card-gold p-4 space-y-4">
       <div className="flex items-baseline justify-between">
@@ -141,8 +105,6 @@ export function RoundScoreboard({ room, myName }: Props) {
             const total = (baseCumulative[name] ?? 0) + delta;
             const isMe = name === myName;
             const isWinner = delta === bestDelta && delta > 0;
-            const isReal = !isBot(room, name);
-            const hasVoted = nextVotes.includes(name);
             return (
               <tr
                 key={name}
@@ -157,23 +119,6 @@ export function RoundScoreboard({ room, myName }: Props) {
                     isMe ? 'text-cream-bright font-bold' : 'text-cream'
                   }`}
                 >
-                  {isReal && (
-                    <span
-                      aria-label={hasVoted ? 'voted' : 'not voted'}
-                      title={
-                        hasVoted
-                          ? `${name} voted to ${
-                              isFinalRound ? 'finish' : 'advance'
-                            }`
-                          : `${name} hasn't voted yet`
-                      }
-                      className={`inline-block w-3 mr-1 text-center tabular-nums ${
-                        hasVoted ? 'text-emerald-300' : 'text-navy-400/50'
-                      }`}
-                    >
-                      {hasVoted ? '✓' : '·'}
-                    </span>
-                  )}
                   {name}
                   {isMe ? ' (you)' : ''}
                 </td>
@@ -208,19 +153,15 @@ export function RoundScoreboard({ room, myName }: Props) {
 
       <button
         type="button"
-        onClick={handleAdvance}
-        disabled={advancing}
-        className={`w-full h-12 rounded-lg font-semibold border transition tabular-nums ${
-          myNextVote
-            ? 'bg-[rgba(6,78,59,.3)] border-[rgba(16,185,129,.6)] text-emerald-100'
-            : 'btn-gold active:scale-[0.99]'
-        }`}
+        onClick={() => openVote('nextRound')}
+        disabled={opening !== null || voteOpen}
+        className="w-full h-12 rounded-lg font-semibold border transition btn-gold active:scale-[0.99] disabled:opacity-60"
       >
-        {advancing
+        {opening === 'nextRound'
           ? 'Working…'
-          : myNextVote
-            ? `✓ Voted · ${isFinalRound ? 'finish game' : 'next round'} ${nextVotes.length}/${threshold} (tap to cancel)`
-            : `${isFinalRound ? 'Finish game' : 'Next round'} ${nextVotes.length}/${threshold}`}
+          : isFinalRound
+            ? 'Finish game'
+            : 'Next round'}
       </button>
 
       {!isFinalRound && (
@@ -247,20 +188,13 @@ export function RoundScoreboard({ room, myName }: Props) {
             {showEndEarly ? (
               <button
                 type="button"
-                onClick={handleEndEarly}
-                disabled={voting}
-                className={`rounded-lg py-2 text-[11px] font-semibold border transition tabular-nums leading-tight ${
-                  myEarlyVote
-                    ? 'bg-[rgba(6,78,59,.3)] border-[rgba(16,185,129,.6)] text-emerald-100'
-                    : 'bg-[rgba(20,26,44,.8)] border-gold-300/25 text-navy-200 active:scale-[0.98]'
-                }`}
+                onClick={() => openVote('lastRound')}
+                disabled={opening !== null || voteOpen}
+                className="rounded-lg py-2 text-[11px] font-semibold border transition leading-tight bg-[rgba(20,26,44,.8)] border-gold-300/25 text-navy-200 active:scale-[0.98] disabled:opacity-60"
               >
-                {myEarlyVote ? '✓ Voted — ' : 'Vote: '}
+                {opening === 'lastRound' ? 'Working…' : 'Vote:'}
                 <span className="block normal-case font-normal text-[10px] opacity-90">
                   next round is last
-                </span>
-                <span className="tabular-nums">
-                  {earlyVotes.length}/{earlyThreshold}
                 </span>
               </button>
             ) : (
@@ -269,20 +203,13 @@ export function RoundScoreboard({ room, myName }: Props) {
             {showEndGame ? (
               <button
                 type="button"
-                onClick={handleEndGame}
-                disabled={voting}
-                className={`rounded-lg py-2 text-[11px] font-semibold border transition tabular-nums leading-tight ${
-                  myEndGameVote
-                    ? 'bg-rose-700/30 border-rose-500/60 text-rose-100'
-                    : 'bg-transparent border-[rgba(248,113,113,.3)] text-[rgba(252,165,165,.75)] active:scale-[0.98]'
-                }`}
+                onClick={() => openVote('endGame')}
+                disabled={opening !== null || voteOpen}
+                className="rounded-lg py-2 text-[11px] font-semibold border transition leading-tight bg-transparent border-[rgba(248,113,113,.3)] text-[rgba(252,165,165,.75)] active:scale-[0.98] disabled:opacity-60"
               >
-                {myEndGameVote ? '✓ Voted — ' : 'Vote: '}
+                {opening === 'endGame' ? 'Working…' : 'Vote:'}
                 <span className="block normal-case font-normal text-[10px] opacity-90">
                   end game now
-                </span>
-                <span className="tabular-nums">
-                  {endGameVotes.length}/{earlyThreshold}
                 </span>
               </button>
             ) : (
@@ -290,7 +217,7 @@ export function RoundScoreboard({ room, myName }: Props) {
             )}
           </div>
           <p className="text-[11px] text-center text-navy-300">
-            Both votes need a majority.
+            Every vote goes to the whole table. Majority decides.
           </p>
         </div>
       )}

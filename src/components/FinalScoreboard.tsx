@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { computeStandings, saveMultiplayerGame } from '../lib/history';
+import {
+  computeStandings,
+  roundBreakdownFromLog,
+  saveMultiplayerGame,
+} from '../lib/history';
 import {
   claimAiSummary,
   setSharedAiSummary,
@@ -9,6 +13,7 @@ import {
 import { isTestGame } from '../lib/history';
 import { isBot } from '../lib/rooms';
 import { ScoreLineGraph } from './ScoreLineGraph';
+import { RoundBreakdownTable } from './RoundBreakdownTable';
 import { Chat } from './Chat';
 import {
   fetchAISummary,
@@ -123,6 +128,10 @@ function Sparkles() {
 export function FinalScoreboard({ room, myName }: Props) {
   const navigate = useNavigate();
   const standings = computeStandings(room);
+  // Won/bid per round per player, same table the scorekeeper shows at
+  // the end of a game and the History detail shows afterwards. Derived
+  // from the room log, so it is right even after undos.
+  const breakdown = useMemo(() => roundBreakdownFromLog(room.log), [room.log]);
   const [savingState, setSavingState] = useState<
     'pending' | 'saving' | 'saved' | 'skipped' | 'error'
   >('pending');
@@ -400,6 +409,13 @@ export function FinalScoreboard({ room, myName }: Props) {
             );
           })}
         </ul>
+
+        {breakdown.length > 0 && (
+          <RoundBreakdownTable
+            breakdown={breakdown}
+            playerOrder={room.playerOrder}
+          />
+        )}
 
         <p className="text-xs text-center text-navy-300">
           {savingState === 'saving' && 'Saving to history…'}
