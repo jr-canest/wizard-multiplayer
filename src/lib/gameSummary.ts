@@ -1,5 +1,6 @@
 import type { RoomDoc } from './types';
 import type { AISummaryPayload } from './firebase';
+import { roundsPlayed } from './history';
 
 // Names are wrapped in <b> tags for bold rendering.
 function b(name: string): string {
@@ -269,7 +270,7 @@ export function buildAISummaryPayload(room: RoomDoc): AISummaryPayload {
       rank: s.rank,
       shamePoints: 0,
     })),
-    roundCount: room.totalRounds,
+    roundCount: roundsPlayed(room),
     canadianRules: !!room.canadianRule,
     leadChanges,
     biggestLead,

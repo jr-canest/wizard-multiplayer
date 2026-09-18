@@ -30,6 +30,16 @@ export function isTestGame(room: RoomDoc): boolean {
   return room.playerOrder.some((n) => n.trim().toLowerCase() === 'test');
 }
 
+/**
+ * Rounds actually scored, from the log. NOT room.totalRounds: a game
+ * ended early ("end game now", or a kick down to one player) has fewer,
+ * and using the planned count made the AI recap open with "Fifteen
+ * rounds" on a ten-round game and History file it as fifteen.
+ */
+export function roundsPlayed(room: RoomDoc): number {
+  return room.log.filter((e) => e.t === 'roundScore').length;
+}
+
 type RankedResult = {
   playerId: string;
   name: string;
@@ -143,7 +153,7 @@ export async function saveMultiplayerGame(
 
   const gameDoc = {
     date: serverTimestamp(),
-    roundCount: room.totalRounds,
+    roundCount: roundsPlayed(room),
     playerCount: room.playerOrder.length,
     results,
     source: 'multiplayer' as const,

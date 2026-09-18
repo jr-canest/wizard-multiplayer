@@ -135,11 +135,21 @@ async function finishGameNow(code: string, room: RoomDoc): Promise<void> {
   for (const name of room.playerOrder) {
     final[name] = (final[name] ?? 0) + (deltas[name] ?? 0);
   }
+  // The round that was just played goes into the log like any other.
+  // It used to be folded into the final scores only, so the winner was
+  // right but everything that reads roundScore entries (the replay
+  // graph, the round-by-round table, History, the AI recap) stopped one
+  // round short and disagreed with the standings (536B, 2026-09-17).
+  const scoreLog: LogEntry = {
+    t: 'roundScore',
+    round: room.currentRound,
+    scores: deltas,
+  };
   const gameOverLog: LogEntry = { t: 'gameOver', finalScores: final };
   await updateDoc(roomRef, {
     status: 'finished',
     cumulativeScores: final,
-    log: [...room.log, gameOverLog],
+    log: [...room.log, scoreLog, gameOverLog],
     pendingUndo: null,
     pendingVote: null,
   });
