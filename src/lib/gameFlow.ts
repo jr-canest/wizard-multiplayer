@@ -25,10 +25,47 @@ import type {
   PendingUndo,
   PendingVote,
   RoomDoc,
+  RoundArchive,
   RoundVoteKind,
   Suit,
   UndoSnapshot,
 } from './types';
+
+/*
+ * Round archives (2026-09-20). Every phone re-downloads the whole room doc
+ * on every change and Firestore's wire encoding is 7 to 8 times the JSON
+ * size, so the ever-growing log + trickHistory made late-round plays cost
+ * 100 KB+ each on a slow link. At round end the round's bids, plays and
+ * trick wins are copied to rooms/{code}/rounds/{n} and dropped from the
+ * doc; deal / trump / roundScore / gameOver stay because live screens read
+ * them (running totals, the score graph). trickHistory is reset per round.
+ */
+const HEAVY_LOG_TYPES = new Set<LogEntry['t']>(['bid', 'play', 'trickWin']);
+
+function isRoundEntry(e: LogEntry): e is Exclude<LogEntry, { t: 'gameOver' }> {
+  return e.t !== 'gameOver';
+}
+
+/** The log without round N's heavy entries (they are in the archive). */
+export function pruneRoundFromLog(log: LogEntry[], round: number): LogEntry[] {
+  return log.filter((e) => !(isRoundEntry(e) && e.round === round && HEAVY_LOG_TYPES.has(e.t)));
+}
+
+/** Everything round N produced, for rooms/{code}/rounds/{N}. */
+export function roundArchiveOf(
+  room: Pick<RoomDoc, 'log' | 'trickHistory'>,
+  round: number,
+): RoundArchive {
+  return {
+    round,
+    log: room.log.filter((e) => isRoundEntry(e) && e.round === round),
+    tricks: room.trickHistory.filter((t) => t.round === round),
+  };
+}
+
+function roundRef(code: string, round: number) {
+  return doc(db, 'rooms', code, 'rounds', String(round));
+}
 
 /**
  * Broadcast a reaction to the room. Clients display it briefly based on
@@ -146,13 +183,18 @@ async function finishGameNow(code: string, room: RoomDoc): Promise<void> {
     scores: deltas,
   };
   const gameOverLog: LogEntry = { t: 'gameOver', finalScores: final };
-  await updateDoc(roomRef, {
+  const withScore = [...room.log, scoreLog];
+  const batch = writeBatch(db);
+  batch.set(roundRef(code, room.currentRound), roundArchiveOf({ log: withScore, trickHistory: room.trickHistory }, room.currentRound));
+  batch.update(roomRef, {
     status: 'finished',
     cumulativeScores: final,
-    log: [...room.log, scoreLog, gameOverLog],
+    log: [...pruneRoundFromLog(withScore, room.currentRound), gameOverLog],
+    trickHistory: [],
     pendingUndo: null,
     pendingVote: null,
   });
+  await batch.commit();
 }
 
 /**
@@ -428,6 +470,12 @@ export async function dealNextRound(code: string, prev: RoomDoc): Promise<void> 
 
   const batch = writeBatch(db);
   const roomRef = doc(db, 'rooms', code);
+  // The round just scored (if any) moves to its archive; the doc keeps
+  // only its light entries. prev.log already carries its roundScore.
+  const finished = prev.currentRound;
+  if (finished >= 1) {
+    batch.set(roundRef(code, finished), roundArchiveOf(prev, finished));
+  }
   batch.update(roomRef, {
     status: awaitingTrumpChoice ? 'dealing' : 'bidding',
     currentRound: nextRound,
@@ -442,7 +490,8 @@ export async function dealNextRound(code: string, prev: RoomDoc): Promise<void> 
     bids: {},
     tricksWon,
     trickInProgress: [],
-    log: [...prev.log, dealLog, trumpLog],
+    trickHistory: [],
+    log: [...(finished >= 1 ? pruneRoundFromLog(prev.log, finished) : prev.log), dealLog, trumpLog],
     nextRoundVotes: [],
     endGameVotes: [],
     endEarlyVotes: [],
@@ -1105,15 +1154,20 @@ export async function scoreAndAdvance(code: string): Promise<void> {
       t: 'gameOver',
       finalScores: newCumulative,
     };
-    await updateDoc(roomRef, {
+    const withScore = [...room.log, scoreLog];
+    const batch = writeBatch(db);
+    batch.set(roundRef(code, room.currentRound), roundArchiveOf({ log: withScore, trickHistory: room.trickHistory }, room.currentRound));
+    batch.update(roomRef, {
       cumulativeScores: newCumulative,
       status: 'finished',
-      log: [...room.log, scoreLog, gameOverLog],
+      log: [...pruneRoundFromLog(withScore, room.currentRound), gameOverLog],
+      trickHistory: [],
       pendingUndo: null,
       // Final scoreboard is its own chat window — wipe what was said in
       // the last round-end so it opens fresh.
       chat: [],
     });
+    await batch.commit();
     return;
   }
 
@@ -1152,8 +1206,11 @@ async function resetGameStateInternal(
   room: RoomDoc,
 ): Promise<void> {
   const roomRef = doc(db, 'rooms', code);
-  const handsSnap = await getDocs(collection(db, 'rooms', code, 'hands'));
-  await Promise.all(handsSnap.docs.map((d) => deleteDoc(d.ref)));
+  const [handsSnap, roundsSnap] = await Promise.all([
+    getDocs(collection(db, 'rooms', code, 'hands')),
+    getDocs(collection(db, 'rooms', code, 'rounds')),
+  ]);
+  await Promise.all([...handsSnap.docs, ...roundsSnap.docs].map((d) => deleteDoc(d.ref)));
 
   const cumulativeScores: Record<string, number> = {};
   for (const name of room.playerOrder) cumulativeScores[name] = 0;

@@ -29,6 +29,15 @@ export function Room() {
   useBotDriver(room, myName);
   useHeartbeat(code, inRoom ? myName : null);
 
+  // Expose the live room snapshot for the network test rig (scripts/netlab),
+  // which drives real browsers through real games and needs to know the
+  // instant a change lands without scraping the DOM. Not dev-gated: the rig
+  // runs the production bundle so page loads look like a real phone's, and
+  // the snapshot holds nothing a signed-in client cannot already read.
+  useEffect(() => {
+    (window as unknown as { __wizardRoom?: unknown }).__wizardRoom = room;
+  }, [room]);
+
   // Persist the active room code so Home can offer a "Rejoin" prompt after
   // a tab close. Clear it when we definitively can't get back in: room is
   // gone, locked out, finished, or we got kicked from playerOrder.

@@ -26,6 +26,20 @@ export type LogEntry =
   | { t: 'roundScore'; round: number; scores: Record<string, number> }
   | { t: 'gameOver'; finalScores: Record<string, number> };
 
+/**
+ * Archived copy of one finished round: that round's log entries and its
+ * tricks. Lives in rooms/{code}/rounds/{round}, written at round end, so
+ * the room document only ever carries the CURRENT round's bulk. Every
+ * phone re-downloads the whole room doc on every change, and Firestore's
+ * wire encoding is 7 to 8 times the JSON size, so an unbounded log made
+ * late rounds cost 100 KB+ per play (measured 2026-09-20).
+ */
+export type RoundArchive = {
+  round: number;
+  log: LogEntry[];
+  tricks: RoomDoc['trickHistory'];
+};
+
 export type RoomDoc = {
   status: RoomStatus;
   hostPlayerName: string;
@@ -46,12 +60,18 @@ export type RoomDoc = {
   tricksWon: Record<string, number>;
   cumulativeScores: Record<string, number>;
   trickInProgress: Array<{ playerName: string; card: Card; playOrder: number }>;
+  // CURRENT round only since 2026-09-20; finished rounds move to
+  // rooms/{code}/rounds/{n} (RoundArchive) when the round is scored.
   trickHistory: Array<{
     round: number;
     trickNum: number;
     plays: Array<{ playerName: string; card: Card }>;
     winner: string;
   }>;
+  // Light entries (deal, trump, roundScore, gameOver) for every round plus
+  // ALL entries for the current round. Past rounds' bids, plays and trick
+  // wins live in the round archives; loadFullLog() stitches the whole
+  // thing back together for History and the recap.
   log: LogEntry[];
   historyWritten: boolean;
   historyGameId: string | null;

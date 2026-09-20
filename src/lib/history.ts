@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore';
 import { db, isProduction } from './firebase';
 import { botDifficultyOf } from './rooms';
-import type { BotDifficulty, LogEntry, RoomDoc } from './types';
+import type { BotDifficulty, LogEntry, RoomDoc, RoundArchive } from './types';
 
 /**
  * Test/dev signals that should keep the game out of the shared history,
@@ -38,6 +38,32 @@ export function isTestGame(room: RoomDoc): boolean {
  */
 export function roundsPlayed(room: RoomDoc): number {
   return room.log.filter((e) => e.t === 'roundScore').length;
+}
+
+/**
+ * The complete game log: archived rounds (rooms/{code}/rounds) stitched
+ * back together with whatever is still on the room doc. Rooms from before
+ * the archives (or rounds played before that deploy) fall back to the doc
+ * for those rounds, so a game that straddled the change still reads whole.
+ */
+export async function loadFullLog(code: string, room: RoomDoc): Promise<LogEntry[]> {
+  const snap = await getDocs(collection(db, 'rooms', code, 'rounds'));
+  if (snap.empty) return room.log;
+  const archived = new Map<number, RoundArchive>();
+  for (const d of snap.docs) {
+    const a = d.data() as RoundArchive;
+    if (typeof a.round === 'number' && Array.isArray(a.log)) archived.set(a.round, a);
+  }
+  const onDoc = (r: number) =>
+    room.log.filter((e) => e.t !== 'gameOver' && e.round === r);
+  const lastRound = Math.max(room.currentRound, ...archived.keys());
+  const out: LogEntry[] = [];
+  for (let r = 1; r <= lastRound; r++) {
+    const a = archived.get(r);
+    out.push(...(a ? a.log : onDoc(r)));
+  }
+  for (const e of room.log) if (e.t === 'gameOver') out.push(e);
+  return out;
 }
 
 type RankedResult = {
@@ -158,7 +184,9 @@ export async function saveMultiplayerGame(
     results,
     source: 'multiplayer' as const,
     canadianRule: room.canadianRule,
-    log: room.log,
+    // History keeps the WHOLE log (player stats mine the plays), so pull
+    // the archived rounds back in.
+    log: await loadFullLog(code, room),
   };
 
   const gameRef = await addDoc(collection(db, 'games'), gameDoc);

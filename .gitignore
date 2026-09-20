@@ -29,3 +29,7 @@ firebase-debug.*.log
 
 # TS
 *.tsbuildinfo
+
+# wrangler dev state for the netlab-do prototype
+.wrangler/
+netlab-do/.wrangler/

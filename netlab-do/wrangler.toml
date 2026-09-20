@@ -1,0 +1,13 @@
+# Prototype game server for the bad-network comparison (scripts/netlab).
+# One Durable Object per room, WebSockets with hibernation, delta messages.
+name = "wizard-netlab-do"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "RoomDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RoomDO"]

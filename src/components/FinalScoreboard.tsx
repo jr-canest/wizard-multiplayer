@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   computeStandings,
+  loadFullLog,
   roundBreakdownFromLog,
   saveMultiplayerGame,
 } from '../lib/history';
+import { useFullLog } from '../hooks/useFullLog';
 import {
   claimAiSummary,
   setSharedAiSummary,
@@ -130,8 +132,10 @@ export function FinalScoreboard({ room, myName }: Props) {
   const standings = computeStandings(room);
   // Won/bid per round per player, same table the scorekeeper shows at
   // the end of a game and the History detail shows afterwards. Derived
-  // from the room log, so it is right even after undos.
-  const breakdown = useMemo(() => roundBreakdownFromLog(room.log), [room.log]);
+  // from the WHOLE log (archived rounds included), so it is right even
+  // after undos and after the round archives took the bulk off the doc.
+  const { log: fullLog } = useFullLog(room);
+  const breakdown = useMemo(() => roundBreakdownFromLog(fullLog), [fullLog]);
   const [savingState, setSavingState] = useState<
     'pending' | 'saving' | 'saved' | 'skipped' | 'error'
   >('pending');
@@ -227,7 +231,10 @@ export function FinalScoreboard({ room, myName }: Props) {
       let s: string | null = null;
       if (!skipAi) {
         try {
-          s = await fetchAISummary(buildAISummaryPayload(room));
+          // The payload mines every play of the game, so it needs the
+          // archived rounds, not just what is left on the room doc.
+          const log = await loadFullLog(room.code, room);
+          s = await fetchAISummary(buildAISummaryPayload({ ...room, log }));
         } catch {
           s = null;
         }

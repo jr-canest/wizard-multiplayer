@@ -1,0 +1,7 @@
+{
+  "name": "wizard-netlab-do",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "wrangler dev --port 8787 --local" },
+  "devDependencies": { "wrangler": "^4.35.0" }
+}
