@@ -50,7 +50,7 @@ for (const [title, pick, f] of [
 out(`## Recovery after an 8 s dropout (flaky profile): time until the cut-off phone is caught up`);
 out(`| | recoveries (ms) |`);
 out(`|---|---|`);
-for (const v of VARIANTS) { const r = get(v, 'flaky'); if (r) out(`| ${v} | ${r.recoveries.map((x) => (x.ms === null ? 'never' : x.ms)).join(', ') || '–'} |`); }
+for (const v of VARIANTS) { const r = get(v, 'flaky'); if (r) out(`| ${v} | ${r.recoveries.map((x) => (x.ms === null ? (x.note ? 'no probe (round-end screen)' : 'timed out') : x.ms)).join(', ') || '–'} |`); }
 out();
 out(`## Per-round growth: median bytes per play by round`);
 out(`| variant / profile | ${[1,2,3,4,5,6].map((r) => 'r' + r).join(' | ')} |`);
