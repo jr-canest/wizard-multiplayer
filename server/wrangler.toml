@@ -1,6 +1,7 @@
 # Wizard game server: one Durable Object per room, WebSockets to the phones.
 # The site itself stays on Firebase Hosting; this only runs the game.
 name = "wizard-game"
+account_id = "83367d4d1ff1b1e8370c700d6aede5bf"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
 

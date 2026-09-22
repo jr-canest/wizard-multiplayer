@@ -44,16 +44,30 @@ export function getUIZoom(): number {
  */
 export function useUIScale(): void {
   useEffect(() => {
-    function update() {
+    let lastWidth = -1;
+    function update(force: boolean) {
+      const w = window.innerWidth;
+      // On phones and tablets the browser fires `resize` while you scroll:
+      // Safari's toolbars collapse and grow, which changes innerHeight by
+      // 10 to 15% and nothing else. Re-scaling on that made the whole
+      // page (most visibly the recap card on the final scoreboard) grow
+      // and shrink as you scrolled. A touch device only re-scales when
+      // its width changes (rotation, split view); desktops keep the full
+      // behaviour because a short window really must scale down.
+      const touch = window.matchMedia('(pointer: coarse)').matches;
+      if (!force && touch && w === lastWidth) return;
+      lastWidth = w;
       const s = computeScale();
       document.body.style.setProperty('--ui-zoom', String(s));
     }
-    update();
-    window.addEventListener('resize', update);
-    window.addEventListener('orientationchange', update);
+    const onResize = () => update(false);
+    const onOrientation = () => update(true);
+    update(true);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onOrientation);
     return () => {
-      window.removeEventListener('resize', update);
-      window.removeEventListener('orientationchange', update);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onOrientation);
       document.body.style.removeProperty('--ui-zoom');
     };
   }, []);

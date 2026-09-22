@@ -49,7 +49,9 @@ export class EngineError extends Error {
   }
 }
 
-export type ChatMessage = { player: string; text: string; ts: number; w: string };
+// cts = the sender's own Date.now() at send time, echoed back so that phone can
+// recognise its optimistic copy (ts is server time and never matches it).
+export type ChatMessage = { player: string; text: string; ts: number; w: string; cts?: number };
 
 /** Everything the server knows about one room. */
 export type EngineState = {
@@ -624,10 +626,11 @@ export function markHistorySaved(s: EngineState, gameId: string | null): void {
 
 // ─── chat, reactions ────────────────────────────────────────────────────
 
-export function sendChat(s: EngineState, name: string, text: string, now: number): ChatMessage | null {
+export function sendChat(s: EngineState, name: string, text: string, now: number, cts?: number): ChatMessage | null {
   const trimmed = text.trim().slice(0, CHAT_MAX_LEN);
   if (!trimmed) return null;
   const msg: ChatMessage = { player: name, text: trimmed, ts: now, w: chatWindowKey(s.room) };
+  if (typeof cts === 'number' && Number.isFinite(cts)) msg.cts = cts;
   s.chat.push(msg);
   if (s.chat.length > 200) s.chat.splice(0, s.chat.length - 200);
   return msg;

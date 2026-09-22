@@ -22,7 +22,7 @@ export type PlayerSnapshot = {
   lastSeen: number;
   voteKickAgainst: string | null;
 };
-export type ChatLine = { player: string; text: string; ts: number; w: string };
+export type ChatLine = { player: string; text: string; ts: number; w: string; cts?: number };
 
 export type ConnectionState = {
   room: RoomSnapshot | null;

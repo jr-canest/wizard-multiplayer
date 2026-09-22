@@ -196,7 +196,7 @@ export class RoomDO {
       case 'markHistorySaved': E.markHistorySaved(s, args[0] === null ? null : str(0)); return null;
       case 'postReaction': E.postReaction(s, name, str(0), now); return null;
       case 'sendChat': {
-        const msg = E.sendChat(s, name, str(0), now);
+        const msg = E.sendChat(s, name, str(0), now, Number.isFinite(num(1)) ? num(1) : undefined);
         if (msg) for (const ws of this.ctx.getWebSockets()) { try { ws.send(JSON.stringify({ t: 'chat', msg })); } catch { /* gone */ } }
         return null;
       }

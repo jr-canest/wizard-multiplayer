@@ -23,13 +23,13 @@ type Props = {
  * scoreboard. Renders the {@link VISIBLE_CHAT_COUNT} most recent
  * messages plus an input.
  *
- * Backed by the rooms/{code}/chat subcollection (src/lib/chat.ts), so a
- * message is a tiny doc on its own write path rather than an append to
- * the room document. Locally-sent messages still render optimistically
- * the instant they are sent; in practice Firestore's local echo lands
- * first, so the optimistic copy is a safety net rather than the usual
- * path. The input is never disabled, you can keep typing while a
- * message is in flight.
+ * Lines ride the room socket (src/lib/chat.ts): the server keeps them and
+ * pushes each new one to every phone, the sender included. A sent message
+ * renders optimistically the instant it is sent and is dropped as soon as
+ * the server's copy is on screen: the server echoes the sender's own
+ * timestamp as `cts`, and the ack (which always follows the echo on the
+ * same socket) clears it as a belt-and-braces. The input is never
+ * disabled, you can keep typing while a message is in flight.
  */
 export function Chat({ room, myName }: Props) {
   const [text, setText] = useState('');
@@ -46,12 +46,16 @@ export function Chat({ room, myName }: Props) {
 
   // Drop optimistic copies the server has echoed back. Derived in render
   // rather than synced into state, so there is no setState-in-effect to
-  // clean up. The ts is carried through the write, so the match is exact.
+  // clean up. The server echoes our send-time stamp as `cts`, so the
+  // match is exact; the text + near-time test covers a server build that
+  // predates `cts`.
   const visibleOptimistic = optimistic.filter(
     (o) =>
       o.w === windowKey &&
       !serverMessages.some(
-        (m) => m.player === o.player && m.text === o.text && m.ts === o.ts,
+        (m) =>
+          m.player === o.player &&
+          (m.cts === o.ts || (m.text === o.text && Math.abs(m.ts - o.ts) < 30_000)),
       ),
   );
   const allMessages: ChatMessage[] = [...serverMessages, ...visibleOptimistic];
@@ -74,12 +78,17 @@ export function Chat({ room, myName }: Props) {
     setOptimistic((prev) => [...prev, draft]);
     // Not awaited: the message is already on screen, and blocking the
     // form on the server ack is exactly what made sending feel slow.
-    sendChatMessage(room.code, windowKey, myName, v, ts).catch(() => {
-      // Drop the optimistic copy and restore the input so the send does
-      // not silently vanish on a flaky network.
-      setOptimistic((prev) => prev.filter((o) => o.ts !== ts));
-      setText((cur) => (cur ? cur : v));
-    });
+    sendChatMessage(room.code, windowKey, myName, v, ts).then(
+      // Acked: the server's copy arrived on this socket before the ack,
+      // so the optimistic one is redundant from here on.
+      () => setOptimistic((prev) => prev.filter((o) => o.ts !== ts)),
+      () => {
+        // Drop the optimistic copy and restore the input so the send does
+        // not silently vanish on a flaky network.
+        setOptimistic((prev) => prev.filter((o) => o.ts !== ts));
+        setText((cur) => (cur ? cur : v));
+      },
+    );
   }
 
   return (

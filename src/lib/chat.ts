@@ -7,6 +7,7 @@ import { connectionFor } from './socket';
 export { chatWindowKey, CHAT_MAX_LEN } from '../game/engine';
 export type { ChatLine as ChatMessage } from './socket';
 
-export async function sendChatMessage(code: string, _windowKey: string, _player: string, text: string, _ts?: number): Promise<void> {
-  await connectionFor(code).act('sendChat', text);
+/** `ts` is the sender's clock; the server echoes it as `cts` on the line. */
+export async function sendChatMessage(code: string, _windowKey: string, _player: string, text: string, ts?: number): Promise<void> {
+  await connectionFor(code).act('sendChat', text, ts);
 }
