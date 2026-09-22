@@ -198,15 +198,6 @@ export type PendingVote = {
 /** How long a round-end vote stays open before any client clears it. */
 export const ROUND_VOTE_TTL_MS = 60_000;
 
-export type RoomPlayerDoc = {
-  authUid: string;
-  // Set on computer seats so presence never counts them as offline.
-  isBot?: boolean;
-  connected: boolean;
-  lastHeartbeatAt: unknown;
-  voteKickAgainst: string | null;
-};
-
 export type HandDoc = {
   cards: Card[];
 };

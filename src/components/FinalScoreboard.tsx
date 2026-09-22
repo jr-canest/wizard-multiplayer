@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   computeStandings,
-  loadFullLog,
   roundBreakdownFromLog,
   saveMultiplayerGame,
 } from '../lib/history';
@@ -147,6 +146,12 @@ export function FinalScoreboard({ room, myName }: Props) {
   const [contentVisible, setContentVisible] = useState(false);
 
   const gameIdRef = useRef<string | null>(room.historyGameId ?? null);
+  // The save effect is keyed on the write flags only; it reads the latest
+  // snapshot through this ref so it does not re-run on every update.
+  const roomRef = useRef(room);
+  useEffect(() => {
+    roomRef.current = room;
+  });
 
   // Wipe + sparkles + sound on mount.
   useEffect(() => {
@@ -176,7 +181,7 @@ export function FinalScoreboard({ room, myName }: Props) {
       return;
     }
     setSavingState('saving');
-    saveMultiplayerGame(room.code)
+    saveMultiplayerGame(roomRef.current)
       .then((gid) => {
         gameIdRef.current = gid;
         setSavingState('saved');
@@ -231,10 +236,7 @@ export function FinalScoreboard({ room, myName }: Props) {
       let s: string | null = null;
       if (!skipAi) {
         try {
-          // The payload mines every play of the game, so it needs the
-          // archived rounds, not just what is left on the room doc.
-          const log = await loadFullLog(room.code, room);
-          s = await fetchAISummary(buildAISummaryPayload({ ...room, log }));
+          s = await fetchAISummary(buildAISummaryPayload(room));
         } catch {
           s = null;
         }

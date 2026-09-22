@@ -5,9 +5,9 @@ import path from 'node:path';
 
 const dir = process.argv[2];
 const mdOut = process.argv.includes('--md') ? process.argv[process.argv.indexOf('--md') + 1] : null;
-const files = fs.readdirSync(dir).filter((f) => /^(current|slim|prototype)-(slow3g|awful|flaky)\.json$/.test(f) || f === 'slim-finish.json');
+const files = fs.readdirSync(dir).filter((f) => /^(current|slim|prototype|server)-(slow3g|awful|flaky|finish)\.json$/.test(f));
 const runs = files.map((f) => JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')));
-const VARIANTS = ['current', 'slim', 'prototype'];
+const VARIANTS = ['current', 'slim', 'prototype', 'server'];
 const PROFILES = ['slow3g', 'awful', 'flaky'];
 const q = (arr, p) => { const a = arr.filter((x) => x !== null && x !== undefined).sort((x, y) => x - y); return a.length ? a[Math.min(a.length - 1, Math.floor(p * a.length))] : null; };
 const fmt = (v, unit = '') => (v === null || v === undefined ? '–' : `${Math.round(v).toLocaleString('en-CA')}${unit}`);

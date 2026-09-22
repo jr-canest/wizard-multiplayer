@@ -1,0 +1,13 @@
+{
+  "name": "wizard-game-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8788 --local",
+    "deploy": "wrangler deploy",
+    "typecheck": "wrangler types && ../node_modules/.bin/tsc -p ."
+  },
+  "devDependencies": {
+    "wrangler": "^4.35.0"
+  }
+}

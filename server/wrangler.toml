@@ -1,0 +1,18 @@
+# Wizard game server: one Durable Object per room, WebSockets to the phones.
+# The site itself stays on Firebase Hosting; this only runs the game.
+name = "wizard-game"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "RoomDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RoomDO"]
+
+[vars]
+FIREBASE_PROJECT = "wizard-scores-2521c"
+FIREBASE_API_KEY = "AIzaSyBT1yNBK3DyIk9GhiPc-heuBBBbjThlm88"
+ALLOWED_ORIGINS = "https://wizard-multiplayer.web.app,https://wizard-scores-2521c.web.app,http://localhost:5181,http://localhost:4173"

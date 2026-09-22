@@ -7,7 +7,6 @@ import {
   increment,
   orderBy,
   query,
-  runTransaction,
   serverTimestamp,
   updateDoc,
   where,
@@ -16,7 +15,8 @@ import {
 } from 'firebase/firestore';
 import { db, isProduction } from './firebase';
 import { botDifficultyOf } from './rooms';
-import type { BotDifficulty, LogEntry, RoomDoc, RoundArchive } from './types';
+import type { BotDifficulty, LogEntry, RoomDoc } from './types';
+import { claimHistory, markHistorySaved } from './gameFlow';
 
 /**
  * Test/dev signals that should keep the game out of the shared history,
@@ -38,32 +38,6 @@ export function isTestGame(room: RoomDoc): boolean {
  */
 export function roundsPlayed(room: RoomDoc): number {
   return room.log.filter((e) => e.t === 'roundScore').length;
-}
-
-/**
- * The complete game log: archived rounds (rooms/{code}/rounds) stitched
- * back together with whatever is still on the room doc. Rooms from before
- * the archives (or rounds played before that deploy) fall back to the doc
- * for those rounds, so a game that straddled the change still reads whole.
- */
-export async function loadFullLog(code: string, room: RoomDoc): Promise<LogEntry[]> {
-  const snap = await getDocs(collection(db, 'rooms', code, 'rounds'));
-  if (snap.empty) return room.log;
-  const archived = new Map<number, RoundArchive>();
-  for (const d of snap.docs) {
-    const a = d.data() as RoundArchive;
-    if (typeof a.round === 'number' && Array.isArray(a.log)) archived.set(a.round, a);
-  }
-  const onDoc = (r: number) =>
-    room.log.filter((e) => e.t !== 'gameOver' && e.round === r);
-  const lastRound = Math.max(room.currentRound, ...archived.keys());
-  const out: LogEntry[] = [];
-  for (let r = 1; r <= lastRound; r++) {
-    const a = archived.get(r);
-    out.push(...(a ? a.log : onDoc(r)));
-  }
-  for (const e of room.log) if (e.t === 'gameOver') out.push(e);
-  return out;
 }
 
 type RankedResult = {
@@ -118,32 +92,21 @@ async function lookupPlayerId(name: string): Promise<string | null> {
  * Skipped on localhost (matches the scorekeeper's isProduction guard).
  */
 export async function saveMultiplayerGame(
-  code: string,
+  room: RoomDoc & { code: string },
 ): Promise<string | null> {
   if (!isProduction()) return null;
+  if (room.status !== 'finished') return null;
 
-  const roomRef = doc(db, 'rooms', code);
-
-  const claim = await runTransaction(db, async (tx) => {
-    const snap = await tx.get(roomRef);
-    if (!snap.exists()) return { go: false as const };
-    const room = snap.data() as RoomDoc;
-    if (room.status !== 'finished') return { go: false as const };
-    if (room.historyWritten) {
-      return { go: false as const, existingId: room.historyGameId };
-    }
-    // Belt-and-braces: never write test games into the shared history,
-    // even when running on the production URL.
-    if (isTestGame(room)) {
-      tx.update(roomRef, { historyWritten: true });
-      return { go: false as const };
-    }
-    tx.update(roomRef, { historyWritten: true });
-    return { go: true as const, room };
-  });
-
+  // Exactly once per game: the game server hands the write to the first
+  // client that asks and remembers the id for everyone else.
+  const claim = await claimHistory(room.code);
   if (!claim.go) return claim.existingId ?? null;
-  const room = claim.room;
+  // Belt-and-braces: never write test games into the shared history,
+  // even when running on the production URL.
+  if (isTestGame(room)) {
+    await markHistorySaved(room.code, null).catch(() => {});
+    return null;
+  }
 
   const playerScores = room.playerOrder.map((name) => ({
     name,
@@ -184,12 +147,13 @@ export async function saveMultiplayerGame(
     results,
     source: 'multiplayer' as const,
     canadianRule: room.canadianRule,
-    // History keeps the WHOLE log (player stats mine the plays), so pull
-    // the archived rounds back in.
-    log: await loadFullLog(code, room),
+    // The server sends the WHOLE log once the game is over (player stats
+    // mine the plays).
+    log: room.log,
   };
 
   const gameRef = await addDoc(collection(db, 'games'), gameDoc);
+  await markHistorySaved(room.code, gameRef.id).catch(() => {});
 
   // Update player aggregates (mirrors scorekeeper.saveGameResult).
   await Promise.all(
@@ -224,7 +188,6 @@ export async function saveMultiplayerGame(
     }),
   );
 
-  await updateDoc(roomRef, { historyGameId: gameRef.id });
   return gameRef.id;
 }
 

@@ -38,15 +38,11 @@ export function Chat({ room, myName }: Props) {
   const liveMessages = useChat(room.code);
   const windowKey = chatWindowKey(room);
 
-  // Messages for the current chat window (lobby / this round-end /
-  // final). Legacy room.chat entries carry no window and were already
-  // wiped per window by gameFlow, so they belong to whatever window is
-  // open now.
-  const serverMessages = useMemo(() => {
-    const legacy = (room.chat ?? []).map((m) => ({ ...m }));
-    const live = liveMessages.filter((m) => (m.w ?? windowKey) === windowKey);
-    return [...legacy, ...live].sort((a, b) => a.ts - b.ts);
-  }, [room.chat, liveMessages, windowKey]);
+  // Messages for the current chat window (lobby / this round-end / final).
+  const serverMessages = useMemo(
+    () => liveMessages.filter((m) => m.w === windowKey).sort((a, b) => a.ts - b.ts),
+    [liveMessages, windowKey],
+  );
 
   // Drop optimistic copies the server has echoed back. Derived in render
   // rather than synced into state, so there is no setState-in-effect to

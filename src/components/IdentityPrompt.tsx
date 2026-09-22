@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { fetchSeatToken } from '../lib/rooms';
 import {
   claimOrAuthPlayer,
   isValidPin,
@@ -38,9 +39,13 @@ export function IdentityPrompt({ title, subtitle, onAuthed }: Props) {
         );
         return;
       }
+      // The game server verifies the same PIN and hands back a seat token
+      // the socket presents on every connection.
+      const token = await fetchSeatToken(result.player.name, pin);
       setSession({
         playerId: result.player.id,
         playerName: result.player.name,
+        token,
       });
       onAuthed?.();
     } catch (err) {

@@ -1,6 +1,7 @@
 # Wizard Multiplayer — current state (2026-08)
 
 - **Live:** https://wizard-multiplayer.web.app (Firebase Hosting, target `multiplayer`, project `wizard-scores-2521c`, shared with wizard-scorekeeper). The old GitHub Pages URL is a stale mirror — do not use.
+- **Game server (since 2026-09-21): `server/`, a Cloudflare Worker + Durable Object on Jorge's personal account (`wizard-game`, https://wizard-game.jrcanest.workers.dev).** One `RoomDO` per room code owns the whole game; phones hold a WebSocket to it. The rules are `src/game/engine.ts` (pure, shared by server and client, no Firestore); the server persists the engine state in DO storage, runs the computer players and the vote clocks on alarms, and sends every socket a full snapshot on every change (the room only carries the current round; the finished snapshot carries the full log) plus that socket's own hand. Client side: `src/lib/socket.ts` (`RoomConnection`: ping every 3 s, dead after 7 s, back-off to 4 s, snapshot on every reconnect, actions wait for an ack), `useRoom` / `useMyHand` / `useChat` read it, and `src/lib/gameFlow.ts` / `rooms.ts` / `presence.ts` / `chat.ts` keep their old function names as message senders so components did not change. **Firestore now holds only players (names, PINs, stats), games (History) and reactionStats**; the `rooms` collection is dead. Identity: after the app's own PIN check, `POST /session` on the server re-verifies the PIN (same salted SHA-256, read from `players` via REST) and mints a 60-day HMAC seat token stored in the session; `POST /rooms` (bearer token) creates a room; `GET /ws/CODE?token=` is the socket. Typecheck: `cd server && npm run typecheck` (wrangler bundles with esbuild and checks nothing on its own). Deploy: `cd server && npx wrangler deploy` (account id 83367d4d1ff1b1e8370c700d6aede5bf; secret `SESSION_SECRET` already set; rotating it signs everyone out). `VITE_GAME_SERVER` overrides the server URL for a local `wrangler dev --port 8788`. The history write still happens on a phone (`saveMultiplayerGame(room)`), but the server hands out the exactly-once claim (`claimHistory` / `markHistorySaved`), same for the AI recap claim. Why: measured on 2026-09-20 (`scripts/netlab/report-2026-09-20.md`), Firestore needed two round trips per play and its reconnect after a dropout was 3 to 23 s and untunable; this is one round trip and a reconnect the app controls, which is what made the game unplayable on plane Wi-Fi and made phones need a refresh after sleeping.
 - **Deploy:** push to `main` = CI deploy (GitHub Actions → Firebase hosting + firestore rules). Manual fallback: `npm run build && firebase deploy --only hosting:multiplayer --project wizard-scores-2521c`.
 - **Run locally:** `npm install && npm run dev` (port 5181). Firestore writes to shared history are skipped on localhost.
 - **Test link:** `?test` on the home page unlocks the "add 3 bots" panel (pre-checked). Bot games and games with a player named `test` are never written to shared history.
@@ -8,7 +9,7 @@
 - **Typography rules (2026-08-20, both apps):** serif (`font-display`, Cormorant Garamond) = IDENTITY/NARRATIVE only — screen titles, player names, room codes, AI recap prose; never below 13px. Sans = ALL numerals (always `tabular-nums`, semibold/bold), labels, buttons, chips, status words. Numerals are NEVER serif.
 - Keep both apps visually in lockstep — anything added to one index.css kit should land in the other.
 - **/history parity rule:** this app's History route and the scorekeeper's HistoryScreen must stay feature-identical (Rating column via `src/lib/ratings.ts` ↔ scorekeeper `src/utils/ratings.js`, podium modal, SWR cache via `src/lib/historyCache.ts`, scoreless toggle, test* filter, online chips, sortable **Best** column re-added 2026-09-02 — `STATS_GRID` template must match the scorekeeper's). Any addition to one gets ported to the other.
-- **Chat lives in `rooms/{code}/chat`, not on the room doc (2026-09-17).** It used to be a `chat: []` array appended with arrayUnion: every message rewrote the room document (25 to 60 KB mid-game) and re-pushed it to every phone, and the write queued behind gameplay writes on the same doc. Both read as lag. Now each message is its own ~80 byte doc with its own listener (`src/lib/chat.ts`, `src/hooks/useChat.ts`). Chat windows (lobby / each round-end / final) are derived from the room snapshot via `chatWindowKey`, so nothing has to be "cleared"; `chatGen` bumps on Play Again. `room.chat` is still READ for clients on an older build, never written. Firestore rules need the `chat` subcollection match.
+- **Chat (history: 2026-09-17 to 2026-09-21 it lived in `rooms/{code}/chat`; since 2026-09-21 the game server keeps it in `EngineState.chat` and pushes `{t:'chat'}` frames, the window rules below still apply).** It used to be a `chat: []` array appended with arrayUnion: every message rewrote the room document (25 to 60 KB mid-game) and re-pushed it to every phone, and the write queued behind gameplay writes on the same doc. Both read as lag. Now each message is its own ~80 byte doc with its own listener (`src/lib/chat.ts`, `src/hooks/useChat.ts`). Chat windows (lobby / each round-end / final) are derived from the room snapshot via `chatWindowKey`, so nothing has to be "cleared"; `chatGen` bumps on Play Again. `room.chat` is still READ for clients on an older build, never written. Firestore rules need the `chat` subcollection match.
 - **Turn signal (2026-09-17):** gold = it is YOUR turn, never anything else. `.turn-mine` (bright gold, fast pulse) on the action strip, `.felt-turn-mine` halo on the felt, and the big gold YOUR TURN. An opponent on the clock gets `.turn-theirs` (cool steel, slow pulse) on their tile plus a steel caret, the felt takes a quiet `.felt-turn-theirs` edge, and their name in the strip renders in their own seat colour. Do not reintroduce gold for another player's turn.
 - **Reaction usage is counted** in the `reactionStats` collection, one doc per phrase (`src/lib/reactions.ts`, which is also the single source of truth for the picker's phrase list). Readouts: the "Reactions used" card on `/me`, or `node scripts/reaction-stats_V01.mjs`. Localhost and games with a player named `test` are not counted. Keep the CATALOGUE in the script in sync with `REACTIONS`.
 - **Commentary overshoot callout:** winning MORE tricks than you bid now gets its own callout (`CommentaryOverlay.tsx`), and it replaces the consecutive-streak line for that trick rather than queueing behind it.
@@ -20,7 +21,9 @@
 - **Final scoreboard shows the round-by-round table** (won/bid, Δ, running total per player per round), the same `RoundBreakdownTable` the History detail uses, now in `src/components/` and fed from `room.log` via `roundBreakdownFromLog`. Parity with the scorekeeper's end-of-game screen.
 - **Score replay: the dot is the tip of the line** (`ScoreLineGraph.tsx`, 2026-09-18, ported from the scorekeeper's BarChartRace fix of 2026-09-10). Each line is a path cut exactly at the current progress (de Casteljau split of the segment under the tip); the dot, label and score all read from that tip point. Do not go back to a stroke-dasharray reveal: that trims by arc length while the dot moves in x, so on steep segments the dot floats off the line.
 - **"End game now" logs the final round** (`finishGameNow`, 2026-09-18). It used to fold the just-played round into the final scores without a `roundScore` entry, so the winner was right but the replay graph, round-by-round table, History and AI recap all stopped one round short (room 536B on 2026-09-17: graph said Avi 110, standings said Manuel 130). That game's room log and `games` doc were repaired by hand. `roundCount` everywhere now means rounds actually scored (`roundsPlayed(room)` in history.ts), never `totalRounds`.
-- **Round archives (2026-09-20): the room doc only carries the current round.** Every phone re-downloads the whole `rooms/{code}` doc on every change, and Firestore's wire encoding is 7 to 8 times the JSON size (measured: a 14.9 KB doc cost ~115 KB per play), so the ever-growing `log` + `trickHistory` made late rounds cost 100 KB+ per play per phone. Now `dealNextRound` / `scoreAndAdvance` / `finishGameNow` copy the finished round's bids, plays and trick wins to `rooms/{code}/rounds/{n}` (`RoundArchive`) in the same batch, prune them from `log` (`pruneRoundFromLog`) and reset `trickHistory`. Light entries (deal, trump, roundScore, gameOver) stay on the doc because live screens read them. Anything that needs the whole game (History save, the AI recap payload, the final round-by-round table) goes through `loadFullLog(code, room)` / `useFullLog`, which stitches archives and doc together and falls back to the doc for rounds played before this change. `resetForNewGame` deletes the archives with the hands. Rules have a `rounds` match.
+- **Round archives (2026-09-20, now server-side): the room snapshot only carries the current round.** Since 2026-09-21 the archives live in `EngineState.archives` on the game server and the finished snapshot carries the stitched `log` (`publicRoom`), so `useFullLog` just returns `room.log`; the Firestore paragraph that follows is the history of why. Every phone re-downloads the whole `rooms/{code}` doc on every change, and Firestore's wire encoding is 7 to 8 times the JSON size (measured: a 14.9 KB doc cost ~115 KB per play), so the ever-growing `log` + `trickHistory` made late rounds cost 100 KB+ per play per phone. Now `dealNextRound` / `scoreAndAdvance` / `finishGameNow` copy the finished round's bids, plays and trick wins to `rooms/{code}/rounds/{n}` (`RoundArchive`) in the same batch, prune them from `log` (`pruneRoundFromLog`) and reset `trickHistory`. Light entries (deal, trump, roundScore, gameOver) stay on the doc because live screens read them. Anything that needs the whole game (History save, the AI recap payload, the final round-by-round table) goes through `loadFullLog(code, room)` / `useFullLog`, which stitches archives and doc together and falls back to the doc for rounds played before this change. `resetForNewGame` deletes the archives with the hands. Rules have a `rounds` match.
+- **Computer players run on the game server (2026-09-21).** `useBotDriver` is gone; `RoomDO` schedules an alarm (250 ms, 1.4 s when leading a new trick) whenever `engine.pendingBot()` says a computer is on the clock and plays it with the same `botAI`. A game with computers no longer depends on the host's phone being awake.
+- **`scripts/netlab/server-check.mjs`** drives the deployed server through a whole short game over raw sockets (lobby bots, rounds cap, undo vote, round-end vote, chat, finished full log, history + recap claims, play again, presence). Run it after any server change: `node scripts/netlab/server-check.mjs` must print ALL CHECKS PASSED.
 - **Network test rig: `scripts/netlab/`.** `run.mjs` drives three real headless Chrome sessions (puppeteer-core + system Chrome) through real games against the production bundle (`vite preview`, workspace launch entry `wizard-preview`, port 4173) and records, per play, the time until each other player's snapshot shows it and the bytes they downloaded (`window.__wizardRoom` is exposed by Room.tsx for this). Bad networks are modelled by `shaper.mjs`, a userland link conditioner (HTTP CONNECT proxy for https, TCP forwarder for the local prototype) with a bandwidth cap and one-way delay per direction and an offline switch, one instance per player. **Do not use Chrome's own `Network.emulateNetworkConditions` for this: it does not limit the bandwidth of long-lived streams** (Firestore's channel, WebSockets), which is how the first night's numbers came out unthrottled. `report.mjs` aggregates the JSON results into tables. Profiles: slow3g (50 KB/s, 400 ms RTT), awful (12/6 KB/s, 800 ms RTT), flaky (slow3g + one player offline 8 s in 40). **Run ONE rig at a time**: two concurrent rigs share a Chrome process in practice, and when one run closes its browser every other run's pages die ("Attempted to use detached Frame"). Chain runs sequentially in one shell loop. Chrome's `Network.dataReceived` counts are the decompressed application bytes; the shaper's `wire` counts are the TLS bytes actually sent (Firestore gzips its channel, so wire is close to Chrome's count; the prototype's WebSocket uses permessage-deflate, so its wire count is far below the payload).
 - **`netlab-do/`: Durable Object prototype of a server-authoritative room** (WebSocket hibernation, delta messages ~140 to 250 B per play, full state on (re)connect, 3 s ping / 6 s dead-link detection, reuses `src/game/*`). Runs locally with `npm run dev` in that folder (port 8787) and is deployed on Jorge's personal Cloudflare account as `wizard-netlab-do` (https://wizard-netlab-do.jrcanest.workers.dev) purely for measurement. It is NOT the game: no lobby, identity, bots, undo, votes, chat, presence or history.
 - **Round-end screen:** `RoundScoreboard.tsx` (status `scoring`) is already the single post-round screen — results table + Next-round vote. Since 2026-09-02 it also shows a "Next up: round N · N cards · dealer X" line under the vote button, mirroring the scorekeeper's merged results/next-round screen.
@@ -36,7 +39,8 @@ Sister app to the existing Wizard scorekeeper. Real-time multiplayer Wizard card
 ## Stack
 
 - React + Vite + TypeScript
-- Firebase: Firestore (realtime state), Anonymous Auth (per-device UID for security rules), Hosting
+- Game server: Cloudflare Worker + Durable Object (`server/`, WebSockets), one DO per room, since 2026-09-21
+- Firebase: Firestore (players, History, reaction tally), Anonymous Auth (needed for the `reactionStats` writes), Hosting (the URL never changed)
 - Tailwind for styling, matching scorekeeper conventions
 - No external card-game libraries. Build the engine ourselves.
 
@@ -51,13 +55,13 @@ Sister app to the existing Wizard scorekeeper. Real-time multiplayer Wizard card
 **Rooms**
 - 4-character alphanumeric code, uppercase, excluding ambiguous chars: no `0`, `O`, `1`, `I`, `L`
 - Allowed alphabet: `23456789ABCDEFGHJKMNPQRSTUVWXYZ` (32 chars, ~1M combinations)
-- Generate, check Firestore for collision, retry on hit
-- Rejoin via URL: `/room/ABCD` deep-links into the room and prompts for name/PIN if not authed
+- Generated by the Worker on `POST /rooms`; the DO answers 409 on a live collision and the Worker retries
+- Rejoin via URL: `/room/ABCD` deep-links into the room and prompts for name/PIN if there is no seat token
 
-**Anonymous Auth**
-- Every device gets a Firebase anonymous UID on first load
-- Used only for security rules so opponents can't read each other's hands via dev tools
-- Invisible to the user
+**Seat token + Anonymous Auth**
+- After the PIN check the app asks the game server for a seat token (`fetchSeatToken`, stored in the session); it is what the socket and room creation carry, and it is why opponents never see each other's hands (each socket only ever gets its own)
+- Firebase anonymous auth still signs every device in on first load, only because `reactionStats` writes require it
+- Both invisible to the user; a rotated `SESSION_SECRET` means one re-sign-in for everyone
 
 ## Game rules
 
@@ -120,74 +124,44 @@ lobby → dealing → bidding → playing → scoring
 
 `playing` repeats per trick within the round (small inner loop, not a separate state).
 
-## Firestore schema
+## State model (since 2026-09-21)
+
+Firestore (shared with the scorekeeper, rules in `firestore.rules`):
 
 ```
-players/{playerName}
-  pinHash: string
-  salt: string
-  createdAt: timestamp
-  lastSeenAt: timestamp
+players/{playerId}      name, nameLower, pinHash, pinSalt, pinSetAt, stats, aliases?, mergedInto?
+games/{gameId}          finished games (History); results[] shape shared with the scorekeeper
+reactionStats/{phrase}  all-rooms reaction tally
+```
 
-rooms/{code}
-  status: 'lobby' | 'dealing' | 'bidding' | 'playing' | 'scoring' | 'finished'
-  hostPlayerId: string
-  canadianRule: boolean
-  createdAt: timestamp
-  playerOrder: string[]              // playerNames in seat order
-  dealerIndex: number
-  currentPlayerIndex: number
-  currentRound: number               // 1-indexed
-  totalRounds: number
-  trumpCard: Card | null
-  trumpSuit: Suit | null             // resolved trump (after dealer choice on Wizard flip)
-  leadSuit: Suit | null
-  bids: { [playerName]: number }
-  tricksWon: { [playerName]: number }
-  cumulativeScores: { [playerName]: number }
-  trickInProgress: Array<{ playerName, card, playOrder }>
-  trickHistory: Array<{ round, trickNum, plays, winner }>
-  log: Array<LogEntry>               // game log, written to history on finish
+Game server (`server/`, one Durable Object per room code, persisted in DO storage as `EngineState`):
 
-rooms/{code}/hands/{playerName}
-  cards: Card[]
-  // Security rule: only readable if request.auth.uid == player's authUid
-
-rooms/{code}/players/{playerName}
-  authUid: string                    // Firebase anonymous UID, written on join
-  connected: boolean
-  lastHeartbeatAt: timestamp
-  voteKickAgainst: string | null     // playerName they're voting to kick, or null
+```
+room      RoomDoc & { code }   status lobby|dealing|bidding|playing|scoring|finished, playerOrder,
+                                dealerIndex, currentPlayerIndex, currentRound, totalRounds, trumpCard,
+                                trumpSuit, leadSuit, bids, tricksWon, cumulativeScores, trickInProgress,
+                                trickHistory, log (current round only until finished), bots, votes...
+hands     { [playerName]: Card[] }        only your own hand is ever sent to your socket
+archives  { [round]: RoundArchive }       finished rounds; stitched into room.log when finished
+chat      ChatLine[]                      windows derived via chatWindowKey(room)
+kickVotes, seated
 ```
 
 `Card`: `{ suit: 'H'|'D'|'C'|'S'|null, rank: number|'W'|'J' }` where W = Wizard, J = Jester.
 
-## Security rules (sketch)
+Socket protocol (`src/lib/socket.ts` ↔ `server/src/index.ts`): client sends `{t:'hello', join}`, `{t:'act', id, action, args}` and `'ping'` (auto-answered `'pong'`); server sends `{t:'state', seq, room, hand, players, chat?}` (full snapshot on every change and on every reconnect), `{t:'chat', msg}`, `{t:'ack', id, ok, result|code}` and `{t:'error', code}`. Error codes are `EngineError` codes from `src/game/engine.ts` plus `unauthorized`.
 
-- `players/{name}`: readable by anyone (for name lookup), writable only with matching PIN check via Cloud Function or initial creation
-- `rooms/{code}`: readable by any player listed in `playerOrder`, writable with field-level constraints
-- `rooms/{code}/hands/{playerName}`: readable only by matching `authUid`, writable only by server logic (or constrained client writes during deal)
-- `rooms/{code}/players/{playerName}`: readable by all room players, writable only by matching `authUid` (for connected/heartbeat)
+## Security
 
-Start client-authoritative with rules constraining writes. Move to Cloud Functions for move validation only if cheating becomes a concern.
+- `players` and `games` stay open in Firestore rules (scorekeeper compatibility); `reactionStats` needs anonymous auth.
+- Seat token: `POST /session` verifies name + PIN against `players` (salted SHA-256, via the Firestore REST API) and mints a 60-day HMAC-SHA256 token signed with the Worker secret `SESSION_SECRET`. Every room create and every socket carries it, so a seat can only be taken by the person who knows the PIN, and hands are never sent to another seat.
+- The server is authoritative: every action goes through the engine, illegal moves come back as an ack error, nothing is client-writable.
 
 ## Disconnect and vote-kick
 
-**Heartbeat**
-- Each client writes `lastHeartbeatAt` every 10 seconds while in a room
-- A player is `connected: false` if heartbeat is older than 30 seconds
-
-**On player's turn while disconnected**
-- 60-second grace timer starts when their turn begins and they're disconnected
-- During grace period: UI shows "Waiting for {name}... 45s"
-- After 60s: any other player can initiate a vote-kick
-- Vote-kick passes with majority of remaining connected players
-- On kick: player is removed from `playerOrder`, their hand is discarded, round resumes with adjusted turn order
-  - If kicked mid-round, that player's bid is treated as auto-failed (they get `-10 * bid` if they had bid, 0 if they hadn't bid yet)
-
-**On reconnect**
-- Client reads room state, restores hand from `rooms/{code}/hands/{playerName}`, resumes
-- If they were mid-turn, they get the remainder of their grace period
+- Presence = open socket. The server marks a seat `connected: false` the moment its socket closes (and on a missed ping: client pings every 3 s, gives up after 7 s and reconnects with back-off 500 ms to 4 s, with an immediate retry on `online` / `visibilitychange`).
+- The game never stalls on a disconnect: the seat stays, the hand is kept, and on reconnect the socket gets a full snapshot plus its hand.
+- Vote-kick (`setVoteKick` / `kickTally` / `executeKick` in the engine): available on a disconnected seat, majority of the remaining connected humans carries; the kicked player leaves `playerOrder`, their hand is discarded and the round resumes with adjusted turn order.
 
 ## Card assets
 

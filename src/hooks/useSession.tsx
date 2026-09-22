@@ -7,12 +7,16 @@ import {
   useState,
 } from 'react';
 
-const STORAGE_KEY = 'wizard-multiplayer.session';
+import { SESSION_STORAGE_KEY as STORAGE_KEY } from '../lib/session';
 
 export type Session = {
   playerId: string;
   playerName: string;
+  /** Seat token from the game server's /session (name + PIN verified there). */
+  token?: string;
 };
+
+
 
 type SessionContextValue = {
   session: Session | null;
@@ -30,7 +34,7 @@ function readStored(): Session | null {
     if (typeof parsed.playerId !== 'string' || typeof parsed.playerName !== 'string') {
       return null;
     }
-    return { playerId: parsed.playerId, playerName: parsed.playerName };
+    return { playerId: parsed.playerId, playerName: parsed.playerName, token: typeof parsed.token === 'string' ? parsed.token : undefined };
   } catch {
     return null;
   }

@@ -1,32 +1,36 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
 import { useAnonymousAuth } from '../hooks/useAnonymousAuth';
 import { useRoom } from '../hooks/useRoom';
-import { useBotDriver } from '../hooks/useBotDriver';
 import { useHeartbeat } from '../hooks/useHeartbeat';
 import { setActiveRoomCode } from '../hooks/useActiveRoom';
 import { IdentityPrompt } from '../components/IdentityPrompt';
 import { Lobby } from '../components/Lobby';
 import { GameView } from '../components/GameView';
 import { isValidRoomCode } from '../lib/codes';
-import { joinRoom, RoomError, MAX_PLAYERS } from '../lib/rooms';
 
 export function Room() {
   const { code: rawCode } = useParams<{ code: string }>();
   const code = (rawCode ?? '').toUpperCase();
   const navigate = useNavigate();
   const { session, clearSession } = useSession();
-  const { uid } = useAnonymousAuth();
-  const { room, players, loading, notFound } = useRoom(code);
-
-  const [joinError, setJoinError] = useState<string | null>(null);
-  const [joining, setJoining] = useState(false);
+  useAnonymousAuth();
+  const { room, players, loading, notFound, joinError: joinCode, link } = useRoom(code);
 
   const myName = session?.playerName ?? null;
   const inRoom = !!room && !!myName && room.playerOrder.includes(myName);
 
-  useBotDriver(room, myName);
+  // Joining happens when the socket connects; the server says why not.
+  const joinError = joinCode
+    ? {
+        gameStarted: 'That game is already in progress.',
+        roomFull: 'That room is full.',
+        nameTaken: 'A computer player in this room already has that name. Pick another name to join.',
+        unauthorized: 'Your sign-in has expired. Tap switch and sign in again.',
+      }[joinCode] ?? 'Could not join room.'
+    : null;
+
   useHeartbeat(code, inRoom ? myName : null);
 
   // Expose the live room snapshot for the network test rig (scripts/netlab),
@@ -57,6 +61,11 @@ export function Room() {
     if (joinError) setActiveRoomCode(null);
   }, [joinError]);
 
+  // A stale token means the socket can never seat us: back to sign-in.
+  useEffect(() => {
+    if (joinCode === 'unauthorized') clearSession();
+  }, [joinCode, clearSession]);
+
   useEffect(() => {
     // Mid-game disappearance from playerOrder = we got kicked. Clear so
     // Home doesn't keep offering to rejoin a room that's locked out.
@@ -64,41 +73,6 @@ export function Room() {
       setActiveRoomCode(null);
     }
   }, [room, session, inRoom]);
-
-  // Auto-join once we have a session, an auth UID, and a real room.
-  useEffect(() => {
-    if (!session || !uid || !room || joining) return;
-    if (room.playerOrder.includes(session.playerName)) return;
-    // The error/loading messages below are user-visible and depend on
-    // the live room snapshot — derived but state-backed because they
-    // need to persist across re-renders even when the snapshot stops
-    // changing.
-    if (room.status !== 'lobby') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setJoinError('That game is already in progress.');
-      return;
-    }
-    if (room.playerOrder.length >= MAX_PLAYERS) {
-      setJoinError('That room is full.');
-      return;
-    }
-    setJoining(true);
-    setJoinError(null);
-    joinRoom(code, session.playerName, uid)
-      .catch((err: unknown) => {
-        if (err instanceof RoomError) {
-          if (err.code === 'roomNotFound') setJoinError('Room not found.');
-          else if (err.code === 'roomFull') setJoinError('Room is full.');
-          else if (err.code === 'gameStarted') setJoinError('Game already started.');
-          else if (err.code === 'nameTaken')
-            setJoinError('A computer player in this room already has that name. Pick another name to join.');
-          else setJoinError('Could not join room.');
-        } else {
-          setJoinError(err instanceof Error ? err.message : 'Could not join room.');
-        }
-      })
-      .finally(() => setJoining(false));
-  }, [session, uid, room, code, joining]);
 
   if (!isValidRoomCode(code)) {
     return (
@@ -123,6 +97,17 @@ export function Room() {
         >
           ← Back
         </button>
+      )}
+
+      {/* The link to the game server, only when it is not fine. A phone
+          that slept or lost Wi-Fi shows this instead of a frozen table. */}
+      {inRoom && link !== 'online' && (
+        <div
+          role="status"
+          className="fixed top-2 left-1/2 -translate-x-1/2 z-[600] rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] bg-amber-500/90 text-navy-950 shadow-lg animate-pulse"
+        >
+          {link === 'closed' ? 'Disconnected' : 'Reconnecting…'}
+        </div>
       )}
 
       {!session ? (

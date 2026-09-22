@@ -1,31 +1,23 @@
 import { useEffect, useState } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import type { Card, HandDoc } from '../lib/types';
+import { acquireConnection, releaseConnection } from '../lib/socket';
+import { useSession } from './useSession';
+import type { Card } from '../lib/types';
 
-export function useMyHand(code: string, playerName: string | null) {
+/** This player's cards, straight from the room socket (the server sends
+ *  each socket its own hand and nobody else's). */
+export function useMyHand(code: string, playerName: string | null): Card[] | null {
   const [hand, setHand] = useState<Card[] | null>(null);
+  const token = useSession().session?.token ?? null;
 
   useEffect(() => {
-    if (!playerName) {
-      // Clearing on identity change is the whole point — if a viewer
-      // re-auths as someone else, they must NOT see the previous
-      // identity's hand. This is the subscription-pattern exception
-      // the rule docs call out.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setHand(null);
-      return;
-    }
-    const ref = doc(db, 'rooms', code, 'hands', playerName);
-    return onSnapshot(ref, (snap) => {
-      if (!snap.exists()) {
-        setHand(null);
-        return;
-      }
-      const data = snap.data() as HandDoc;
-      setHand(data.cards);
-    });
-  }, [code, playerName]);
+    if (!playerName) return;
+    const conn = acquireConnection(code, true, token);
+    const unsub = conn.subscribe((s) => setHand(s.hand));
+    return () => {
+      unsub();
+      releaseConnection(code);
+    };
+  }, [code, playerName, token]);
 
-  return hand;
+  return playerName ? hand : null;
 }

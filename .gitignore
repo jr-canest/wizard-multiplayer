@@ -30,6 +30,6 @@ firebase-debug.*.log
 # TS
 *.tsbuildinfo
 
-# wrangler dev state for the netlab-do prototype
+# wrangler dev state + generated runtime types for the game server
 .wrangler/
-netlab-do/.wrangler/
+server/worker-configuration.d.ts
