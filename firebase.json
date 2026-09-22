@@ -12,6 +12,13 @@
     ],
     "rewrites": [
       {
+        "source": "/room/**",
+        "function": {
+          "functionId": "roomPage",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
@@ -34,7 +41,27 @@
             "value": "no-cache"
           }
         ]
+      },
+      {
+        "source": "/og-card.png",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=86400"
+          }
+        ]
       }
     ]
-  }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "*.log"
+      ]
+    }
+  ]
 }

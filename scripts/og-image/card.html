@@ -1,0 +1,25 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    background: radial-gradient(120% 90% at 50% 20%, #17203a 0%, #0b1224 60%, #070c19 100%);
+    color: #f3e9cf; font-family: 'Cormorant Garamond', Georgia, serif;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .frame { position: absolute; inset: 28px; border: 1px solid rgba(212,168,67,.35); border-radius: 14px; }
+  .frame:after { content: ''; position: absolute; inset: 8px; border: 1px solid rgba(212,168,67,.16); border-radius: 9px; }
+  .wrap { display: flex; flex-direction: column; align-items: center; gap: 30px; }
+  .logo { width: 720px; height: auto; filter: drop-shadow(0 4px 18px rgba(212,168,67,.25)); }
+  .sub { font-size: 40px; font-weight: 600; letter-spacing: .38em; color: #d4a843; text-transform: uppercase; padding-left: .38em; }
+  .suits { font-size: 44px; letter-spacing: .6em; padding-left: .6em; color: #f3e9cf; opacity: .55; font-family: Georgia, serif; }
+</style></head>
+<body>
+  <div class="frame"></div>
+  <div class="wrap">
+    <img class="logo" src="../../public/wizard-logo.svg">
+    <div class="sub">Multiplayer</div>
+    <div class="suits">♠ ♥ ♣ ♦</div>
+  </div>
+</body></html>

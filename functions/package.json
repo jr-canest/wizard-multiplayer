@@ -1,0 +1,10 @@
+{
+  "name": "wizard-multiplayer-functions",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "engines": { "node": "24" },
+  "dependencies": {
+    "firebase-functions": "^7.3.2"
+  }
+}

@@ -22,7 +22,10 @@ export { type Env };
 type PlayerPresence = { name: string; isBot?: boolean; connected: boolean; lastSeen: number; voteKickAgainst: string | null };
 
 const BOT_ACTION_DELAY_MS = 250;
-const BOT_NEW_TRICK_DELAY_MS = 1400;
+// Leading a new trick waits out the phones' 2 s hold on the finished
+// trick (GameView), plus a margin for the round trip: a faster lead wiped
+// the last card off everyone's table before they had seen it.
+const BOT_NEW_TRICK_DELAY_MS = 2300;
 
 function corsHeaders(env: Env, origin: string | null): Record<string, string> {
   const allowed = env.ALLOWED_ORIGINS.split(',').map((s) => s.trim());

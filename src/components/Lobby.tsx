@@ -88,6 +88,18 @@ export function Lobby({ room, players, myName }: Props) {
 
   async function handleCopyLink() {
     const url = `${window.location.origin}/room/${room.code}`;
+    // Phones get the share sheet with the code in the message text; the
+    // link preview itself also carries the code (functions/index.js).
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: `Wizard · Room ${room.code}`, text: `Join my Wizard game, room ${room.code}`, url });
+        return;
+      } catch (err) {
+        // Cancelled share sheet: nothing to do. Anything else falls back
+        // to the clipboard below.
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+      }
+    }
     try {
       await navigator.clipboard.writeText(url);
       setCopying(true);
@@ -212,7 +224,7 @@ export function Lobby({ room, players, myName }: Props) {
           <div className="flex items-baseline justify-between">
             <span className="text-cream font-semibold text-sm">Add a computer</span>
             <span className="text-[11px] text-navy-200">
-              {roomFull ? 'Room is full' : 'Plays from your device'}
+              {roomFull ? 'Room is full' : 'Runs on the game server'}
             </span>
           </div>
           <div className="grid grid-cols-3 gap-2">

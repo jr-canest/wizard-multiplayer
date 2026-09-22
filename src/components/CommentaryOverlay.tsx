@@ -24,6 +24,7 @@ const GAP_MS = 250;
 const MAX_AGE_MS = 4000;
 
 const SUIT_GLYPH: Record<Suit, string> = { H: '♥', D: '♦', C: '♣', S: '♠' };
+const SUIT_NAME: Record<Suit, string> = { H: 'HEARTS', D: 'DIAMONDS', C: 'CLUBS', S: 'SPADES' };
 const RANK_SHORT: Record<number, string> = {
   11: 'J',
   12: 'Q',
@@ -170,6 +171,25 @@ export function CommentaryOverlay({ room, myName, active }: Props) {
       },
     });
   }, [isMyPlayTurn, isMyBidTurn, myName, enqueue]);
+
+  // ---- TRUMP CHOSEN (a Wizard was flipped, the dealer picked the suit) --
+  // Fires on the snapshot where trumpSuit goes from null to a suit within
+  // the same round, so a choice made before this phone loaded is not news.
+  const prevTrumpRef = useRef<{ round: number; suit: Suit | null }>({ round: 0, suit: null });
+  useEffect(() => {
+    const prev = prevTrumpRef.current;
+    const cur = { round: room.currentRound, suit: room.trumpSuit };
+    prevTrumpRef.current = cur;
+    if (room.trumpCard?.kind !== 'wizard') return;
+    if (cur.round !== prev.round || prev.suit !== null || cur.suit === null) return;
+    const dealer = room.playerOrder[room.dealerIndex];
+    enqueue({
+      title: `${SUIT_GLYPH[cur.suit]} ${SUIT_NAME[cur.suit]}`,
+      sub: dealer === myName ? 'Your call: trump for this round' : `Trump for this round, ${dealer}'s call`,
+      tone: 'wizard',
+      priority: 2,
+    });
+  }, [room.currentRound, room.trumpSuit, room.trumpCard, room.playerOrder, room.dealerIndex, myName, enqueue]);
 
   // ---- Trick-resolve events: wizard kill + win streaks ------------------
   const prevTrickLenRef = useRef<number | null>(null);

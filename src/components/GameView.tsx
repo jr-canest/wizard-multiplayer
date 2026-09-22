@@ -25,6 +25,12 @@ import type { Card } from '../lib/types';
 
 const LAST_TRICK_HOLD_MS = 3000;
 
+// One number per (round, trick) so keys stay unique across rounds even
+// though trickHistory is reset at every deal.
+const trickKey = (round: number, len: number) => round * 1000 + len;
+const trickFromKey = (key: number, room: { currentRound: number; trickHistory: RoomSnapshot['trickHistory'] }) =>
+  Math.floor(key / 1000) === room.currentRound ? room.trickHistory[(key % 1000) - 1] : undefined;
+
 type Props = {
   room: RoomSnapshot;
   players: PlayerSnapshot[];
@@ -87,10 +93,20 @@ export function GameView({ room, players, myName }: Props) {
     winner: string;
     key: number;
   } | null>(null);
+  // Leading the next trick is held back while the finished one is still on
+  // the table (the 2 s win banner): the server resolves a trick instantly
+  // now, so a quick lead wiped the last card off the other phones before
+  // anyone had seen it. Only the lead is held; mid-trick plays are not.
+  const playLocked =
+    votePaused || (winBanner !== null && room.trickInProgress.length === 0);
   // The trickHistory entry whose cards have already been "cleared" from
   // the trick area. We hold the resolved trick visible from the moment
   // the server resolves it until the win-banner timeout fires; setting
   // this key marks "we're done holding" without remounting the cards.
+  // Keyed by round AND trick number: trickHistory restarts at 0 every round
+  // (round archives), so a bare length collided with the previous round's
+  // cleared trick and that one trick got no hold at all, which is why the
+  // last card "sometimes" vanished the instant it landed.
   const [trickClearedKey, setTrickClearedKey] = useState(0);
   // Cards that are actively animating out after the banner. Keeps the
   // same DOM nodes mounted (same player keys) for ~380ms while the
@@ -112,19 +128,20 @@ export function GameView({ room, players, myName }: Props) {
       (room.status === 'playing' || room.status === 'scoring')
     ) {
       const last = room.trickHistory[len - 1];
+      const key = trickKey(room.currentRound, len);
       const isRoundEnd = room.status === 'scoring';
       const duration = isRoundEnd ? LAST_TRICK_HOLD_MS : 2000;
       // setState-in-effect is the right shape here — these are visual
       // states that fire exactly when a new trick lands in the log.
-      setWinBanner({ winner: last.winner, key: len });
+      setWinBanner({ winner: last.winner, key });
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (isRoundEnd) setHoldingRoundEnd(true);
       const tBanner = window.setTimeout(() => {
-        setWinBanner((b) => (b?.key === len ? null : b));
+        setWinBanner((b) => (b?.key === key ? null : b));
         // Mid-round: clear the resolved cards once the banner is done so
         // the trick area is empty for the next play. Round-end is handled
         // separately — the showOpponents flag flips and the area unmounts.
-        if (!isRoundEnd) setTrickClearedKey(len);
+        if (!isRoundEnd) setTrickClearedKey(key);
       }, duration);
       const tHold = isRoundEnd
         ? window.setTimeout(() => {
@@ -136,9 +153,9 @@ export function GameView({ room, players, myName }: Props) {
             // (`trickClearedKey > lastClearedKeyRef.current`) short-
             // circuit to false. trickClearedKey is still advanced so
             // future mid-round leaves animate the right trick.
-            lastClearedKeyRef.current = len;
+            lastClearedKeyRef.current = key;
             setHoldingRoundEnd(false);
-            setTrickClearedKey(len);
+            setTrickClearedKey(key);
           }, LAST_TRICK_HOLD_MS)
         : null;
       lastTrickLenRef.current = len;
@@ -157,7 +174,7 @@ export function GameView({ room, players, myName }: Props) {
   // brief leave animation on the just-cleared trick's cards.
   useEffect(() => {
     if (trickClearedKey > lastClearedKeyRef.current && trickClearedKey > 0) {
-      const last = room.trickHistory[trickClearedKey - 1];
+      const last = trickFromKey(trickClearedKey, room);
       if (last) {
         // Kick off the leave animation in sync with the cleared-key
         // advance — this is the trigger, not derivable in render.
@@ -255,7 +272,7 @@ export function GameView({ room, players, myName }: Props) {
     inActiveTrickPhase &&
     room.trickInProgress.length === 0 &&
     lastTrickIsCurrentRound &&
-    trickClearedKey !== lastTrickLen
+    trickClearedKey !== trickKey(room.currentRound, lastTrickLen)
       ? lastTrick.plays
       : null;
   // When I lead the next trick while the previous one is still held on
@@ -263,10 +280,17 @@ export function GameView({ room, players, myName }: Props) {
   // held trick, not append to it — otherwise the held trick's copy of my
   // previous card makes `myAlreadyShown` true and the new card shows up
   // nowhere until the server round-trip completes (read as lag).
+  // Once the server has resolved the trick my optimistic card completed,
+  // show the held trick (it contains my card) rather than my card alone
+  // for the render before the clear effect runs: that one frame read as
+  // the other three cards blinking out.
+  const optimisticResolved =
+    optimisticPlay !== null &&
+    room.trickHistory.length > optimisticPlay.histLen;
   const baseDisplayedPlays =
     room.trickInProgress.length > 0
       ? room.trickInProgress
-      : optimisticPlay
+      : optimisticPlay && !optimisticResolved
         ? []
         : heldTrick ?? leavingPlays ?? [];
   // Append the optimistic local play when the server hasn't reflected it
@@ -416,7 +440,7 @@ export function GameView({ room, players, myName }: Props) {
           myName={myName}
           trickPlays={displayedPlays}
           trickIsLeaving={trickIsLeaving}
-          isMyTurn={isMyTurn && !votePaused}
+          isMyTurn={isMyTurn && !playLocked}
           paused={votePaused}
           shortFelt={inlineBidPanel}
           hideTrump={dealingActive}
@@ -507,7 +531,7 @@ export function GameView({ room, players, myName }: Props) {
           // Gold in this strip now means one thing only: it is my turn.
           const currentColor = playerColor(currentName, room.playerOrder);
           const isPlayingTurn =
-            room.status === 'playing' && isMyTurn && !votePaused;
+            room.status === 'playing' && isMyTurn && !playLocked;
           const isBiddingTurn =
             room.status === 'bidding' &&
             currentName === myName &&
@@ -674,9 +698,9 @@ export function GameView({ room, players, myName }: Props) {
           <HandDisplay
             hand={displayHand}
             legal={legal}
-            isMyTurn={room.status === 'playing' && isMyTurn && !votePaused}
+            isMyTurn={room.status === 'playing' && isMyTurn && !playLocked}
             onPlay={
-              room.status === 'playing' && isMyTurn && !votePaused
+              room.status === 'playing' && isMyTurn && !playLocked
                 ? handlePlay
                 : undefined
             }

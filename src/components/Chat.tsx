@@ -103,12 +103,11 @@ export function Chat({ room, myName }: Props) {
           </span>
         )}
       </div>
-      <div
-        ref={listRef}
-        className="space-y-1 rounded-md bg-navy-900/40 border border-gold-700/20 px-2 py-1.5"
-      >
+      {/* Plain list, no frame: a boxed list read as the input and people
+          tapped it instead of the field below. */}
+      <div ref={listRef} className="space-y-1 px-0.5">
         {messages.length === 0 ? (
-          <p className="text-[11px] text-navy-300 italic py-1">waiting…</p>
+          <p className="text-[11px] text-navy-300 py-0.5">No messages yet</p>
         ) : (
           messages.map((m, i) => {
             const c = playerColor(m.player, room.playerOrder);
@@ -134,20 +133,21 @@ export function Chat({ room, myName }: Props) {
           })
         )}
       </div>
-      <form onSubmit={handleSend} className="flex gap-1.5">
+      {/* 16px text: anything smaller makes iOS zoom the page on focus. */}
+      <form onSubmit={handleSend} className="flex gap-1.5 items-stretch">
         <input
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
           maxLength={CHAT_MAX_LEN}
-          placeholder="Say something…"
+          placeholder="Type a message…"
           aria-label="Chat message"
-          className="flex-1 rounded-lg bg-[rgba(20,26,44,.8)] border border-gold-300/25 px-2.5 py-1.5 text-sm text-cream placeholder:text-navy-300 focus:outline-none focus:border-gold-300"
+          className="flex-1 min-w-0 rounded-lg bg-[rgba(20,26,44,.9)] border border-gold-300/55 px-3 py-2 text-[16px] text-cream placeholder:text-navy-200 focus:outline-none focus:border-gold-300 focus:ring-2 focus:ring-gold-300/25"
         />
         <button
           type="submit"
           disabled={!text.trim()}
-          className="px-3 py-1.5 text-sm rounded-md btn-gold disabled:opacity-50"
+          className="px-3.5 text-sm rounded-lg btn-gold disabled:opacity-50"
         >
           Send
         </button>
