@@ -64,8 +64,8 @@ check(await until(() => A.room.playerOrder.includes('netB')), 'host sees netB jo
 await B.act('addBot', 'easy').then(() => check(false, 'non-host addBot refused'), (e) => check(e.message === 'notHost', 'non-host addBot refused'));
 const botName = await A.act('addBot', 'medium');
 check(typeof botName === 'string' && (await until(() => B.room.playerOrder.includes(botName))), `bot ${botName} seated for everyone`);
-await A.act('setChosenTotalRounds', 3);
-check(await until(() => B.room.chosenTotalRounds === 3), 'rounds cap propagated');
+await A.act('setChosenTotalRounds', 4);
+check(await until(() => B.room.chosenTotalRounds === 4), 'rounds cap propagated');
 await A.act('sendChat', 'hello from A');
 check(await until(() => B.chat.some((m) => m.text === 'hello from A' && m.w === '0:lobby')), 'chat delivered with lobby window key');
 await A.act('startGame');
@@ -74,11 +74,14 @@ check(A.hand && A.hand.length === 1 && B.hand && B.hand.length === 1, 'each huma
 check(A.state.players.find((p) => p.name === botName)?.isBot === true, 'bot flagged in presence');
 
 // Play three rounds; bots act on the server; humans answer their turns.
-let undoTested = false, voteTested = false;
+let undoTested = false, voteTested = false, lastRoundTested = false;
 for (let guard = 0; guard < 400 && A.room.status !== 'finished'; guard++) {
   const r = A.room;
   const turn = r.playerOrder[r.currentPlayerIndex];
   const me = turn === 'netA' ? A : turn === 'netB' ? B : null;
+  // A's snapshot can lag B's own ack by a few ms (different sockets), so
+  // a turn that already moved on is a stale read, not a failure.
+  const stale = (e) => { if (e.message === 'notYourTurn' || e.message === 'notBidding' || e.message === 'notPlaying') return true; throw e; };
   if (r.status === 'dealing' && r.awaitingTrumpChoice) {
     const dealer = r.playerOrder[r.dealerIndex];
     if (dealer === 'netA') await A.act('chooseTrumpSuit', 'H'); else if (dealer === 'netB') await B.act('chooseTrumpSuit', 'H');
@@ -86,12 +89,12 @@ for (let guard = 0; guard < 400 && A.room.status !== 'finished'; guard++) {
   }
   if (r.status === 'bidding' && me) {
     // Dealer under the Canadian rule may be barred from one value.
-    for (const bid of [0, 1, 2, 3]) { try { await me.act('placeBid', bid); break; } catch (e) { if (e.message !== 'canadianRuleViolation') throw e; } }
+    for (const bid of [0, 1, 2, 3]) { try { await me.act('placeBid', bid); break; } catch (e) { if (e.message !== 'canadianRuleViolation') { stale(e); break; } } }
     await sleep(80); continue;
   }
   if (r.status === 'playing' && me) {
     const idx = legal(me.hand, r.trickInProgress);
-    await me.act('playCard', idx);
+    try { await me.act('playCard', idx); } catch (e) { stale(e); await sleep(80); continue; }
     if (!undoTested && r.currentRound === 2) {
       // Undo right after my play: opens a table vote; B rejects it.
       undoTested = true;
@@ -113,7 +116,18 @@ for (let guard = 0; guard < 400 && A.room.status !== 'finished'; guard++) {
       check(await until(() => B.room.pendingVote?.kind === 'lastRound'), 'last-round vote opened');
       await B.act('castRoundVote', false);
       check(await until(() => A.room.pendingVote == null), 'last-round vote dismissed by no');
-      check(A.room.totalRounds === 3, 'total rounds unchanged after the no');
+      check(A.room.totalRounds === 4, 'total rounds unchanged after the no');
+    }
+    if (voteTested && !lastRoundTested && r.currentRound === 2) {
+      // A carried "next round is last" deals that round itself: no second
+      // "Next round" tally (Jorge, 2026-09-21).
+      lastRoundTested = true;
+      await A.act('openRoundVote', 'lastRound');
+      check(await until(() => B.room.pendingVote?.kind === 'lastRound'), 'last-round vote opened again');
+      await B.act('castRoundVote', true);
+      check(await until(() => A.room.status !== 'scoring' && A.room.currentRound === 3), 'carried last-round vote dealt round 3 by itself');
+      check(A.room.totalRounds === 3, 'total rounds now 3');
+      continue;
     }
     if (!(r.nextRoundVotes ?? []).includes('netA')) await A.act('voteNextRound', true);
     if (!(B.room.nextRoundVotes ?? []).includes('netB')) await B.act('voteNextRound', true);

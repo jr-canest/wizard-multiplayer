@@ -462,8 +462,14 @@ export function voteNextRound(s: EngineState, name: string, yes: boolean): void 
 
 function applyRoundVote(s: EngineState, kind: RoundVoteKind): void {
   const r = s.room;
-  if (kind === 'lastRound') r.totalRounds = r.currentRound + 1;
-  else if (kind === 'endGame') finishGameNow(s);
+  if (kind === 'lastRound') {
+    // The vote IS the decision to go on (Jorge, 2026-09-21): a carried
+    // "next round is last" deals that round right away instead of
+    // asking everyone to tick "Next round" a second time.
+    r.totalRounds = r.currentRound + 1;
+    r.nextRoundVotes = [];
+    scoreAndAdvance(s);
+  } else if (kind === 'endGame') finishGameNow(s);
 }
 
 export function openRoundVote(s: EngineState, name: string, kind: RoundVoteKind, now: number): void {
