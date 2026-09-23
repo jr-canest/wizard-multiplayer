@@ -56,6 +56,11 @@ export function OpponentTile({
     seatIdx === nextIdx &&
     nextIdx !== myIdx;
 
+  // Who bids first also leads the first trick: the seat after the dealer.
+  // Marked with a LEADS pill on the tile's bottom edge during bidding
+  // (Jorge picked this over a status word or bid-order numerals, 2026-09-22).
+  const leads = isBidding && seatIdx === (room.dealerIndex + 1) % N;
+
   const bid = room.bids[playerName];
   const won = room.tricksWon[playerName] ?? 0;
   const color = colorForViewer(playerName, myName, room.playerOrder);
@@ -172,6 +177,14 @@ export function OpponentTile({
           title="Dealer"
         >
           ♛
+        </span>
+      )}
+      {leads && (
+        <span
+          className="absolute -bottom-[7px] left-1/2 -translate-x-1/2 h-[14px] px-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.12em] flex items-center shadow-md leading-none bg-navy-900 text-gold-200 border border-gold-300/70 whitespace-nowrap"
+          title="Bids first and leads the first trick"
+        >
+          leads
         </span>
       )}
       {playedChip && (

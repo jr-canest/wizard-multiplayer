@@ -3,6 +3,7 @@ import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
 import { useMyHand } from '../hooks/useMyHand';
 import { useWakeLock } from '../hooks/useWakeLock';
 import { TrumpChooser } from './TrumpChooser';
+import { leadsFirstTrick } from '../lib/turnOrder';
 import { HandDisplay } from './HandDisplay';
 import { BidModal } from './BidModal';
 import { BidButtonsBar } from './BidButtonsBar';
@@ -28,8 +29,8 @@ const LAST_TRICK_HOLD_MS = 3000;
 // One number per (round, trick) so keys stay unique across rounds even
 // though trickHistory is reset at every deal.
 const trickKey = (round: number, len: number) => round * 1000 + len;
-const trickFromKey = (key: number, room: { currentRound: number; trickHistory: RoomSnapshot['trickHistory'] }) =>
-  Math.floor(key / 1000) === room.currentRound ? room.trickHistory[(key % 1000) - 1] : undefined;
+const trickFromKey = (key: number, round: number, trickHistory: RoomSnapshot['trickHistory']) =>
+  Math.floor(key / 1000) === round ? trickHistory[(key % 1000) - 1] : undefined;
 
 type Props = {
   room: RoomSnapshot;
@@ -174,7 +175,7 @@ export function GameView({ room, players, myName }: Props) {
   // brief leave animation on the just-cleared trick's cards.
   useEffect(() => {
     if (trickClearedKey > lastClearedKeyRef.current && trickClearedKey > 0) {
-      const last = trickFromKey(trickClearedKey, room);
+      const last = trickFromKey(trickClearedKey, room.currentRound, room.trickHistory);
       if (last) {
         // Kick off the leave animation in sync with the cleared-key
         // advance — this is the trigger, not derivable in render.
@@ -186,7 +187,7 @@ export function GameView({ room, players, myName }: Props) {
       }
     }
     lastClearedKeyRef.current = trickClearedKey;
-  }, [trickClearedKey, room.trickHistory]);
+  }, [trickClearedKey, room.currentRound, room.trickHistory]);
 
   // If a new trick starts while leave is in flight, abort the leave so
   // the new cards take over immediately.
@@ -429,10 +430,6 @@ export function GameView({ room, players, myName }: Props) {
           kills, ace of spades). Fixed-centered, pointer-events-none. */}
       <CommentaryOverlay room={room} myName={myName} active={showOpponents} />
 
-      {room.awaitingTrumpChoice && isDealer && (
-        <TrumpChooser code={room.code} callerName={myName} />
-      )}
-
       {showOpponents && (
         <Table
           room={room}
@@ -450,6 +447,12 @@ export function GameView({ room, players, myName }: Props) {
             room.currentRound >= room.totalRounds
           }
           centerBanner={
+            // The dealer's trump pick lives in the middle of the trick
+            // area too (it used to be a card above the table that pushed
+            // everything down). It opts back into pointer events itself.
+            room.awaitingTrumpChoice && isDealer ? (
+              <TrumpChooser code={room.code} callerName={myName} />
+            ) :
             // pointer-events stay OFF: the winner leads the next trick
             // while this banner covers the drop zone, so it must never
             // swallow a card drop (elementFromPoint skips it).
@@ -495,6 +498,11 @@ export function GameView({ room, players, myName }: Props) {
             </h3>
             <span className="flex-1 h-px bg-gradient-to-l from-transparent to-gold-300/45" />
           </div>
+          {leadsFirstTrick(room, myName) && (
+            <p className="-mt-1 mb-2 text-center text-[10px] text-gold-200 leading-none">
+              You're first: you lead the first trick
+            </p>
+          )}
           <BidButtonsBar room={room} myName={myName} />
         </div>
       )}
@@ -565,6 +573,12 @@ export function GameView({ room, players, myName }: Props) {
             primary = (
               <span className="text-navy-100 text-[12px]">
                 Your bid: <strong className="text-gold-100">{myBid}</strong>
+                {leadsFirstTrick(room, myName) && (
+                  <>
+                    {' · '}
+                    <span className="text-gold-200">you lead</span>
+                  </>
+                )}
                 {' · '}
                 Waiting for{' '}
                 <strong className={currentColor.text}>{currentName}</strong>…

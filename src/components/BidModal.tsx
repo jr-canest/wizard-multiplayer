@@ -2,6 +2,7 @@ import { useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BidButtonsBar } from './BidButtonsBar';
 import { getUIZoom } from '../hooks/useUIScale';
+import { leadsFirstTrick } from '../lib/turnOrder';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -91,6 +92,11 @@ export function BidModal({ room, myName }: Props) {
           </h3>
           <span className="flex-1 h-px bg-gradient-to-l from-transparent to-gold-300/45" />
         </div>
+        {leadsFirstTrick(room, myName) && (
+          <p className="-mt-1 mb-2 text-center text-[10px] text-gold-200 leading-none">
+            You're first: you lead the first trick
+          </p>
+        )}
         <BidButtonsBar room={room} myName={myName} />
       </div>
     </div>,

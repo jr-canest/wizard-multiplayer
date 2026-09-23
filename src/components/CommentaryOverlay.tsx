@@ -6,8 +6,9 @@ type Tone = 'gold' | 'fire' | 'wizard' | 'spade';
 
 type Announcement = {
   id: number;
+  // One line only (Jorge, 2026-09-22): the card shows for 1.5 s and a
+  // subtitle never got read, so whatever matters goes in the title.
   title: string;
-  sub?: string;
   tone: Tone;
   priority: number;
   bornAt: number;
@@ -25,12 +26,6 @@ const MAX_AGE_MS = 4000;
 
 const SUIT_GLYPH: Record<Suit, string> = { H: '♥', D: '♦', C: '♣', S: '♠' };
 const SUIT_NAME: Record<Suit, string> = { H: 'HEARTS', D: 'DIAMONDS', C: 'CLUBS', S: 'SPADES' };
-const RANK_SHORT: Record<number, string> = {
-  11: 'J',
-  12: 'Q',
-  13: 'K',
-  14: 'A',
-};
 
 const TONE_STYLE: Record<Tone, { text: string; border: string; glow: string }> =
   {
@@ -158,8 +153,7 @@ export function CommentaryOverlay({ room, myName, active }: Props) {
       }
     }
     enqueue({
-      title: 'YOUR TURN',
-      sub: isMyBidTurn ? 'Place your bid' : undefined,
+      title: isMyBidTurn ? 'YOUR BID' : 'YOUR TURN',
       tone: 'gold',
       priority: 1,
       stillValid: () => {
@@ -176,20 +170,21 @@ export function CommentaryOverlay({ room, myName, active }: Props) {
   // Fires on the snapshot where trumpSuit goes from null to a suit within
   // the same round, so a choice made before this phone loaded is not news.
   const prevTrumpRef = useRef<{ round: number; suit: Suit | null }>({ round: 0, suit: null });
+  const trumpKind = room.trumpCard?.kind;
+  const curRound = room.currentRound;
+  const curSuit = room.trumpSuit;
   useEffect(() => {
     const prev = prevTrumpRef.current;
-    const cur = { round: room.currentRound, suit: room.trumpSuit };
+    const cur = { round: curRound, suit: curSuit };
     prevTrumpRef.current = cur;
-    if (room.trumpCard?.kind !== 'wizard') return;
+    if (trumpKind !== 'wizard') return;
     if (cur.round !== prev.round || prev.suit !== null || cur.suit === null) return;
-    const dealer = room.playerOrder[room.dealerIndex];
     enqueue({
-      title: `${SUIT_GLYPH[cur.suit]} ${SUIT_NAME[cur.suit]}`,
-      sub: dealer === myName ? 'Your call: trump for this round' : `Trump for this round, ${dealer}'s call`,
+      title: `TRUMP IS ${SUIT_GLYPH[cur.suit]} ${SUIT_NAME[cur.suit]}`,
       tone: 'wizard',
       priority: 2,
     });
-  }, [room.currentRound, room.trumpSuit, room.trumpCard, room.playerOrder, room.dealerIndex, myName, enqueue]);
+  }, [curRound, curSuit, trumpKind, enqueue]);
 
   // ---- Trick-resolve events: wizard kill + win streaks ------------------
   const prevTrickLenRef = useRef<number | null>(null);
@@ -219,10 +214,8 @@ export function CommentaryOverlay({ room, myName, active }: Props) {
         }
       }
       if (victimRank > 0) {
-        const who = last.winner === myName ? 'Your' : `${last.winner}'s`;
         enqueue({
           title: 'WIZARD KILL!',
-          sub: `${who} Wizard takes down the ${RANK_SHORT[victimRank]}${SUIT_GLYPH[trump]} of trump`,
           tone: 'wizard',
           priority: 4,
         });
@@ -260,11 +253,7 @@ export function CommentaryOverlay({ room, myName, active }: Props) {
             : isMe
               ? 'MAKE IT STOP'
               : `SOMEONE STOP ${name}`;
-      const sub =
-        streak >= 2
-          ? `${streak} in a row, and nobody asked for them. ${winnerWon} won on a bid of ${winnerBid}`
-          : `${winnerWon} won on a bid of ${winnerBid}`;
-      enqueue({ title, sub, tone: 'fire', priority: 3 });
+      enqueue({ title, tone: 'fire', priority: 3 });
       return;
     }
 
@@ -289,7 +278,6 @@ export function CommentaryOverlay({ room, myName, active }: Props) {
                 : `${name} OWNS THIS ROUND`;
       enqueue({
         title,
-        sub: streak >= 3 ? `${streak} tricks in a row` : undefined,
         tone: 'fire',
         priority: 2,
       });
@@ -316,7 +304,6 @@ export function CommentaryOverlay({ room, myName, active }: Props) {
       ) {
         enqueue({
           title: 'THE ACE OF SPADES',
-          sub: e.player === myName ? 'played by you' : `played by ${e.player}`,
           tone: 'spade',
           priority: 3,
         });
@@ -341,11 +328,6 @@ export function CommentaryOverlay({ room, myName, active }: Props) {
         >
           {current.title}
         </p>
-        {current.sub && (
-          <p className="text-navy-100 text-[12px] mt-1 leading-tight">
-            {current.sub}
-          </p>
-        )}
       </div>
     </div>
   );

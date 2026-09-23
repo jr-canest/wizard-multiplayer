@@ -73,19 +73,16 @@ export function UndoStripBar({ room, myName }: Props) {
       className="rounded-md border border-rose-600/70 bg-rose-900/35 text-rose-100 px-2 py-1 text-[11px] leading-tight animate-overlay-banner-inline"
       aria-live="polite"
     >
-      <span className="flex items-center justify-between gap-2 text-[11px]">
-        <span className="text-rose-100/90 truncate">
-          Last {actionWord} a mistake?
-        </span>
-        <button
-          type="button"
-          onClick={onRequest}
-          disabled={busy}
-          className="shrink-0 text-gold-200 underline underline-offset-2 active:text-gold-100"
-        >
-          Undo
-        </button>
-      </span>
+      <button
+        type="button"
+        onClick={onRequest}
+        disabled={busy}
+        title={`Undo your last ${actionWord}`}
+        className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold text-gold-200 active:text-gold-100 disabled:opacity-60"
+      >
+        <span aria-hidden="true">↶</span>
+        <span>Undo last move</span>
+      </button>
     </div>
   );
 }

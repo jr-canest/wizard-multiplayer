@@ -124,8 +124,12 @@ export function ScoreLineGraph({ room, autoStartDelayMs = 1200 }: Props) {
   const startProgressRef = useRef(0);
 
   const totalRounds = completedRounds.length;
+  // 1.2 s a round, but never longer than 5 s in total: a 15-round game
+  // used to replay for 18 s (Jorge, 2026-09-22). Short games keep their
+  // pace, long ones just move faster.
   const SECONDS_PER_ROUND = 1.2;
-  const totalDuration = totalRounds * SECONDS_PER_ROUND * 1000;
+  const REPLAY_MAX_MS = 5000;
+  const totalDuration = Math.min(REPLAY_MAX_MS, totalRounds * SECONDS_PER_ROUND * 1000);
 
   const playerColors = useMemo(() => {
     const colors: Record<string, string> = {};
