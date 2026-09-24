@@ -8,21 +8,20 @@ import {
 import { db, isProduction } from './firebase';
 
 /**
- * The reaction phrases in the 📣 picker, in the order they are shown.
- * Single source of truth: the picker renders this, and the usage
+ * The quick buttons in the in-game chat hub (GameChat), in the order they
+ * are shown. Since 2026-09-24 they are the five most used of the old 📣
+ * list (90% of every reaction sent); anything else gets typed in the
+ * chat. Single source of truth: the hub renders this, and the usage
  * readout on /me scores against it so a phrase nobody has ever tapped
- * still shows up (with 0) as the least-used one.
+ * still shows up (with 0) as the least-used one; the dropped phrases show
+ * there as retired.
  */
 export const REACTIONS = [
   'ouch',
-  'sorry!',
-  'thanks!',
-  'take your time',
-  'skip skip skip',
-  'no mercy',
-  'respect the game',
-  'bruno?',
   'why???',
+  'take your time',
+  'respect the game',
+  'thanks!',
 ] as const;
 
 export type ReactionText = (typeof REACTIONS)[number];

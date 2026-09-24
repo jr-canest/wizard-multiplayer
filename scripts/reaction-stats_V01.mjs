@@ -18,14 +18,10 @@ const firebaseConfig = {
 // has ever tapped still print, with a zero.
 const CATALOGUE = [
   'ouch',
-  'sorry!',
-  'thanks!',
-  'take your time',
-  'skip skip skip',
-  'no mercy',
-  'respect the game',
-  'bruno?',
   'why???',
+  'take your time',
+  'respect the game',
+  'thanks!',
 ];
 const keyOf = (t) =>
   t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'unknown';

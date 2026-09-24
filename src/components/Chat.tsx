@@ -1,12 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { playerColor } from '../lib/playerColors';
-import { useChat } from '../hooks/useChat';
-import {
-  CHAT_MAX_LEN,
-  chatWindowKey,
-  sendChatMessage,
-  type ChatMessage,
-} from '../lib/chat';
+import { useChatThread } from '../hooks/useChatThread';
+import { CHAT_MAX_LEN } from '../lib/chat';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
 const VISIBLE_CHAT_COUNT = 4;
@@ -21,44 +16,18 @@ type Props = {
 /**
  * Compact chat used in the lobby, round-end scoreboard, and final
  * scoreboard. Renders the {@link VISIBLE_CHAT_COUNT} most recent
- * messages plus an input.
+ * messages of the current window plus an input. During play the header's
+ * chat hub (GameChat) takes over; lines sent there during a round land in
+ * that round's window, so the round-end box picks the conversation up.
  *
- * Lines ride the room socket (src/lib/chat.ts): the server keeps them and
- * pushes each new one to every phone, the sender included. A sent message
- * renders optimistically the instant it is sent and is dropped as soon as
- * the server's copy is on screen: the server echoes the sender's own
- * timestamp as `cts`, and the ack (which always follows the echo on the
- * same socket) clears it as a belt-and-braces. The input is never
- * disabled, you can keep typing while a message is in flight.
+ * Lines ride the room socket (src/lib/chat.ts); sending and the optimistic
+ * copy live in useChatThread. The input is never disabled, you can keep
+ * typing while a message is in flight.
  */
 export function Chat({ room, myName }: Props) {
   const [text, setText] = useState('');
-  const [optimistic, setOptimistic] = useState<ChatMessage[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
-  const liveMessages = useChat(room.code);
-  const windowKey = chatWindowKey(room);
-
-  // Messages for the current chat window (lobby / this round-end / final).
-  const serverMessages = useMemo(
-    () => liveMessages.filter((m) => m.w === windowKey).sort((a, b) => a.ts - b.ts),
-    [liveMessages, windowKey],
-  );
-
-  // Drop optimistic copies the server has echoed back. Derived in render
-  // rather than synced into state, so there is no setState-in-effect to
-  // clean up. The server echoes our send-time stamp as `cts`, so the
-  // match is exact; the text + near-time test covers a server build that
-  // predates `cts`.
-  const visibleOptimistic = optimistic.filter(
-    (o) =>
-      o.w === windowKey &&
-      !serverMessages.some(
-        (m) =>
-          m.player === o.player &&
-          (m.cts === o.ts || (m.text === o.text && Math.abs(m.ts - o.ts) < 30_000)),
-      ),
-  );
-  const allMessages: ChatMessage[] = [...serverMessages, ...visibleOptimistic];
+  const { lines: allMessages, send } = useChatThread(room, myName, 'window');
   const messages = allMessages.slice(-VISIBLE_CHAT_COUNT);
 
   // Stick to the bottom whenever a new message arrives.
@@ -73,22 +42,12 @@ export function Chat({ room, myName }: Props) {
     const v = text.trim();
     if (!v) return;
     setText('');
-    const ts = Date.now();
-    const draft: ChatMessage = { player: myName, text: v, ts, w: windowKey };
-    setOptimistic((prev) => [...prev, draft]);
     // Not awaited: the message is already on screen, and blocking the
-    // form on the server ack is exactly what made sending feel slow.
-    sendChatMessage(room.code, windowKey, myName, v, ts).then(
-      // Acked: the server's copy arrived on this socket before the ack,
-      // so the optimistic one is redundant from here on.
-      () => setOptimistic((prev) => prev.filter((o) => o.ts !== ts)),
-      () => {
-        // Drop the optimistic copy and restore the input so the send does
-        // not silently vanish on a flaky network.
-        setOptimistic((prev) => prev.filter((o) => o.ts !== ts));
-        setText((cur) => (cur ? cur : v));
-      },
-    );
+    // form on the server ack is exactly what made sending feel slow. A
+    // failed send puts the text back so it does not silently vanish.
+    void send(v).then((ok) => {
+      if (!ok) setText((cur) => (cur ? cur : v));
+    });
   }
 
   return (

@@ -448,6 +448,57 @@ button:focus-visible {
   100% { transform: translate(0, 0) rotate(0deg); opacity: 0; }
 }
 
+/* Chat on the felt (OverlayBanner): the newest two lines, newest at the
+ * bottom. A new line fades up into the bottom slot; a line that leaves
+ * (too old, or pushed out by a newer one) fades and folds its height so
+ * the one below glides up into the top slot. EXIT_MS in OverlayBanner.tsx
+ * covers the fold. */
+.felt-msg {
+  display: grid;
+  grid-template-rows: 1fr;
+  max-width: 100%;
+  transition:
+    grid-template-rows 300ms cubic-bezier(0.2, 0.8, 0.3, 1),
+    opacity 220ms ease,
+    transform 300ms ease;
+}
+.felt-msg > div {
+  min-height: 0;
+}
+.felt-msg-out {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-6px);
+}
+.felt-msg-out > div {
+  overflow: hidden;
+}
+
+@keyframes felt-msg-in {
+  0%   { opacity: 0; transform: translateY(10px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-felt-msg-in {
+  animation: felt-msg-in 280ms cubic-bezier(0.2, 0.9, 0.3, 1.05) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .felt-msg { transition: none; }
+  .animate-felt-msg-in,
+  .animate-chat-hub-in { animation: none; }
+}
+
+/* Chat hub (GameChat) drops in from the top of the screen. */
+@keyframes chat-hub-in {
+  0%   { opacity: 0; transform: translateY(-10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-chat-hub-in {
+  animation: chat-hub-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1.05) both;
+}
+
 @keyframes bid-modal-in {
   0%   { opacity: 0; transform: translateY(8px); }
   100% { opacity: 1; transform: translateY(0); }

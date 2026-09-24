@@ -242,3 +242,9 @@ export function connectionFor(code: string): RoomConnection {
   if (entry) return entry.conn;
   return acquireConnection(code, false, readToken());
 }
+
+/** Chat lines an open connection already holds, so a reader mounted
+ *  mid-game starts with them instead of one empty render. */
+export function peekChat(code: string): ChatLine[] {
+  return connections.get(code)?.conn.state.chat ?? [];
+}

@@ -10,7 +10,7 @@ import { BidButtonsBar } from './BidButtonsBar';
 import { RoundScoreboard } from './RoundScoreboard';
 import { FinalScoreboard } from './FinalScoreboard';
 import { DisconnectBanner } from './DisconnectBanner';
-import { Reactions } from './Reactions';
+import { GameChat } from './GameChat';
 import { UndoStripBar } from './OverlayBanner';
 import { CommentaryOverlay } from './CommentaryOverlay';
 import { GameMenu } from './GameMenu';
@@ -377,11 +377,10 @@ export function GameView({ room, players, myName }: Props) {
         }}
       >
         <span className="text-navy-200 whitespace-nowrap flex items-center gap-1.5">
-          {/* Reactions are only useful during active gameplay — the
-              round-end + final scoreboards have a chat box instead. */}
-          {room.status !== 'scoring' && room.status !== 'finished' && (
-            <Reactions room={room} myName={myName} />
-          )}
+          {/* Chat hub button (quick reactions + typed chat). It hides
+              itself on the round-end + final scoreboards, which have a
+              chat box instead. */}
+          <GameChat room={room} myName={myName} />
           <span className="flex flex-col leading-none gap-0.5">
             <span>
               Round{' '}
