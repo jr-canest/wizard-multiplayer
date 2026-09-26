@@ -107,7 +107,7 @@ export function Me() {
 
   if (!session) {
     return (
-      <div className="min-h-svh px-4 pt-6 pb-10 flex items-center justify-center">
+      <div className="min-h-screen-z px-4 pt-6 pb-10 flex items-center justify-center">
         <div className="card-gold p-6 max-w-sm text-center space-y-3">
           <p className="font-display font-semibold text-[20px] text-cream-bright">Sign in to see your stats</p>
           <button
@@ -125,7 +125,7 @@ export function Me() {
   const loading = !error && (player === null || games === null);
 
   return (
-    <div className="min-h-svh px-4 pt-6 pb-10">
+    <div className="min-h-screen-z px-4 pt-6 pb-10">
       <div className="max-w-md mx-auto space-y-4">
         <div className="flex items-center justify-between">
           <div className="min-w-0">

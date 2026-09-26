@@ -76,7 +76,7 @@ export function Room() {
 
   if (!isValidRoomCode(code)) {
     return (
-      <div className="min-h-svh flex flex-col items-center px-6 pt-16">
+      <div className="min-h-screen-z flex flex-col items-center px-6 pt-16">
         <p className="text-rose-300 mb-4">That doesn’t look like a valid room code.</p>
         <Link to="/" className="text-gold-200 underline">
           Back to home
@@ -88,7 +88,7 @@ export function Room() {
   const inGame = !!room && room.status !== 'lobby';
 
   return (
-    <div className="min-h-svh flex flex-col items-center px-4 pt-3 pb-3">
+    <div className="min-h-screen-z flex flex-col items-center px-4 pt-3 pb-3">
       {!inGame && (
         <button
           type="button"

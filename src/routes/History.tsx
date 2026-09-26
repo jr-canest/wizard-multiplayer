@@ -317,7 +317,7 @@ export function History() {
   const loading = games === null || players === null;
 
   return (
-    <div className="min-h-svh px-4 pt-6 pb-10">
+    <div className="min-h-screen-z px-4 pt-6 pb-10">
       <div className="max-w-md mx-auto">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-baseline gap-2">

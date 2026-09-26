@@ -20,7 +20,7 @@ export function Home() {
   }
 
   return (
-    <div className="min-h-svh flex flex-col items-center px-6 pt-10 pb-10">
+    <div className="min-h-screen-z flex flex-col items-center px-6 pt-10 pb-10">
       <div className="flex items-center gap-2.5 mb-2">
         <span className="diamond" />
         <img

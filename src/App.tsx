@@ -9,7 +9,7 @@ export function App() {
 
   if (error) {
     return (
-      <div className="min-h-svh flex items-center justify-center px-6 text-center">
+      <div className="min-h-screen-z flex items-center justify-center px-6 text-center">
         <div className="card-gold p-6 max-w-sm">
           <p className="text-gold-300 font-bold mb-2">Sign-in failed</p>
           <p className="text-sm text-navy-100">{error}</p>
@@ -20,14 +20,14 @@ export function App() {
 
   if (!ready) {
     return (
-      <div className="min-h-svh flex items-center justify-center">
+      <div className="min-h-screen-z flex items-center justify-center">
         <div className="text-navy-200 text-sm">Connecting…</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-svh flex flex-col" data-uid={uid}>
+    <div className="min-h-screen-z flex flex-col" data-uid={uid}>
       <UpdateBanner />
       <Outlet />
     </div>

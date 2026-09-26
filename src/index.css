@@ -41,17 +41,26 @@ body {
   background: linear-gradient(180deg, #0b1224 0%, #070d1c 55%, #040913 100%);
   background-attachment: fixed;
   color: #e5e7eb;
-  min-height: 100svh;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   /* Viewport-driven uniform scale of the whole UI. Set by useUIScale. The
      base layout is phone-sized; bigger windows zoom up so the UI fills
      the screen instead of sitting in a narrow column. */
   zoom: var(--ui-zoom, 1);
+  /* Zoom multiplies heights too, so a plain 100svh made every page zoom x
+     one screen tall (half a screen of empty page on an iPad). One real
+     screen, in zoomed pixels (same fix as the scorekeeper, 2026-09-25): */
+  min-height: calc(100svh / var(--ui-zoom, 1));
 }
 
 #root {
-  min-height: 100svh;
+  min-height: calc(100svh / var(--ui-zoom, 1));
+}
+
+/* Full-screen-height blocks inside the zoomed body: use this, never
+   Tailwind's min-h-svh / min-h-screen (see the body rule above). */
+.min-h-screen-z {
+  min-height: calc(100svh / var(--ui-zoom, 1));
 }
 
 /* ─── 1b kit: buttons ─── */
