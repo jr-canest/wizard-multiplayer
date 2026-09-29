@@ -210,14 +210,16 @@ export function FinalScoreboard({ room, myName }: Props) {
     room.playerOrder.length >= 2 &&
     aiSummary === null;
 
-  // Watchdog: if the shared summary hasn't landed after 15s (e.g. the
+  // Watchdog: if the shared summary hasn't landed after 20s (e.g. the
   // claiming device got suspended mid-fetch — hi, iPad), fall back to
   // the local deterministic recap so nobody is stuck on "Analyzing…"
   // forever. Once timed out, a late AI arrival is ignored on this
-  // device — the table only ever sees ONE commentary, no swap.
+  // device: the table only ever sees ONE commentary, no swap. A warm
+  // recap takes 3 to 9 s; 20 s (was 15) leaves room for an "end game
+  // now" that lands while the pre-warm ping's instance is still booting.
   useEffect(() => {
     if (!aiLoading) return;
-    const t = window.setTimeout(() => setAiTimedOut(true), 15000);
+    const t = window.setTimeout(() => setAiTimedOut(true), 20000);
     return () => window.clearTimeout(t);
   }, [aiLoading]);
 

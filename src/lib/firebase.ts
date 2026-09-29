@@ -71,6 +71,28 @@ export async function fetchAISummary(
   }
 }
 
+const warmRecapFn = httpsCallable<{ warmup: true }, unknown>(
+  functions,
+  'generateGameSummary',
+);
+
+// Pre-warm the recap function, which answers { warmup: true } at once, so
+// the game-over call lands on an instance that is already up. Cloud Run
+// spins it down between games and a cold start ran 11 s on 2026-09-28,
+// which on its own blew the final scoreboard's watchdog: the table got
+// the fallback recap. Fire-and-forget; throttled because every trick of
+// the last round asks, and an idle instance stays warm ~15 min.
+const WARM_INTERVAL_MS = 5 * 60 * 1000;
+let lastWarmAt = 0;
+
+export function warmRecapFunction(): void {
+  if (!isProduction()) return;
+  const now = Date.now();
+  if (now - lastWarmAt < WARM_INTERVAL_MS) return;
+  lastWarmAt = now;
+  warmRecapFn({ warmup: true }).catch(() => {});
+}
+
 export function isProduction(): boolean {
   return (
     window.location.hostname !== 'localhost' &&

@@ -35,6 +35,9 @@ function windowLabel(w: string): string {
  */
 export function GameChat({ room, myName }: Props) {
   const [open, setOpen] = useState(false);
+  // The typed line lives out here, not in the hub, so a send that fails
+  // after the hub closed can put it back for the next time chat opens.
+  const [draft, setDraft] = useState('');
   const { lines, send } = useChatThread(room, myName, 'game');
   const inPlay = room.status !== 'scoring' && room.status !== 'finished';
 
@@ -58,7 +61,15 @@ export function GameChat({ room, myName }: Props) {
         </button>
       )}
       {open && (
-        <ChatHub room={room} myName={myName} lines={lines} send={send} onClose={() => setOpen(false)} />
+        <ChatHub
+          room={room}
+          myName={myName}
+          lines={lines}
+          send={send}
+          draft={draft}
+          setDraft={setDraft}
+          onClose={() => setOpen(false)}
+        />
       )}
     </>
   );
@@ -69,24 +80,27 @@ export function GameChat({ room, myName }: Props) {
  * the phone keyboard, and never takes more than half the screen: the
  * message list scrolls inside it while the text box and quick buttons stay
  * put. Sits under the vote modals (z-[500]) so a vote that opens mid-chat
- * is still in front. Quick buttons send and close; typed lines keep the
- * hub open.
+ * is still in front. Quick buttons and typed lines (Enter or Send) both
+ * send and close (Jorge, 2026-09-28): the line shows on the felt anyway.
  */
 function ChatHub({
   room,
   myName,
   lines,
   send,
+  draft,
+  setDraft,
   onClose,
 }: {
   room: RoomSnapshot;
   myName: string;
   lines: ChatMessage[];
   send: (text: string) => Promise<boolean>;
+  draft: string;
+  setDraft: React.Dispatch<React.SetStateAction<string>>;
   onClose: () => void;
 }) {
   useBodyScrollLock();
-  const [text, setText] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
 
   // Open at the newest line and follow new ones.
@@ -105,12 +119,15 @@ function ChatHub({
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    const v = text.trim();
+    const v = draft.trim();
     if (!v) return;
-    setText('');
+    setDraft('');
+    // A failed send puts the line back in the box, unless something new
+    // was typed there since.
     void send(v).then((ok) => {
-      if (!ok) setText((cur) => (cur ? cur : v));
+      if (!ok) setDraft((cur) => (cur ? cur : v));
     });
+    onClose();
   }
 
   function quick(phrase: string) {
@@ -191,8 +208,8 @@ function ChatHub({
           <form onSubmit={submit} className="shrink-0 mt-2.5 flex gap-1.5 items-stretch">
             <input
               type="text"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
               maxLength={CHAT_MAX_LEN}
               placeholder="Type a message…"
               aria-label="Chat message"
@@ -201,7 +218,7 @@ function ChatHub({
             />
             <button
               type="submit"
-              disabled={!text.trim()}
+              disabled={!draft.trim()}
               className="px-3.5 text-sm rounded-lg btn-gold disabled:opacity-50"
             >
               Send

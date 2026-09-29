@@ -9,6 +9,8 @@ import { IdentityPrompt } from '../components/IdentityPrompt';
 import { Lobby } from '../components/Lobby';
 import { GameView } from '../components/GameView';
 import { isValidRoomCode } from '../lib/codes';
+import { warmRecapFunction } from '../lib/firebase';
+import { isTestGame } from '../lib/history';
 
 export function Room() {
   const { code: rawCode } = useParams<{ code: string }>();
@@ -73,6 +75,21 @@ export function Room() {
       setActiveRoomCode(null);
     }
   }, [room, session, inRoom]);
+
+  // Pre-warm the AI recap while the game heads for its end: the final
+  // round is out, or a round-end vote (last round / end game now) is
+  // open. Re-runs on every trick and phase change; warmRecapFunction
+  // throttles the pings.
+  const headingToGameOver =
+    inRoom &&
+    !!room &&
+    room.status !== 'lobby' &&
+    room.status !== 'finished' &&
+    (room.currentRound >= room.totalRounds || !!room.pendingVote) &&
+    !isTestGame(room);
+  useEffect(() => {
+    if (headingToGameOver) warmRecapFunction();
+  }, [headingToGameOver, room?.status, room?.currentTrick]);
 
   if (!isValidRoomCode(code)) {
     return (
