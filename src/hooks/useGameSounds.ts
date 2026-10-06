@@ -2,16 +2,24 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { useChat } from './useChat';
 import type { RoomSnapshot } from './useRoom';
 import {
+  playBidMadeSound,
+  playBidMissedSound,
   playBidSound,
   playBidsInSound,
   playCardSound,
   playChatSound,
   playStartRoundSound,
   playTrickWonSound,
+  playYourTurnSound,
   soundEnabled,
   subscribeSound,
   unlockAudioOnGesture,
 } from '../lib/sounds';
+import { LAST_TRICK_HOLD_MS } from '../lib/trickTiming';
+
+// The turn bell only rings for someone who seems to be looking away: no
+// tap on this phone for this long when the turn arrives, or none since.
+const TURN_IDLE_MS = 5000;
 
 /** The sound on/off setting, live. */
 export function useSoundEnabled(): boolean {
@@ -54,6 +62,51 @@ export function useGameSounds(room: RoomSnapshot, myName: string): void {
     if (fresh) playChatSound();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newestTs, myName]);
+
+  // ---- Your turn bell ------------------------------------------------
+  const lastTouchRef = useRef(0);
+  useEffect(() => {
+    const touch = () => {
+      lastTouchRef.current = Date.now();
+    };
+    touch(); // Opening the table counts as looking at it.
+    window.addEventListener('pointerdown', touch, true);
+    return () => window.removeEventListener('pointerdown', touch, true);
+  }, []);
+  const turnName = room.playerOrder[room.currentPlayerIndex];
+  const myTurn =
+    turnName === myName &&
+    !room.awaitingTrumpChoice &&
+    (room.status === 'playing' || (room.status === 'bidding' && room.bids[myName] === undefined));
+  useEffect(() => {
+    if (!myTurn) return;
+    const start = Date.now();
+    if (start - lastTouchRef.current >= TURN_IDLE_MS) {
+      playYourTurnSound();
+      return;
+    }
+    // Active a moment ago: ring only if the turn then sits untouched.
+    const id = window.setTimeout(() => {
+      if (lastTouchRef.current < start) playYourTurnSound();
+    }, TURN_IDLE_MS);
+    return () => window.clearTimeout(id);
+  }, [myTurn, room.currentRound, room.trickHistory.length]);
+
+  // ---- Round result: made or missed your bid ---------------------------
+  // Lands as the round scoreboard comes up (after the last trick's hold).
+  // The final round goes straight to the game-over sparkle instead.
+  const prevStatusRef = useRef(room.status);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    prevStatusRef.current = room.status;
+    if (prev !== 'playing' || room.status !== 'scoring') return;
+    const bid = room.bids[myName];
+    if (bid === undefined) return;
+    const made = (room.tricksWon[myName] ?? 0) === bid;
+    const id = window.setTimeout(made ? playBidMadeSound : playBidMissedSound, LAST_TRICK_HOLD_MS + 150);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.status, myName]);
 
   const bidKeys = Object.keys(room.bids).sort().join('|');
   useEffect(() => {

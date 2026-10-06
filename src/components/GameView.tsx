@@ -27,7 +27,7 @@ import { playerColor } from '../lib/playerColors';
 import { sortHandWithIndex } from '../lib/sortHand';
 import type { Card } from '../lib/types';
 
-const LAST_TRICK_HOLD_MS = 3000;
+import { LAST_TRICK_HOLD_MS, TRICK_HOLD_MS } from '../lib/trickTiming';
 
 // One number per (round, trick) so keys stay unique across rounds even
 // though trickHistory is reset at every deal.
@@ -140,7 +140,7 @@ export function GameView({ room, players, myName }: Props) {
       const last = room.trickHistory[len - 1];
       const key = trickKey(room.currentRound, len);
       const isRoundEnd = room.status === 'scoring';
-      const duration = isRoundEnd ? LAST_TRICK_HOLD_MS : 2000;
+      const duration = isRoundEnd ? LAST_TRICK_HOLD_MS : TRICK_HOLD_MS;
       // setState-in-effect is the right shape here — these are visual
       // states that fire exactly when a new trick lands in the log.
       setWinBanner({ winner: last.winner, key, callout: trickCallout(room, myName) });

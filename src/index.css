@@ -564,7 +564,7 @@ button:focus-visible {
 }
 
 .animate-trick-banner {
-  animation: trick-banner 2s ease-out forwards;
+  animation: trick-banner 1.5s ease-out forwards; /* = TRICK_HOLD_MS */
 }
 
 @keyframes crown-pop {
