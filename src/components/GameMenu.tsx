@@ -5,6 +5,7 @@ import {
 } from '../lib/gameFlow';
 import { playerColor } from '../lib/playerColors';
 import { getUIZoom } from '../hooks/useUIScale';
+import { playBidSound, setSoundEnabled, soundEnabled } from '../lib/sounds';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -19,6 +20,7 @@ type Props = {
  */
 export function GameMenu({ room, myName }: Props) {
   const [open, setOpen] = useState(false);
+  const [soundOn, setSoundOn] = useState(soundEnabled);
   const [anchor, setAnchor] = useState<{
     left: number;
     top: number;
@@ -178,6 +180,33 @@ export function GameMenu({ room, myName }: Props) {
                 );
               })}
             </ul>
+
+            {/* Sound on/off for this phone (the silent switch mutes it too). */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={soundOn}
+              onClick={() => {
+                const next = !soundOn;
+                setSoundEnabled(next);
+                setSoundOn(next);
+                if (next) playBidSound(4);
+              }}
+              className="w-full flex items-center justify-between pt-2 border-t border-gold-700/20 text-sm text-cream"
+            >
+              <span>Sound</span>
+              <span
+                className={`relative w-10 h-6 rounded-full transition-colors ${
+                  soundOn ? 'bg-gold-500' : 'bg-navy-700'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-cream shadow transition-transform ${
+                    soundOn ? 'translate-x-4' : ''
+                  }`}
+                />
+              </span>
+            </button>
           </div>
         </>
       )}

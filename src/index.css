@@ -498,9 +498,9 @@ button:focus-visible {
   .animate-chat-hub-in { animation: none; }
 }
 
-/* Chat hub (GameChat) drops in from the top of the screen. */
+/* Chat hub (GameChat) rises onto the keyboard. */
 @keyframes chat-hub-in {
-  0%   { opacity: 0; transform: translateY(-10px); }
+  0%   { opacity: 0; transform: translateY(12px); }
   100% { opacity: 1; transform: translateY(0); }
 }
 
@@ -646,3 +646,7 @@ button:focus-visible {
   padding: 3px 5px;
   border: 1px solid rgba(125, 211, 252, 0.35);
 }
+
+/* Sideways-scrolling rows (chat quick buttons) without a scrollbar. */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

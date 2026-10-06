@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { placeBid, violatesCanadianRule } from '../lib/gameFlow';
+import { playBidSound } from '../lib/sounds';
 import { bidGridLayout } from '../lib/bidLayout';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
@@ -41,6 +42,7 @@ export function BidButtonsBar({ room, myName }: Props) {
   }
 
   async function pick(value: number) {
+    playBidSound(value);
     setSubmitting(value);
     setError(null);
     try {

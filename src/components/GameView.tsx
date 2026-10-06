@@ -12,7 +12,10 @@ import { FinalScoreboard } from './FinalScoreboard';
 import { DisconnectBanner } from './DisconnectBanner';
 import { GameChat } from './GameChat';
 import { UndoStripBar } from './OverlayBanner';
-import { CommentaryOverlay } from './CommentaryOverlay';
+import { CommentaryCard, TONE_STYLE, useCommentary } from './CommentaryOverlay';
+import { trickCallout, type TrickCallout } from '../lib/trickCallout';
+import { playCardSound } from '../lib/sounds';
+import { useGameSounds } from '../hooks/useGameSounds';
 import { GameMenu } from './GameMenu';
 import { UndoVoteModal } from './UndoVoteModal';
 import { Table } from './Table';
@@ -42,6 +45,10 @@ export function GameView({ room, players, myName }: Props) {
   const hand = useMyHand(room.code, myName);
   const dealerName = room.playerOrder[room.dealerIndex];
   const isDealer = dealerName === myName;
+  // Your turn / trump call / ace of spades, shown in the felt's center
+  // column under the win banner (one spot for every announcement).
+  const commentary = useCommentary(room, myName);
+  useGameSounds(room, myName);
   const isMyTurn = room.playerOrder[room.currentPlayerIndex] === myName;
   // An open undo vote stops the table: no bids, no plays, no turn cues.
   // gameFlow enforces it; this is the UI half so nothing invites an
@@ -93,6 +100,8 @@ export function GameView({ room, players, myName }: Props) {
   const [winBanner, setWinBanner] = useState<{
     winner: string;
     key: number;
+    /** Streak / overshoot / wizard kill line shown under the name. */
+    callout: TrickCallout | null;
   } | null>(null);
   // Leading the next trick is held back while the finished one is still on
   // the table (the 2 s win banner): the server resolves a trick instantly
@@ -134,7 +143,7 @@ export function GameView({ room, players, myName }: Props) {
       const duration = isRoundEnd ? LAST_TRICK_HOLD_MS : 2000;
       // setState-in-effect is the right shape here — these are visual
       // states that fire exactly when a new trick lands in the log.
-      setWinBanner({ winner: last.winner, key });
+      setWinBanner({ winner: last.winner, key, callout: trickCallout(room, myName) });
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (isRoundEnd) setHoldingRoundEnd(true);
       const tBanner = window.setTimeout(() => {
@@ -220,6 +229,7 @@ export function GameView({ room, players, myName }: Props) {
     const originalIdx = sortedHand[displayIdx]?.originalIndex ?? displayIdx;
     const card = displayHand[displayIdx];
     setOptimisticPlay({ card, histLen: room.trickHistory.length });
+    playCardSound(true);
     // Playing into the win-banner window: the previous trick's hold is
     // being replaced by this new play, so drop the banner with it.
     setWinBanner(null);
@@ -425,9 +435,6 @@ export function GameView({ room, players, myName }: Props) {
       {/* Table-wide undo vote. Renders over everything and pauses play. */}
       <UndoVoteModal room={room} myName={myName} />
 
-      {/* Big transient commentary titles (your turn, streaks, wizard
-          kills, ace of spades). Fixed-centered, pointer-events-none. */}
-      <CommentaryOverlay room={room} myName={myName} active={showOpponents} />
 
       {showOpponents && (
         <Table
@@ -446,32 +453,48 @@ export function GameView({ room, players, myName }: Props) {
             room.currentRound >= room.totalRounds
           }
           centerBanner={
-            // The dealer's trump pick lives in the middle of the trick
-            // area too (it used to be a card above the table that pushed
-            // everything down). It opts back into pointer events itself.
-            room.awaitingTrumpChoice && isDealer ? (
-              <TrumpChooser code={room.code} callerName={myName} />
-            ) :
-            // pointer-events stay OFF: the winner leads the next trick
-            // while this banner covers the drop zone, so it must never
-            // swallow a card drop (elementFromPoint skips it).
-            winBanner && winnerColor ? (
-              <div
-                key={winBanner.key}
-                className="card-gold px-5 py-2.5 shadow-2xl text-center bg-navy-900/95 backdrop-blur animate-trick-banner"
-              >
-                <p className="text-xl font-black leading-tight">
-                  {winBanner.winner === myName ? (
-                    <span className="text-gold-100">You won!</span>
-                  ) : (
-                    <>
-                      <span className={winnerColor.text}>
-                        {winBanner.winner}
-                      </span>
-                      <span className="text-gold-100"> won</span>
-                    </>
-                  )}
-                </p>
+            // One centered column on the felt for everything transient:
+            // the dealer's trump pick (it opts back into pointer events
+            // itself; it used to be a card above the table that pushed
+            // everything down), the "X won" banner with its streak line,
+            // then the commentary card. Stacked, never on top of each
+            // other (2026-10-06: the commentary used to be a separate
+            // screen-centered overlay that landed on the banner).
+            // pointer-events stay OFF on the banners: the winner leads the
+            // next trick while they cover the drop zone, so they must
+            // never swallow a card drop (elementFromPoint skips them).
+            (room.awaitingTrumpChoice && isDealer) || (winBanner && winnerColor) || (commentary && showOpponents) ? (
+              <div className="flex flex-col items-center gap-2">
+                {room.awaitingTrumpChoice && isDealer ? (
+                  <TrumpChooser code={room.code} callerName={myName} />
+                ) : winBanner && winnerColor ? (
+                  <div
+                    key={winBanner.key}
+                    className="card-gold px-5 py-2.5 shadow-2xl text-center bg-navy-900/95 backdrop-blur animate-trick-banner"
+                  >
+                    <p className="text-xl font-black leading-tight whitespace-nowrap">
+                      {winBanner.winner === myName ? (
+                        <span className="text-gold-100">You won!</span>
+                      ) : (
+                        <>
+                          <span className={winnerColor.text}>
+                            {winBanner.winner}
+                          </span>
+                          <span className="text-gold-100"> won</span>
+                        </>
+                      )}
+                    </p>
+                    {winBanner.callout && (
+                      <p
+                        className={`mt-1 text-[15px] font-black uppercase tracking-[0.14em] leading-tight whitespace-nowrap ${TONE_STYLE[winBanner.callout.tone].text}`}
+                        style={{ textShadow: TONE_STYLE[winBanner.callout.tone].glow }}
+                      >
+                        {winBanner.callout.text}
+                      </p>
+                    )}
+                  </div>
+                ) : null}
+                {commentary && <CommentaryCard key={commentary.id} a={commentary} />}
               </div>
             ) : null
           }

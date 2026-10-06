@@ -33,15 +33,18 @@ type PendingState = {
 // Card sizes match CardImage's size prop (lg = 96, md = 64, sm = 48). Going
 // smaller for big hands keeps every card pickable on a phone screen.
 const CARD_W_BY_SIZE = { lg: 96, md: 64, sm: 48 } as const;
+const CARD_H_BY_SIZE = { lg: 135, md: 90, sm: 67 } as const;
 type CardSize = keyof typeof CARD_W_BY_SIZE;
 
 // Wrap to two rows once a hand passes this size.
 const TWO_ROW_THRESHOLD = 6;
 // Vertical separation between the upper and lower fans when wrapped.
 const ROW_GAP = 80;
-// Constant rightward shift so the leftmost rotated card's corner clears
-// the screen edge (addressed clipping seen on phones).
-const FAN_RIGHT_NUDGE = 12;
+// How far the outermost cards may reach past the hand's box into the
+// page gutter. The fan is sized so its rotated corners stay inside this on
+// both sides, which keeps it centred (it used to carry a fixed 12 px
+// rightward nudge to clear the left edge, and ran off the right one).
+const FAN_EDGE_ALLOWANCE = 6;
 
 function cardId(card: Card): string {
   if (card.kind === 'standard') return `s-${card.suit}-${card.rank}`;
@@ -117,6 +120,7 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
   // With two rows the per-row count stays moderate so we keep lg cards.
   const cardSize: CardSize = !useTwoRows && count > 8 ? 'md' : 'lg';
   const cardW = CARD_W_BY_SIZE[cardSize];
+  const cardH = CARD_H_BY_SIZE[cardSize];
 
   // Split the hand into rows. Top row holds the first half (ceil); bottom
   // row holds the rest. Each row fans independently.
@@ -129,10 +133,15 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
     const angleStep = rowCount > 1 ? maxFanDeg / (rowCount - 1) : 0;
     const idealStep =
       cardW * (rowCount <= 5 ? 0.65 : rowCount <= 10 ? 0.5 : 0.4);
+    // The outermost card turns about its bottom centre, so its top outer
+    // corner reaches half a card width plus the card's height times the
+    // sine of the tilt past its centre line.
+    const tilt = ((maxFanDeg / 2) * Math.PI) / 180;
+    const reach = (cardW / 2) * Math.cos(tilt) + cardH * Math.sin(tilt);
     const maxStep =
       rowCount <= 1
         ? 0
-        : Math.max(16, (containerW - cardW - 8) / (rowCount - 1));
+        : Math.max(16, (containerW / 2 + FAN_EDGE_ALLOWANCE - reach) / centerIdx);
     const step = Math.min(idealStep, maxStep);
     return { centerIdx, angleStep, step };
   }
@@ -308,7 +317,7 @@ export function HandDisplay({ hand, legal, onPlay, isMyTurn }: Props) {
             position: 'absolute',
             left: '50%',
             bottom: 0,
-            transform: `translate(calc(-50% + ${offset + FAN_RIGHT_NUDGE}px), ${rowOffsetY}px) rotate(${angle}deg)`,
+            transform: `translate(calc(-50% + ${offset}px), ${rowOffsetY}px) rotate(${angle}deg)`,
             transformOrigin: 'bottom center',
             transition: 'transform 0.2s ease-out',
             zIndex: i,

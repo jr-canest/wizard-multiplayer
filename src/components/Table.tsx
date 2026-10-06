@@ -153,34 +153,39 @@ export function Table({
         {/* Table center: trick area + trump in middle */}
         <div
           data-trick-area-frame
-          className={`felt ${feltTurnClass} flex-1 relative overflow-hidden p-2 ${
+          className={`felt ${feltTurnClass} flex-1 relative ${
             shortFelt ? 'min-h-[250px]' : 'min-h-[306px]'
           }`}
         >
-          {/* Trump card centered behind the trick fan. Hidden during the
-              deal animation so the deal can finish before revealing it. */}
-          <TrumpCenter
-            trumpCard={room.trumpCard}
-            trumpSuit={room.trumpSuit}
-            awaitingTrumpChoice={room.awaitingTrumpChoice}
-            hidden={hideTrump}
-            lastRoundNoTrump={isLastRoundNoTrump}
-          />
-          {/* Trick fan */}
-          <div className="relative h-full w-full">
-            <TrickArea
-              plays={trickPlays}
-              playerOrder={room.playerOrder}
+          {/* The cards are clipped to the felt; the announcements below are
+              not, so a wide line can run past the felt over the side
+              tiles while staying centered on it. */}
+          <div className="absolute inset-0 overflow-hidden rounded-[inherit] p-2">
+            {/* Trump card centered behind the trick fan. Hidden during the
+                deal animation so the deal can finish before revealing it. */}
+            <TrumpCenter
+              trumpCard={room.trumpCard}
               trumpSuit={room.trumpSuit}
-              isMyTurn={isMyTurn && room.status === 'playing'}
-              myName={myName}
-              isLeaving={trickIsLeaving}
+              awaitingTrumpChoice={room.awaitingTrumpChoice}
+              hidden={hideTrump}
+              lastRoundNoTrump={isLastRoundNoTrump}
             />
+            {/* Trick fan */}
+            <div className="relative h-full w-full">
+              <TrickArea
+                plays={trickPlays}
+                playerOrder={room.playerOrder}
+                trumpSuit={room.trumpSuit}
+                isMyTurn={isMyTurn && room.status === 'playing'}
+                myName={myName}
+                isLeaving={trickIsLeaving}
+              />
+            </div>
           </div>
           {/* Transient announcements (reactions, undo, votes, last-round)
               docked at top-left of the trick area. */}
           <OverlayBanner room={room} myName={myName} />
-          {/* Centered "X won" banner. */}
+          {/* Centered column: trump pick, "X won" banner, commentary. */}
           {centerBanner && (
             <div className="absolute inset-0 z-[300] flex items-center justify-center pointer-events-none">
               {centerBanner}

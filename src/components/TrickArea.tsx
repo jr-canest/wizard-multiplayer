@@ -182,10 +182,13 @@ export function TrickArea({
               );
               const seedBase =
                 p.playerName.charCodeAt(0) * 13 + p.playerName.length;
+              // A small per-player tilt keeps the pile looking dealt by
+              // hand; the position itself stays on the seat's slot (a
+              // ±4 px jitter read as the cards sitting off centre).
               const slot = {
-                x: base.x + noise(seedBase) * 4,
-                y: base.y + noise(seedBase * 2) * 4,
-                rot: base.rot + noise(seedBase * 3) * 4,
+                x: base.x,
+                y: base.y,
+                rot: base.rot + noise(seedBase * 3) * 3,
               };
               const leaveDx = winnerSlot ? winnerSlot.x - slot.x : 0;
               const leaveDy = winnerSlot ? winnerSlot.y - slot.y : 0;

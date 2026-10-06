@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RoomSnapshot } from '../hooks/useRoom';
 import type { Suit } from '../lib/types';
+import type { CalloutTone } from '../lib/trickCallout';
 
-type Tone = 'gold' | 'fire' | 'wizard' | 'spade';
+type Tone = CalloutTone;
 
-type Announcement = {
+export type Announcement = {
   id: number;
   // One line only (Jorge, 2026-09-22): the card shows for 1.5 s and a
   // subtitle never got read, so whatever matters goes in the title.
@@ -15,7 +16,7 @@ type Announcement = {
   /** Re-checked right before display — lets stale "your turn" prompts
    * (turn already passed while another announcement was showing) drop
    * silently instead of flashing wrong info. */
-  stillValid?: () => boolean;
+  stillValid?: (room: RoomSnapshot) => boolean;
 };
 
 const SHOW_MS = 1500;
@@ -27,7 +28,7 @@ const MAX_AGE_MS = 4000;
 const SUIT_GLYPH: Record<Suit, string> = { H: '♥', D: '♦', C: '♣', S: '♠' };
 const SUIT_NAME: Record<Suit, string> = { H: 'HEARTS', D: 'DIAMONDS', C: 'CLUBS', S: 'SPADES' };
 
-const TONE_STYLE: Record<Tone, { text: string; border: string; glow: string }> =
+export const TONE_STYLE: Record<Tone, { text: string; border: string; glow: string }> =
   {
     gold: {
       text: 'text-gold-100',
@@ -51,22 +52,19 @@ const TONE_STYLE: Record<Tone, { text: string; border: string; glow: string }> =
     },
   };
 
-type Props = {
-  room: RoomSnapshot;
-  myName: string;
-  /** Only render while the table is on screen (bidding/playing/round-end
-   * hold). Detection keeps running regardless so refs stay in sync. */
-  active: boolean;
-};
-
 /**
- * Big transient center-screen commentary: "YOUR TURN", win streaks,
- * wizard-kills-trump, ace of spades. Everything is derived client-side
- * from the room snapshot — no server writes. One announcement at a time,
- * highest priority first; anything that queues up too long is dropped so
- * the table never turns into a ticker.
+ * Transient commentary: "YOUR TURN" / "YOUR BID", the trump call and the
+ * ace of spades. Everything is derived client-side from the room snapshot,
+ * no server writes. One announcement at a time, highest priority first;
+ * anything that queues up too long is dropped so the table never turns
+ * into a ticker. The trick-resolve lines (streaks, overshoots, wizard
+ * kills) live under the win banner instead (src/lib/trickCallout.ts).
+ *
+ * Returns the announcement on screen now; GameView renders it with
+ * CommentaryCard in the felt's center slot, stacked with the win banner,
+ * so the two share one spot instead of overlapping (2026-10-06).
  */
-export function CommentaryOverlay({ room, myName, active }: Props) {
+export function useCommentary(room: RoomSnapshot, myName: string): Announcement | null {
   const [current, setCurrent] = useState<Announcement | null>(null);
   const queueRef = useRef<Announcement[]>([]);
   // Deadline (epoch ms) until which the slot is occupied. A timestamp
@@ -93,7 +91,7 @@ export function CommentaryOverlay({ room, myName, active }: Props) {
     while (q.length > 0) {
       const a = q.shift()!;
       if (Date.now() - a.bornAt > MAX_AGE_MS) continue;
-      if (a.stillValid && !a.stillValid()) continue;
+      if (a.stillValid && !a.stillValid(roomRef.current)) continue;
       busyUntilRef.current = Date.now() + SHOW_MS + GAP_MS;
       setCurrent(a);
       const tShow = window.setTimeout(() => setCurrent(null), SHOW_MS);
@@ -156,8 +154,7 @@ export function CommentaryOverlay({ room, myName, active }: Props) {
       title: isMyBidTurn ? 'YOUR BID' : 'YOUR TURN',
       tone: 'gold',
       priority: 1,
-      stillValid: () => {
-        const rr = roomRef.current;
+      stillValid: (rr) => {
         const cn = rr.playerOrder[rr.currentPlayerIndex];
         if (cn !== myName) return false;
         if (rr.status === 'playing') return true;
@@ -186,107 +183,6 @@ export function CommentaryOverlay({ room, myName, active }: Props) {
     });
   }, [curRound, curSuit, trumpKind, enqueue]);
 
-  // ---- Trick-resolve events: wizard kill + win streaks ------------------
-  const prevTrickLenRef = useRef<number | null>(null);
-  useEffect(() => {
-    const hist = room.trickHistory;
-    const len = hist.length;
-    const prev = prevTrickLenRef.current;
-    prevTrickLenRef.current = len;
-    // First snapshot (or an undo shrinking history): just sync, no replay.
-    if (prev === null || len <= prev) return;
-    const last = hist[len - 1];
-    if (!last || last.round !== room.currentRound) return;
-
-    // Wizard kill: a wizard took a trick containing a high trump (J+).
-    const winnerPlay = last.plays.find((p) => p.playerName === last.winner);
-    if (winnerPlay?.card.kind === 'wizard' && room.trumpSuit) {
-      const trump = room.trumpSuit;
-      let victimRank = 0;
-      for (const p of last.plays) {
-        if (
-          p.card.kind === 'standard' &&
-          p.card.suit === trump &&
-          p.card.rank >= 11 &&
-          p.card.rank > victimRank
-        ) {
-          victimRank = p.card.rank;
-        }
-      }
-      if (victimRank > 0) {
-        enqueue({
-          title: 'WIZARD KILL!',
-          tone: 'wizard',
-          priority: 4,
-        });
-        return; // one callout per trick — the kill outranks the streak
-      }
-    }
-
-    // Win streak: same winner on consecutive tricks of this round.
-    let streak = 0;
-    for (let i = len - 1; i >= 0; i--) {
-      const e = hist[i];
-      if (e.round === last.round && e.winner === last.winner) streak++;
-      else break;
-    }
-
-    // Overshooting the bid. The streak callout alone missed the funniest
-    // case: a player who is winning tricks they did NOT ask for. Wins
-    // past the bid get their own line, with the count and the bid in it,
-    // and it replaces the streak callout rather than queueing behind it.
-    const winnerBid = room.bids[last.winner];
-    const winnerWon = room.tricksWon[last.winner] ?? 0;
-    if (winnerBid !== undefined && winnerWon > winnerBid) {
-      const isMe = last.winner === myName;
-      const name = last.winner.toUpperCase();
-      const over = winnerWon - winnerBid;
-      const title =
-        over === 1
-          ? isMe
-            ? 'ONE TOO MANY'
-            : `${name}: ONE TOO MANY`
-          : over === 2
-            ? isMe
-              ? "YOU CAN'T STOP WINNING"
-              : `${name} CAN'T STOP WINNING`
-            : isMe
-              ? 'MAKE IT STOP'
-              : `SOMEONE STOP ${name}`;
-      enqueue({ title, tone: 'fire', priority: 3 });
-      return;
-    }
-
-    if (streak >= 2) {
-      const isMe = last.winner === myName;
-      const name = last.winner.toUpperCase();
-      const title =
-        streak === 2
-          ? isMe
-            ? 'YOU WIN 2 IN A ROW'
-            : `${name} WINS 2 IN A ROW`
-          : streak === 3
-            ? isMe
-              ? "YOU'RE ON FIRE"
-              : `${name} IS ON FIRE`
-            : streak === 4
-              ? isMe
-                ? "YOU'RE UNSTOPPABLE"
-                : `${name} IS UNSTOPPABLE`
-              : isMe
-                ? 'YOU OWN THIS ROUND'
-                : `${name} OWNS THIS ROUND`;
-      enqueue({
-        title,
-        tone: 'fire',
-        priority: 2,
-      });
-    }
-    // Length-keyed like GameView's trick effect — trickHistory is
-    // append-only so the length is the change signal.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room.trickHistory.length, room.currentRound, room.trumpSuit, myName, enqueue]);
-
   // ---- THE ACE OF SPADES (fires the moment it's played) -----------------
   const prevLogLenRef = useRef<number | null>(null);
   useEffect(() => {
@@ -294,6 +190,9 @@ export function CommentaryOverlay({ room, myName, active }: Props) {
     const prev = prevLogLenRef.current;
     prevLogLenRef.current = len;
     if (prev === null || len <= prev) return;
+    // The ace that closed a trick is called out under the win banner
+    // instead (src/lib/trickCallout.ts).
+    if (room.trickInProgress.length === 0) return;
     for (let i = prev; i < len; i++) {
       const e = room.log[i];
       if (
@@ -312,23 +211,27 @@ export function CommentaryOverlay({ room, myName, active }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.log.length, myName, enqueue]);
 
-  if (!active || !current) return null;
+  // A turn prompt leaves as soon as the turn is over (you played inside
+  // its 1.5 s), so it never lingers under the next win banner.
+  if (current?.stillValid && !current.stillValid(room)) return null;
+  return current;
+}
 
-  const style = TONE_STYLE[current.tone];
+/** One announcement, styled to sit in the felt's center column. */
+export function CommentaryCard({ a }: { a: Announcement }) {
+  const style = TONE_STYLE[a.tone];
   return (
-    <div className="fixed inset-0 z-[400] pointer-events-none flex items-center justify-center px-4 pb-[18vh]">
-      <div
-        key={current.id}
-        className={`animate-commentary-pop max-w-full text-center rounded-2xl border ${style.border} bg-navy-900/80 backdrop-blur-sm px-6 py-3 shadow-2xl`}
-        aria-live="polite"
+    <div
+      key={a.id}
+      className={`animate-commentary-pop text-center rounded-2xl border ${style.border} bg-navy-900/90 backdrop-blur-sm px-5 py-2 shadow-2xl`}
+      aria-live="polite"
+    >
+      <p
+        className={`${style.text} font-black uppercase tracking-[0.12em] text-[20px] leading-tight whitespace-nowrap`}
+        style={{ textShadow: style.glow }}
       >
-        <p
-          className={`${style.text} font-black uppercase tracking-[0.15em] text-[26px] leading-tight`}
-          style={{ textShadow: style.glow }}
-        >
-          {current.title}
-        </p>
-      </div>
+        {a.title}
+      </p>
     </div>
   );
 }
