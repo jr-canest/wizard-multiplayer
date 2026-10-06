@@ -260,45 +260,6 @@ export function playBidMadeSound(): void {
   });
 }
 
-/**
- * You missed your bid: the scorekeeper's boo (two detuned buzzy tones
- * sliding down), quieter so it reads as a "womp", not a jeer.
- */
-export function playBidMissedSound(): void {
-  play((ctx, dest, t) => {
-    const duration = 0.7;
-    const bus = tapBus(ctx, dest, 0.35);
-    const shaper = ctx.createWaveShaper();
-    const curve = new Float32Array(256);
-    for (let i = 0; i < 256; i++) {
-      const x = (i * 2) / 256 - 1;
-      curve[i] = (Math.PI + 200 * x) / (Math.PI + 200 * Math.abs(x));
-    }
-    shaper.curve = curve;
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.5, t);
-    gain.gain.linearRampToValueAtTime(0.7, t + 0.08);
-    gain.gain.exponentialRampToValueAtTime(0.01, t + duration);
-    const a = ctx.createOscillator();
-    const b = ctx.createOscillator();
-    a.type = 'sawtooth';
-    b.type = 'square';
-    a.frequency.setValueAtTime(180, t);
-    a.frequency.exponentialRampToValueAtTime(80, t + duration);
-    b.frequency.setValueAtTime(120, t);
-    b.frequency.exponentialRampToValueAtTime(60, t + duration);
-    a.connect(shaper);
-    b.connect(shaper);
-    shaper.connect(gain);
-    gain.connect(bus);
-    a.start(t);
-    b.start(t);
-    a.stop(t + duration);
-    b.stop(t + duration);
-    a.onended = () => bus.disconnect();
-  });
-}
-
 /** Game over: magical ascending chime (C5 → E5 → G5 → C6) with a shimmer. */
 export function playSparkleSound(): void {
   play((ctx, dest, now) => {

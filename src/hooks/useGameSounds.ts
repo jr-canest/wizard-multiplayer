@@ -3,7 +3,6 @@ import { useChat } from './useChat';
 import type { RoomSnapshot } from './useRoom';
 import {
   playBidMadeSound,
-  playBidMissedSound,
   playBidSound,
   playBidsInSound,
   playCardSound,
@@ -92,9 +91,10 @@ export function useGameSounds(room: RoomSnapshot, myName: string): void {
     return () => window.clearTimeout(id);
   }, [myTurn, room.currentRound, room.trickHistory.length]);
 
-  // ---- Round result: made or missed your bid ---------------------------
+  // ---- Round result: made your bid --------------------------------------
   // Lands as the round scoreboard comes up (after the last trick's hold).
-  // The final round goes straight to the game-over sparkle instead.
+  // A miss stays silent (Jorge: the boo is for booing, not for a miss). The
+  // final round goes straight to the game-over sparkle instead.
   const prevStatusRef = useRef(room.status);
   useEffect(() => {
     const prev = prevStatusRef.current;
@@ -102,8 +102,8 @@ export function useGameSounds(room: RoomSnapshot, myName: string): void {
     if (prev !== 'playing' || room.status !== 'scoring') return;
     const bid = room.bids[myName];
     if (bid === undefined) return;
-    const made = (room.tricksWon[myName] ?? 0) === bid;
-    const id = window.setTimeout(made ? playBidMadeSound : playBidMissedSound, LAST_TRICK_HOLD_MS + 150);
+    if ((room.tricksWon[myName] ?? 0) !== bid) return;
+    const id = window.setTimeout(playBidMadeSound, LAST_TRICK_HOLD_MS + 150);
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.status, myName]);
