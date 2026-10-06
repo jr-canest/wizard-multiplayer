@@ -1,13 +1,22 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useChat } from './useChat';
 import type { RoomSnapshot } from './useRoom';
 import {
   playBidSound,
   playBidsInSound,
   playCardSound,
+  playChatSound,
   playStartRoundSound,
   playTrickWonSound,
+  soundEnabled,
+  subscribeSound,
   unlockAudioOnGesture,
 } from '../lib/sounds';
+
+/** The sound on/off setting, live. */
+export function useSoundEnabled(): boolean {
+  return useSyncExternalStore(subscribeSound, soundEnabled);
+}
 
 type Seen = {
   round: number;
@@ -28,6 +37,23 @@ export function useGameSounds(room: RoomSnapshot, myName: string): void {
   const seenRef = useRef<Seen | null>(null);
 
   useEffect(() => unlockAudioOnGesture(), []);
+
+  // Chat: a bloop for each new line from someone else. Lines that were
+  // already there when this mounted (or came in a reconnect's catch-up
+  // burst older than 15 s, loose for phone clock skew) stay quiet.
+  const chat = useChat(room.code);
+  const chatSeenRef = useRef<number | null>(null);
+  const newestTs = chat.length ? chat[chat.length - 1].ts : 0;
+  useEffect(() => {
+    const prev = chatSeenRef.current;
+    chatSeenRef.current = Math.max(prev ?? 0, newestTs);
+    if (prev === null) return;
+    const fresh = chat.some(
+      (m) => m.ts > prev && m.player !== myName && Date.now() - m.ts < 15000,
+    );
+    if (fresh) playChatSound();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newestTs, myName]);
 
   const bidKeys = Object.keys(room.bids).sort().join('|');
   useEffect(() => {

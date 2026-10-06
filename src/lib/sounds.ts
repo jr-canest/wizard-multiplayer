@@ -19,8 +19,17 @@ export function soundEnabled(): boolean {
   return enabled;
 }
 
+const listeners = new Set<() => void>();
+
+/** For useSyncExternalStore: every sound switch on screen stays in step. */
+export function subscribeSound(fn: () => void): () => void {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+
 export function setSoundEnabled(on: boolean): void {
   enabled = on;
+  listeners.forEach((fn) => fn());
   try {
     // Only the override is stored: no key means the default (on).
     if (on) localStorage.removeItem(PREF_KEY);
@@ -208,6 +217,16 @@ export function playBidsInSound(): void {
       tone(ctx, bus, 'sine', f * 4, at, 0.2, 0.05);
     });
     if (last) (last as OscillatorNode).onended = () => bus.disconnect();
+  });
+}
+
+/** A chat line from someone else: a soft two-note "bloop" up a fourth. */
+export function playChatSound(): void {
+  play((ctx, dest, t) => {
+    const bus = tapBus(ctx, dest, 0.2);
+    tone(ctx, bus, 'sine', 659, t, 0.7, 0.16); // E5
+    const last = tone(ctx, bus, 'sine', 880, t + 0.085, 0.8, 0.3); // A5
+    last.onended = () => bus.disconnect();
   });
 }
 

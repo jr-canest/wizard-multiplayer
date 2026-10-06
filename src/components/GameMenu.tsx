@@ -5,7 +5,8 @@ import {
 } from '../lib/gameFlow';
 import { playerColor } from '../lib/playerColors';
 import { getUIZoom } from '../hooks/useUIScale';
-import { playBidSound, setSoundEnabled, soundEnabled } from '../lib/sounds';
+import { useSoundEnabled } from '../hooks/useGameSounds';
+import { playBidSound, setSoundEnabled } from '../lib/sounds';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
 type Props = {
@@ -20,7 +21,7 @@ type Props = {
  */
 export function GameMenu({ room, myName }: Props) {
   const [open, setOpen] = useState(false);
-  const [soundOn, setSoundOn] = useState(soundEnabled);
+  const soundOn = useSoundEnabled();
   const [anchor, setAnchor] = useState<{
     left: number;
     top: number;
@@ -92,7 +93,7 @@ export function GameMenu({ room, myName }: Props) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label="Scores"
-        className="ml-1 w-7 h-7 rounded-full bg-[rgba(20,26,44,.8)] border border-gold-300/40 flex items-center justify-center text-xs text-cream active:scale-95 transition"
+        className="ml-1 w-7 h-7 shrink-0 rounded-full bg-[rgba(20,26,44,.8)] border border-gold-300/40 flex items-center justify-center text-xs text-cream active:scale-95 transition"
       >
         ☰
       </button>
@@ -100,12 +101,15 @@ export function GameMenu({ room, myName }: Props) {
       {open && (
         <>
           {/* tap-out backdrop */}
-          <div className="fixed inset-0 z-[270] bg-black/40" />
+          <div className="fixed inset-0 z-[270] bg-[rgba(4,8,18,.72)]" />
           <div
             ref={sheetRef}
             className="fixed z-[280] card-gold p-3 space-y-3 shadow-2xl"
-            style={
-              anchor
+            style={{
+              // Solid: the kit's .card-gold is translucent, and the trick
+              // cards showing through made the scores hard to read.
+              background: 'linear-gradient(180deg,#1a2240,#0c1226)',
+              ...(anchor
                 ? {
                     left: anchor.left,
                     top: Math.max(8, anchor.top - 4),
@@ -116,8 +120,8 @@ export function GameMenu({ room, myName }: Props) {
                     top: '8vh',
                     transform: 'translateX(-50%)',
                     width: 'min(92vw, 360px)',
-                  }
-            }
+                  }),
+            }}
           >
             <div className="flex items-center justify-between">
               <span className="section-label">
@@ -187,12 +191,10 @@ export function GameMenu({ room, myName }: Props) {
               role="switch"
               aria-checked={soundOn}
               onClick={() => {
-                const next = !soundOn;
-                setSoundEnabled(next);
-                setSoundOn(next);
-                if (next) playBidSound(4);
+                setSoundEnabled(!soundOn);
+                if (!soundOn) playBidSound(4);
               }}
-              className="w-full flex items-center justify-between pt-2 border-t border-gold-700/20 text-sm text-cream"
+              className="w-full flex items-center justify-between pt-2.5 border-t border-gold-700/20 text-sm text-cream"
             >
               <span>Sound</span>
               <span

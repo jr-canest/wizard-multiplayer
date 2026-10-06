@@ -412,17 +412,20 @@ export function GameView({ room, players, myName }: Props) {
         </span>
         {showBidSum && (
           <span
-            className={`text-[10px] font-bold uppercase tracking-[0.14em] ${bidSumTone}`}
+            className={`shrink-0 whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.14em] ${bidSumTone}`}
             title={`Total bids ${totalBids} of ${cardsThisRound}`}
           >
             {bidSumLabel}
           </span>
         )}
-        <span className="text-navy-200 whitespace-nowrap truncate flex items-center gap-1">
-          <span>
+        <span className="min-w-0 text-navy-200 whitespace-nowrap flex items-center gap-1">
+          {/* Truncates before anything else in the strip gives way; your
+              own deal reads "Dealer You" (shorter than "name (you)"). */}
+          <span className="min-w-0 truncate">
             Dealer{' '}
-            <strong className="font-display font-semibold text-[15px] text-cream">{dealerName}</strong>
-            {isDealer ? ' (you)' : ''}
+            <strong className="font-display font-semibold text-[15px] text-cream">
+              {isDealer ? 'You' : dealerName}
+            </strong>
           </span>
           <GameMenu room={room} myName={myName} />
         </span>
@@ -470,7 +473,11 @@ export function GameView({ room, players, myName }: Props) {
                 ) : winBanner && winnerColor ? (
                   <div
                     key={winBanner.key}
-                    className="card-gold px-5 py-2.5 shadow-2xl text-center bg-navy-900/95 backdrop-blur animate-trick-banner"
+                    className="card-gold px-5 py-2.5 shadow-2xl text-center backdrop-blur animate-trick-banner"
+                    // Inline: the kit's .card-gold background is unlayered
+                    // and translucent, so a bg-* class never applied and
+                    // the trick showed through the banner.
+                    style={{ background: 'linear-gradient(180deg,rgba(26,34,64,.96),rgba(12,18,38,.96))', borderColor: 'rgba(212,168,67,.6)' }}
                   >
                     <p className="text-xl font-black leading-tight whitespace-nowrap">
                       {winBanner.winner === myName ? (

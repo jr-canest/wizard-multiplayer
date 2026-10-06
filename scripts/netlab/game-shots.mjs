@@ -53,7 +53,8 @@ while (Date.now() - t0 < 8 * 60_000) {
     await page.screenshot({ path: path.join(OUT, `r${r.round}-bid.png`) });
     events.push({ at: 'bid', r: r.round, m: await measure() });
     await page.evaluate((mode) => { const bs = [...document.querySelectorAll('button.chip')].filter((x) => !x.disabled && /^\d+$/.test(x.textContent.trim())).sort((a, b) => +a.textContent - +b.textContent); const b = mode === 'high' ? bs[bs.length - 1] : bs[0]; b && b.click(); }, BID);
-    await sleep(400);
+    await sleep(900);
+    await page.screenshot({ path: path.join(OUT, `r${r.round}-bid-after.png`) });
     continue;
   }
   if (r.status === 'playing' && r.turn === 'netA' && r.th === lastTh) {

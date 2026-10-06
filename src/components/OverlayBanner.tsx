@@ -163,7 +163,23 @@ export function UndoStripBar({ room, myName }: Props) {
         title={`Undo your last ${actionWord}`}
         className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold text-gold-200 active:text-gold-100 disabled:opacity-60"
       >
-        <span aria-hidden="true">↶</span>
+        {/* Drawn, not the ↶ character: phones render that glyph in a
+            mismatched fallback font. */}
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path
+            d="M5.5 3.5L2.5 6.5l3 3"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M3 6.5h6.5a4 4 0 0 1 0 8H7"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
+        </svg>
         <span>Undo last move</span>
       </button>
     </div>
