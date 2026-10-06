@@ -22,11 +22,11 @@ export { type Env };
 type PlayerPresence = { name: string; isBot?: boolean; connected: boolean; lastSeen: number; voteKickAgainst: string | null };
 
 const BOT_ACTION_DELAY_MS = 250;
-// Leading a new trick waits out the phones' 1 s hold on the finished
+// Leading a new trick waits out the phones' 1.5 s hold on the finished
 // trick (TRICK_HOLD_MS in src/lib/trickTiming.ts) plus the collect
 // animation and the round trip: a faster lead wiped the last card off
 // everyone's table before they had seen it. (2.3 s with the old 2 s hold.)
-const BOT_NEW_TRICK_DELAY_MS = 1500;
+const BOT_NEW_TRICK_DELAY_MS = 2000;
 
 function corsHeaders(env: Env, origin: string | null): Record<string, string> {
   const allowed = env.ALLOWED_ORIGINS.split(',').map((s) => s.trim());
