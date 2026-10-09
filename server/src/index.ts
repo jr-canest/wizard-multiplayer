@@ -27,6 +27,9 @@ const BOT_ACTION_DELAY_MS = 250;
 // animation and the round trip: a faster lead wiped the last card off
 // everyone's table before they had seen it. (2.3 s with the old 2 s hold.)
 const BOT_NEW_TRICK_DELAY_MS = 2000;
+// The final round ends the game by itself once the phones have held the
+// last trick (LAST_TRICK_HOLD_MS, 1.5 s) plus a beat for the round trip.
+const FINAL_ROUND_FINISH_MS = 1800;
 
 function corsHeaders(env: Env, origin: string | null): Record<string, string> {
   const allowed = env.ALLOWED_ORIGINS.split(',').map((s) => s.trim());
@@ -227,8 +230,15 @@ export class RoomDO {
     if (bot) due.push(now + (bot.leadingNewTrick ? BOT_NEW_TRICK_DELAY_MS : BOT_ACTION_DELAY_MS));
     const exp = E.nextExpiry(s);
     if (exp !== null) due.push(exp);
+    if (E.finalRoundAwaitingFinish(s)) {
+      this.finalAt ??= now + FINAL_ROUND_FINISH_MS;
+      due.push(this.finalAt);
+    } else this.finalAt = null;
     if (due.length) await this.ctx.storage.setAlarm(Math.min(...due));
   }
+  /** When the scored final round finishes itself. In memory only: if the
+   *  object was evicted, the alarm that wakes it is already that moment. */
+  private finalAt: number | null = null;
 
   async alarm(): Promise<void> {
     await this.ready;
@@ -238,6 +248,10 @@ export class RoomDO {
     const bot = E.pendingBot(s);
     if (bot) {
       try { E.botAct(s, bot); changed = true; } catch (err) { console.warn('[bot]', bot.name, bot.kind, (err as Error).message); }
+    }
+    if (E.finalRoundAwaitingFinish(s) && (this.finalAt === null || Date.now() >= this.finalAt - 50)) {
+      if (E.finishFinalRound(s)) changed = true;
+      this.finalAt = null;
     }
     if (changed) { await this.persist(); this.broadcast(); }
     await this.schedule();

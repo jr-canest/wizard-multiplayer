@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { fetchSeatToken } from '../lib/rooms';
 import {
   claimOrAuthPlayer,
   isValidPin,
   isValidPlayerName,
+  nameStatus,
+  type NameStatus,
 } from '../lib/players';
 import { useSession } from '../hooks/useSession';
 
@@ -19,6 +21,22 @@ export function IdentityPrompt({ title, subtitle, onAuthed }: Props) {
   const [pin, setPin] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Looked up as the name is typed (debounced) so a first-timer is told
+  // their PIN is theirs to make up, and a returning player to use theirs.
+  const [status, setStatus] = useState<{ name: string; value: NameStatus } | null>(null);
+  useEffect(() => {
+    const trimmed = name.trim();
+    if (!isValidPlayerName(trimmed)) return;
+    let live = true;
+    const t = window.setTimeout(() => {
+      nameStatus(trimmed)
+        .then((value) => { if (live) setStatus({ name: trimmed, value }); })
+        .catch(() => {});
+    }, 450);
+    return () => { live = false; window.clearTimeout(t); };
+  }, [name]);
+  const known = status && status.name === name.trim() ? status.value : null;
 
   const nameOk = isValidPlayerName(name);
   const pinOk = isValidPin(pin);
@@ -77,10 +95,29 @@ export function IdentityPrompt({ title, subtitle, onAuthed }: Props) {
           className="w-full h-11 rounded-lg bg-[rgba(20,26,44,.8)] border border-gold-300/25 px-3 text-lg text-cream placeholder-navy-300 focus:border-gold-300 focus:outline-none"
           placeholder="Jorge"
         />
+        {known && (
+          <span className="block mt-1.5 text-[13px] leading-snug text-navy-200">
+            {known === 'new' ? (
+              <>
+                <strong className="text-gold-200 font-semibold">New player.</strong> Make up any 4 digits below: that becomes your PIN for next time.
+              </>
+            ) : known === 'returning' ? (
+              <>
+                <strong className="text-gold-200 font-semibold">Welcome back.</strong> Enter the PIN you picked before.
+              </>
+            ) : (
+              <>
+                <strong className="text-gold-200 font-semibold">Found you in the scorekeeper.</strong> Pick a 4-digit PIN to play online.
+              </>
+            )}
+          </span>
+        )}
       </label>
 
       <label className="block">
-        <span className="section-label block mb-1.5">PIN (4 digits)</span>
+        <span className="section-label block mb-1.5">
+          {known === 'new' || known === 'noPin' ? 'Choose a PIN (4 digits)' : 'PIN (4 digits)'}
+        </span>
         <input
           value={pin}
           onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}

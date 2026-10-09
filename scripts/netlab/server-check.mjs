@@ -129,6 +129,14 @@ for (let guard = 0; guard < 400 && A.room.status !== 'finished'; guard++) {
       check(A.room.totalRounds === 3, 'total rounds now 3');
       continue;
     }
+    if (r.currentRound >= r.totalRounds) {
+      // The final round finishes by itself after the last-trick hold: no
+      // "Next round" tally before the results (Jorge, 2026-10-09).
+      const t0 = Date.now();
+      check(await until(() => A.room.status === 'finished', 6000), 'final round finished by itself, nobody voted');
+      check(Date.now() - t0 >= 1000, `final results waited out the last-trick hold (${Date.now() - t0} ms)`);
+      continue;
+    }
     if (!(r.nextRoundVotes ?? []).includes('netA')) await A.act('voteNextRound', true);
     if (!(B.room.nextRoundVotes ?? []).includes('netB')) await B.act('voteNextRound', true);
     await until(() => A.room.status !== 'scoring' || A.room.currentRound > r.currentRound, 5000);

@@ -1,4 +1,5 @@
 import type { GameRoundBreakdown } from '../lib/history';
+import { shortName } from '../lib/shortName';
 
 /**
  * Round-by-round table: one row per round, one column per player, each
@@ -34,7 +35,7 @@ export function RoundBreakdownTable({
                   className="font-normal px-1 text-right truncate max-w-[60px]"
                   title={n}
                 >
-                  {n.length > 6 ? `${n.slice(0, 5)}…` : n}
+                  {shortName(n, playerOrder, 7)}
                 </th>
               ))}
             </tr>

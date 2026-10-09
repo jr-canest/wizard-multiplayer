@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { shortName } from '../lib/shortName';
 import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
 import { useMyHand } from '../hooks/useMyHand';
 import { useWakeLock } from '../hooks/useWakeLock';
@@ -75,11 +76,17 @@ export function GameView({ room, players, myName }: Props) {
     }
   }
 
+  // The final round has no round scoreboard: the server finishes the game
+  // right after the last-trick hold (Jorge, 2026-10-09), so the table stays
+  // up until the final results arrive instead of flashing a "Next round" vote.
+  const finalRoundScoring =
+    room.status === 'scoring' && room.currentRound >= room.totalRounds;
   const showOpponents =
     room.status === 'dealing' ||
     room.status === 'bidding' ||
     room.status === 'playing' ||
-    holdingRoundEnd;
+    holdingRoundEnd ||
+    finalRoundScoring;
 
   useWakeLock(room.status !== 'finished');
 
@@ -424,7 +431,7 @@ export function GameView({ room, players, myName }: Props) {
           <span className="min-w-0 truncate">
             Dealer{' '}
             <strong className="font-display font-semibold text-[15px] text-cream">
-              {isDealer ? 'You' : dealerName}
+              {isDealer ? 'You' : shortName(dealerName, room.playerOrder, 12)}
             </strong>
           </span>
           <GameMenu room={room} myName={myName} />
@@ -485,7 +492,7 @@ export function GameView({ room, players, myName }: Props) {
                       ) : (
                         <>
                           <span className={winnerColor.text}>
-                            {winBanner.winner}
+                            {shortName(winBanner.winner, room.playerOrder, 12)}
                           </span>
                           <span className="text-gold-100"> won</span>
                         </>
@@ -542,7 +549,7 @@ export function GameView({ room, players, myName }: Props) {
         onActiveChange={setDealingActive}
       />
 
-      {room.status === 'scoring' && !holdingRoundEnd && (
+      {room.status === 'scoring' && !holdingRoundEnd && !finalRoundScoring && (
         <RoundScoreboard room={room} myName={myName} />
       )}
 
@@ -610,7 +617,7 @@ export function GameView({ room, players, myName }: Props) {
                 )}
                 {' · '}
                 Waiting for{' '}
-                <strong className={currentColor.text}>{currentName}</strong>…
+                <strong className={currentColor.text}>{shortName(currentName, room.playerOrder, 12)}</strong>…
               </span>
             );
           } else if (
@@ -620,7 +627,7 @@ export function GameView({ room, players, myName }: Props) {
             primary = (
               <span className="text-navy-200 text-[12px]">
                 Waiting for{' '}
-                <strong className={currentColor.text}>{currentName}</strong>…
+                <strong className={currentColor.text}>{shortName(currentName, room.playerOrder, 12)}</strong>…
               </span>
             );
           } else {
@@ -642,7 +649,7 @@ export function GameView({ room, players, myName }: Props) {
                     <span className="text-gold-300">♛</span>{' '}
                     last trick:{' '}
                     <strong className="text-gold-200">
-                      {e.winner === myName ? 'you' : e.winner}
+                      {e.winner === myName ? 'you' : shortName(e.winner, room.playerOrder, 12)}
                     </strong>
                   </>
                 );

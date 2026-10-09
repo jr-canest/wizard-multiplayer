@@ -1,4 +1,5 @@
 import { colorForViewer } from '../lib/playerColors';
+import { shortName } from '../lib/shortName';
 import { isConnected } from '../lib/presence';
 import { botDifficultyOf } from '../lib/rooms';
 import type { Suit } from '../lib/types';
@@ -130,7 +131,7 @@ export function OpponentTile({
             ▸
           </span>
         )}
-        {playerName}
+        {shortName(playerName, room.playerOrder, 9)}
         {botDifficulty && (
           <span className="ml-0.5 text-[8px] font-bold uppercase tracking-wider text-navy-300">
             cpu

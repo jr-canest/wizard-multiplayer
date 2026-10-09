@@ -130,7 +130,7 @@ export function Room() {
       {!session ? (
         <IdentityPrompt
           title={`Join room ${code}`}
-          subtitle="Enter your name and PIN to join. Same name as before? Use the same PIN."
+          subtitle="No account needed: type your name and make up a 4-digit PIN. Played before? Use the same name and PIN."
         />
       ) : loading ? (
         <p className="text-navy-200 text-sm mt-10">Loading room…</p>

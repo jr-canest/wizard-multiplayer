@@ -442,6 +442,24 @@ function finish(s: EngineState, final: Record<string, number>): void {
   s.hands = {};
 }
 
+/**
+ * The last round's last trick is in and nothing is open: the game ends by
+ * itself (Jorge, 2026-10-09: no "Next round" tally before the results).
+ * The server waits out the phones' last-trick hold, then calls
+ * `finishFinalRound`. An open undo or round vote holds it back.
+ */
+export function finalRoundAwaitingFinish(s: EngineState): boolean {
+  const r = s.room;
+  return r.status === 'scoring' && r.currentRound >= r.totalRounds && !r.pendingUndo?.requested && !r.pendingVote;
+}
+
+export function finishFinalRound(s: EngineState): boolean {
+  if (!finalRoundAwaitingFinish(s)) return false;
+  s.room.nextRoundVotes = [];
+  scoreAndAdvance(s);
+  return true;
+}
+
 // ─── round-end votes ────────────────────────────────────────────────────
 
 export function voteNextRound(s: EngineState, name: string, yes: boolean): void {

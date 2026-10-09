@@ -158,14 +158,16 @@ export function Lobby({ room, players, myName }: Props) {
             return (
               <li
                 key={name}
-                className="card-gold-subtle flex items-center justify-between px-3 h-10"
+                className="card-gold-subtle flex items-center justify-between gap-2 px-3 h-10"
               >
-                <span className="flex items-center gap-2">
-                  <span className="text-navy-300 text-xs w-4 text-right">
+                {/* One line always: a long name truncates, the number,
+                    crown, CPU chip and × never shrink. */}
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="text-navy-300 text-xs w-4 text-right shrink-0">
                     {idx + 1}
                   </span>
                   <span
-                    className={`font-display font-semibold text-[17px] ${
+                    className={`font-display font-semibold text-[17px] truncate min-w-0 ${
                       isMe ? 'text-cream-bright' : 'text-cream'
                     }`}
                   >
@@ -173,12 +175,12 @@ export function Lobby({ room, players, myName }: Props) {
                     {isMe ? ' (you)' : ''}
                   </span>
                   {isHostRow && (
-                    <span className="text-gold-300 text-sm" title="Host">
+                    <span className="text-gold-300 text-sm shrink-0" title="Host">
                       ♛
                     </span>
                   )}
                   {difficulty && (
-                    <span className="cpu-chip">
+                    <span className="cpu-chip shrink-0">
                       CPU · {BOT_DIFFICULTY_LABEL[difficulty]}
                     </span>
                   )}
@@ -190,14 +192,14 @@ export function Lobby({ room, players, myName }: Props) {
                       onClick={() => handleRemoveBot(name)}
                       disabled={botBusy}
                       aria-label={`Remove ${name}`}
-                      className="h-7 w-7 -mr-1 rounded-md text-navy-200 hover:text-rose-300 text-base leading-none"
+                      className="h-7 w-7 -mr-1 shrink-0 rounded-md text-navy-200 hover:text-rose-300 text-base leading-none"
                     >
                       ×
                     </button>
                   ) : null
                 ) : (
                   <span
-                    className={`h-2 w-2 rounded-full ${
+                    className={`h-2 w-2 shrink-0 rounded-full ${
                       meta?.connected ? 'bg-emerald-400' : 'bg-navy-400'
                     }`}
                     title={meta?.connected ? 'Connected' : 'Disconnected'}

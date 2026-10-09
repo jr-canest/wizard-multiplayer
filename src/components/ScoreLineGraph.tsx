@@ -6,6 +6,7 @@ import {
   useCallback,
 } from 'react';
 import type { RoomDoc } from '../lib/types';
+import { shortName } from '../lib/shortName';
 
 type Player = { id: string; name: string };
 
@@ -92,6 +93,10 @@ type CompletedRound = {
   roundNumber: number;
   scores: Record<string, number>;
 };
+
+// Graph labels sit in the strip right of the plot; a 20-character name ran
+// off the card (2026-10-09, "jake thewizardwinner"), so they use shortName.
+const LABEL_MAX_CHARS = 11;
 
 function pickStep(range: number): number {
   const target = range / 4;
@@ -272,10 +277,19 @@ export function ScoreLineGraph({ room, autoStartDelayMs = 1200 }: Props) {
     setIsPlaying(false);
   }
 
+  const labels = useMemo(() => {
+    const all = players.map((p) => p.name);
+    const out: Record<string, string> = {};
+    for (const p of players) out[p.id] = shortName(p.name, all, LABEL_MAX_CHARS);
+    return out;
+  }, [players]);
   const svgWidth = 320;
   const svgHeight = 220;
   const leftPad = 0;
-  const rightPad = 45;
+  // Room for the widest label (10px semibold sans ≈ 6 units a character)
+  // plus the 10-unit gap after the dot, so labels never leave the card.
+  const longestLabel = Math.max(0, ...Object.values(labels).map((l) => l.length));
+  const rightPad = Math.max(45, Math.min(80, 14 + longestLabel * 6));
   const topPad = 24;
   const bottomPad = 18;
   const chartWidth = svgWidth - leftPad - rightPad;
@@ -401,6 +415,11 @@ export function ScoreLineGraph({ room, autoStartDelayMs = 1200 }: Props) {
   }, [players, progress, tips, getScoreAt, isActiveAt, minScore, maxScore]);
 
   const displayedLabelYRef = useRef<Record<string, number>>({});
+  // The easing below advances one step per render, and renders come from
+  // the replay. When the replay stopped, labels froze part way to their
+  // slots, which is how two names ended up drawn on top of each other
+  // (2026-10-09). A frame tick keeps them moving until they land.
+  const [, setSettleTick] = useState(0);
   const LABEL_SMOOTHING = 0.22;
   const labelPositions: Record<string, number> = {};
   // Label-position smoothing has to happen during render — pulling it
@@ -424,6 +443,15 @@ export function ScoreLineGraph({ room, autoStartDelayMs = 1200 }: Props) {
     displayedLabelYRef.current[p.id] = next;
     labelPositions[p.id] = next;
   }
+  const labelsSettling = players.some((p) => {
+    const target = targetLabelPositions[p.id];
+    return target !== undefined && labelPositions[p.id] !== target;
+  });
+  useEffect(() => {
+    if (!labelsSettling || isPlaying) return;
+    const id = requestAnimationFrame(() => setSettleTick((n) => n + 1));
+    return () => cancelAnimationFrame(id);
+  });
 
   if (totalRounds === 0) return null;
 
@@ -548,7 +576,7 @@ export function ScoreLineGraph({ room, autoStartDelayMs = 1200 }: Props) {
                 fontWeight="600"
                 dominantBaseline="auto"
               >
-                {p.name}
+                {labels[p.id]}
               </text>
               <text
                 x={x + 10}

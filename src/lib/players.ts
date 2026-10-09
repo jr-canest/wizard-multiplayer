@@ -65,6 +65,17 @@ async function findPlayerByName(name: string): Promise<PlayerDoc | null> {
   return { id: docSnap.id, ...(docSnap.data() as Omit<PlayerDoc, 'id'>) };
 }
 
+export type NameStatus = 'new' | 'returning' | 'noPin';
+
+/** What signing in with this name will do: create a player, check a PIN,
+ *  or give a scorekeeper-only player their first PIN. Drives the hint
+ *  under the name field so a first-timer knows to just make one up. */
+export async function nameStatus(name: string): Promise<NameStatus> {
+  const existing = await findPlayerByName(name);
+  if (!existing) return 'new';
+  return existing.pinHash && existing.pinSalt ? 'returning' : 'noPin';
+}
+
 /**
  * Claim a player name with a PIN, or authenticate against an existing claim.
  *
