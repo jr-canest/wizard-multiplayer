@@ -203,7 +203,19 @@ export function useCommentary(room: RoomSnapshot, myName: string): Announcement 
       const e = room.log[i];
       if (e.t !== 'play') continue;
       if (e.card.kind === 'jester') {
-        enqueue({ title: SKIP_TEXT, tone: 'gold', priority: 2 });
+        // Only while its trick is still open (Jorge, 2026-10-10): once the
+        // trick resolves, the win banner owns the felt and a leftover skip
+        // just clutters it.
+        const { round, trick } = e;
+        enqueue({
+          title: SKIP_TEXT,
+          tone: 'gold',
+          priority: 2,
+          stillValid: (rr) =>
+            rr.currentRound === round &&
+            rr.currentTrick === trick &&
+            rr.trickInProgress.length > 0,
+        });
         continue;
       }
       if (e.card.kind !== 'standard') continue;
