@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RoomSnapshot } from '../hooks/useRoom';
-import type { Suit } from '../lib/types';
-import type { CalloutTone } from '../lib/trickCallout';
+import type { Card, Suit } from '../lib/types';
+import {
+  BABY_TRUMP_TEXT,
+  isBabyTrump,
+  SKIP_TEXT,
+  type CalloutTone,
+} from '../lib/trickCallout';
 
 type Tone = CalloutTone;
 
@@ -53,8 +58,9 @@ export const TONE_STYLE: Record<Tone, { text: string; border: string; glow: stri
   };
 
 /**
- * Transient commentary: "YOUR TURN" / "YOUR BID", the trump call and the
- * ace of spades. Everything is derived client-side from the room snapshot,
+ * Transient commentary: "YOUR TURN" / "YOUR BID", the trump call, the
+ * ace of spades, "SKIP, SKIP, SKIP" on a jester and "BABY TRUMP!" on a
+ * 2 or 3 of trump that takes the lead (the last two since 2026-10-10). Everything is derived client-side from the room snapshot,
  * no server writes. One announcement at a time, highest priority first;
  * anything that queues up too long is dropped so the table never turns
  * into a ticker. The trick-resolve lines (streaks, overshoots, wizard
@@ -183,7 +189,7 @@ export function useCommentary(room: RoomSnapshot, myName: string): Announcement 
     });
   }, [curRound, curSuit, trumpKind, enqueue]);
 
-  // ---- THE ACE OF SPADES (fires the moment it's played) -----------------
+  // ---- THE ACE OF SPADES, JESTERS, BABY TRUMP (the moment they land) ----
   const prevLogLenRef = useRef<number | null>(null);
   useEffect(() => {
     const len = room.log.length;
@@ -195,17 +201,28 @@ export function useCommentary(room: RoomSnapshot, myName: string): Announcement 
     if (room.trickInProgress.length === 0) return;
     for (let i = prev; i < len; i++) {
       const e = room.log[i];
-      if (
-        e.t === 'play' &&
-        e.card.kind === 'standard' &&
-        e.card.suit === 'S' &&
-        e.card.rank === 14
-      ) {
+      if (e.t !== 'play') continue;
+      if (e.card.kind === 'jester') {
+        enqueue({ title: SKIP_TEXT, tone: 'gold', priority: 2 });
+        continue;
+      }
+      if (e.card.kind !== 'standard') continue;
+      if (e.card.suit === 'S' && e.card.rank === 14) {
         enqueue({
           title: 'THE ACE OF SPADES',
           tone: 'spade',
           priority: 3,
         });
+        continue;
+      }
+      // The trick so far, read from this round's log, up to this card.
+      const trick: { card: Card }[] = [];
+      for (let j = 0; j <= i; j++) {
+        const x = room.log[j];
+        if (x.t === 'play' && x.round === e.round && x.trick === e.trick) trick.push(x);
+      }
+      if (isBabyTrump(trick, trick.length - 1, room.trumpSuit)) {
+        enqueue({ title: BABY_TRUMP_TEXT, tone: 'fire', priority: 3 });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

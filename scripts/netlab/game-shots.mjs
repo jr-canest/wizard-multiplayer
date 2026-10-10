@@ -20,6 +20,25 @@ const room = () => page.evaluate(() => { const r = window.__wizardRoom; return r
 async function waitFor(fn, ms = 40000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { const v = await fn(); if (v) return v; await sleep(120); } throw new Error('timeout'); }
 async function clickText(re) { await waitFor(() => page.evaluate((src) => { const b = [...document.querySelectorAll('button')].find((x) => new RegExp(src).test(x.textContent.trim()) && !x.disabled); if (b) { b.click(); return true; } return false; }, re.source)); }
 
+// Every announcement or win banner that appears is logged to seen.txt and
+// shot, including mid-trick ones (jester, baby trump, ace) the per-trick
+// shots below miss.
+const seen = [];
+let seenShots = 0;
+await page.exposeFunction('__announced', async (text) => {
+  seen.push(text);
+  await sleep(250);
+  await page.screenshot({ path: path.join(OUT, `ann-${String(++seenShots).padStart(3, '0')}-${text.replace(/[^A-Za-z0-9]+/g, '_').slice(0, 30)}.png`), clip: { x: 0, y: 0, width: W, height: Math.min(H, 600) } }).catch(() => {});
+});
+await page.evaluateOnNewDocument(() => {
+  new MutationObserver((muts) => {
+    for (const m of muts) for (const n of m.addedNodes) {
+      if (!(n instanceof HTMLElement)) continue;
+      const hits = n.matches('.animate-commentary-pop, .animate-trick-banner') ? [n] : [...n.querySelectorAll('.animate-commentary-pop, .animate-trick-banner')];
+      for (const h of hits) window.__announced(h.textContent.trim());
+    }
+  }).observe(document, { childList: true, subtree: true });
+});
 await page.goto('http://localhost:5181/?test', { waitUntil: 'networkidle2' });
 await page.waitForSelector('input[placeholder="Jorge"]');
 await page.type('input[placeholder="Jorge"]', 'netA');
@@ -79,5 +98,6 @@ while (Date.now() - t0 < 8 * 60_000) {
   await sleep(100);
 }
 fs.writeFileSync(path.join(OUT, 'events.json'), JSON.stringify(events, null, 1));
+fs.writeFileSync(path.join(OUT, 'seen.txt'), seen.join('\n'));
 console.log('shots', shots, 'events', events.length);
 await browser.close();
