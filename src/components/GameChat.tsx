@@ -2,9 +2,12 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { getUIZoom } from '../hooks/useUIScale';
 import { createPortal } from 'react-dom';
 import { useChatThread } from '../hooks/useChatThread';
+import { useReportTyping, useTyping } from '../hooks/useChat';
+import { ChatLine } from './ChatLine';
+import { TypingLine } from './TypingDots';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { CHAT_MAX_LEN, type ChatMessage } from '../lib/chat';
-import { playerColor } from '../lib/playerColors';
+import { playerColor , colorOrder } from '../lib/playerColors';
 import { REACTIONS, recordReactionUse } from '../lib/reactions';
 import { isTestGame } from '../lib/history';
 import type { RoomSnapshot } from '../hooks/useRoom';
@@ -113,7 +116,7 @@ function ChatHub({
 }: {
   room: RoomSnapshot;
   myName: string;
-  lines: ChatMessage[];
+  lines: (ChatMessage & { pending?: boolean })[];
   send: (text: string) => Promise<boolean>;
   draft: string;
   setDraft: React.Dispatch<React.SetStateAction<string>>;
@@ -123,6 +126,9 @@ function ChatHub({
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const view = useVisibleArea();
+  const [picking, setPicking] = useState<string | null>(null);
+  const typing = useTyping(room.code, room.playerOrder, myName);
+  useReportTyping(room.code, draft);
 
   // Take the focus from GameChat's stand-in box so the keyboard that tap
   // raised stays up, now typing here.
@@ -130,11 +136,11 @@ function ChatHub({
     inputRef.current?.focus({ preventScroll: true });
   }, []);
 
-  // Open at the newest line and follow new ones.
+  // Open at the newest line and follow new ones (and the typing line).
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [lines.length]);
+  }, [lines.length, typing.length]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -227,7 +233,7 @@ function ChatHub({
                 </p>
               ) : (
                 lines.map((m, i) => {
-                  const c = playerColor(m.player, room.playerOrder);
+                  const c = playerColor(m.player, colorOrder(room));
                   const isMe = m.player === myName;
                   const newWindow = i === 0 || lines[i - 1].w !== m.w;
                   return (
@@ -241,14 +247,20 @@ function ChatHub({
                           <span className="h-px flex-1 bg-gold-300/15" />
                         </div>
                       )}
-                      <p className="text-[14px] leading-snug break-words">
-                        <span className={`${isMe ? 'text-gold-text' : c.text} font-bold`}>{m.player}</span>
-                        <span className="text-navy-50">: {m.text}</span>
-                      </p>
+                      <ChatLine
+                        line={m}
+                        code={room.code}
+                        myName={myName}
+                        nameClass={isMe ? 'text-gold-text' : c.text}
+                        className="text-[14px] leading-snug"
+                        picking={picking === `${m.player}-${m.ts}`}
+                        onPick={setPicking}
+                      />
                     </Fragment>
                   );
                 })
               )}
+              <TypingLine names={typing} className="text-[13px]" />
             </div>
 
             {/* Quick ones in one sideways-scrolling row, then the text box

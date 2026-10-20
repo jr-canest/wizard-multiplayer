@@ -5,7 +5,7 @@ import {
   resolveExpiredRoundVote,
 } from '../lib/gameFlow';
 import { isBot } from '../lib/rooms';
-import { colorForViewer } from '../lib/playerColors';
+import { colorForViewer , colorOrder } from '../lib/playerColors';
 import { VoteModal } from './VoteModal';
 import { ROUND_VOTE_TTL_MS, type RoundVoteKind } from '../lib/types';
 import type { RoomSnapshot } from '../hooks/useRoom';
@@ -61,7 +61,7 @@ function RoundVoteDialog({ room, myName }: Props) {
   const waitingOn = voters.filter(
     (n) => !yes.includes(n) && !no.includes(n),
   );
-  const openerColor = colorForViewer(pv.by, myName, room.playerOrder);
+  const openerColor = colorForViewer(pv.by, myName, colorOrder(room));
   const { subtitle, cancel } = wording(pv.kind, room);
 
   async function onVote(voteYes: boolean) {

@@ -3,6 +3,7 @@ import { TrickArea } from './TrickArea';
 import { OpponentTile } from './OpponentTile';
 import { CardImage } from './CardImage';
 import { OverlayBanner } from './OverlayBanner';
+import { useTyping } from '../hooks/useChat';
 import { distributeSeats, viewerSlotIndex } from '../lib/seats';
 import type { Suit, Card } from '../lib/types';
 import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
@@ -102,6 +103,7 @@ export function Table({
   // DOM order: left col rendered top-to-bottom, but clockwise fills
   // bottom-up, so reverse.
   const leftCol = [...leftSlots].reverse();
+  const typing = useTyping(room.code, room.playerOrder, myName);
   const topRow = topSlots;
   const rightCol = rightSlots;
 
@@ -119,6 +121,7 @@ export function Table({
                   playerName={name}
                   playerMeta={playersByName.get(name)}
                   paused={paused}
+                  typing={typing.includes(name)}
                 />
               </div>
             ) : (
@@ -142,6 +145,7 @@ export function Table({
                   playerName={name}
                   playerMeta={playersByName.get(name)}
                   paused={paused}
+                  typing={typing.includes(name)}
                 />
               ) : (
                 <div key={`left-${i}`} />
@@ -175,6 +179,7 @@ export function Table({
               <TrickArea
                 plays={trickPlays}
                 playerOrder={room.playerOrder}
+                colorOrder={room.colorOrder ?? room.playerOrder}
                 trumpSuit={room.trumpSuit}
                 isMyTurn={isMyTurn && room.status === 'playing'}
                 myName={myName}
@@ -205,6 +210,7 @@ export function Table({
                   playerName={name}
                   playerMeta={playersByName.get(name)}
                   paused={paused}
+                  typing={typing.includes(name)}
                 />
               ) : (
                 <div key={`right-${i}`} />

@@ -47,6 +47,9 @@ export type RoomDoc = {
   createdAt: unknown;
   schemaVersion: number;
   playerOrder: string[];
+  /** Seat order colours are drawn from. Set when someone leaves mid-game
+   *  (the order as it was), so nobody's colour shifts; null = playerOrder. */
+  colorOrder?: string[] | null;
   dealerIndex: number;
   currentPlayerIndex: number;
   currentRound: number;

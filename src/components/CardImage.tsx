@@ -3,7 +3,7 @@ import { cardBackUrl, cardImageUrl, cardLabel } from '../lib/cardImages';
 
 type Props = {
   card: Card;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'trick' | 'md' | 'lg';
   faded?: boolean;
   className?: string;
   onClick?: () => void;
@@ -11,6 +11,9 @@ type Props = {
 
 const SIZE_CLASSES: Record<NonNullable<Props['size']>, string> = {
   sm: 'w-12 h-[67px]',
+  // Cards on the felt, a touch under md so a full table hides less of
+  // each card (and of the winner) while they still overlap (2026-10-20).
+  trick: 'w-14 h-[79px]',
   md: 'w-16 h-[90px]',
   lg: 'w-24 h-[135px]',
 };

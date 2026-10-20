@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { playerColor } from '../lib/playerColors';
+import { playerColor , colorOrder } from '../lib/playerColors';
 import { useChatThread } from '../hooks/useChatThread';
+import { useReportTyping, useTyping } from '../hooks/useChat';
+import { ChatLine } from './ChatLine';
+import { TypingLine } from './TypingDots';
 import { CHAT_MAX_LEN } from '../lib/chat';
 import type { RoomSnapshot } from '../hooks/useRoom';
 
@@ -29,13 +32,16 @@ export function Chat({ room, myName }: Props) {
   const listRef = useRef<HTMLDivElement>(null);
   const { lines: allMessages, send } = useChatThread(room, myName, 'window');
   const messages = allMessages.slice(-VISIBLE_CHAT_COUNT);
+  const [picking, setPicking] = useState<string | null>(null);
+  const typing = useTyping(room.code, room.playerOrder, myName);
+  useReportTyping(room.code, text);
 
   // Stick to the bottom whenever a new message arrives.
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [messages.length]);
+  }, [messages.length, typing.length]);
 
   function handleSend(e: React.FormEvent) {
     e.preventDefault();
@@ -69,7 +75,7 @@ export function Chat({ room, myName }: Props) {
           <p className="text-[11px] text-navy-300 py-0.5">No messages yet</p>
         ) : (
           messages.map((m, i) => {
-            const c = playerColor(m.player, room.playerOrder);
+            const c = playerColor(m.player, colorOrder(room));
             const isMe = m.player === myName;
             const distanceFromNewest = messages.length - 1 - i;
             const opacity =
@@ -78,19 +84,23 @@ export function Chat({ room, myName }: Props) {
             return (
               <div
                 key={`${m.player}-${m.ts}-${i}`}
-                className="text-[12px] leading-snug break-words transition-opacity duration-300"
-                style={{ opacity }}
+                className="transition-opacity duration-300"
+                style={{ opacity: picking === `${m.player}-${m.ts}` ? 1 : opacity }}
               >
-                <span
-                  className={`${isMe ? 'text-gold-text' : c.text} font-bold`}
-                >
-                  {m.player}
-                </span>
-                <span className="text-navy-50">: {m.text}</span>
+                <ChatLine
+                  line={m}
+                  code={room.code}
+                  myName={myName}
+                  nameClass={isMe ? 'text-gold-text' : c.text}
+                  className="text-[12px] leading-snug"
+                  picking={picking === `${m.player}-${m.ts}`}
+                  onPick={setPicking}
+                />
               </div>
             );
           })
         )}
+        <TypingLine names={typing} className="text-[11px]" />
       </div>
       {/* 16px text: anything smaller makes iOS zoom the page on focus. */}
       <form onSubmit={handleSend} className="flex gap-1.5 items-stretch">

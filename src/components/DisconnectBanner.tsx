@@ -7,7 +7,7 @@ import {
   setVoteKick,
   tallyVotes,
 } from '../lib/presence';
-import { playerColor } from '../lib/playerColors';
+import { playerColor , colorOrder } from '../lib/playerColors';
 
 type Props = {
   room: RoomSnapshot;
@@ -87,7 +87,7 @@ export function DisconnectBanner({ room, players, myName }: Props) {
 
   if (!showBanner || !currentName) return null;
 
-  const targetColor = playerColor(currentName, room.playerOrder);
+  const targetColor = playerColor(currentName, colorOrder(room));
   const myVoteIsForTarget = myVote === currentName;
 
   async function toggleVote() {

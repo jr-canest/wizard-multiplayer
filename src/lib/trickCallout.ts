@@ -32,9 +32,10 @@ export function isBabyTrump(plays: { card: Card }[], index: number, trumpSuit: S
  *
  * One line per trick, strongest first: a wizard killing a high trump, then
  * winning past your bid, then a baby trump that closed and won it, then a
- * run of wins in this round, then the ace of spades or a jester when it was
- * the card that closed the trick (mid-trick ones are called out the moment
- * they land, in CommentaryOverlay).
+ * run of wins in this round, then the ace of spades when it was the card
+ * that closed the trick (mid-trick ones are called out the moment they
+ * land, in CommentaryOverlay). A closing jester gets nothing: under an
+ * "X won" banner a skip reads as nonsense (Jorge, 2026-10-20).
  */
 export function trickCallout(room: RoomSnapshot, myName: string): TrickCallout | null {
   const hist = room.trickHistory;
@@ -98,6 +99,5 @@ export function trickCallout(room: RoomSnapshot, myName: string): TrickCallout |
   if (closer?.kind === 'standard' && closer.suit === 'S' && closer.rank === 14) {
     return { text: 'THE ACE OF SPADES', tone: 'spade' };
   }
-  if (closer?.kind === 'jester') return { text: SKIP_TEXT, tone: 'gold' };
   return null;
 }

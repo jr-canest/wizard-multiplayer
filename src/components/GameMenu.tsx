@@ -3,11 +3,14 @@ import {
   computeRoundDeltas,
   cumulativeScoresFromLog,
 } from '../lib/gameFlow';
-import { playerColor } from '../lib/playerColors';
+import { playerColor , colorOrder } from '../lib/playerColors';
 import { getUIZoom } from '../hooks/useUIScale';
 import { useSoundEnabled } from '../hooks/useGameSounds';
 import { playBidSound, setSoundEnabled } from '../lib/sounds';
 import type { RoomSnapshot } from '../hooks/useRoom';
+import { useNavigate } from 'react-router-dom';
+import { leaveGame } from '../lib/rooms';
+import { setActiveRoomCode } from '../hooks/useActiveRoom';
 
 type Props = {
   room: RoomSnapshot;
@@ -15,12 +18,17 @@ type Props = {
 };
 
 /**
- * The "burger menu" on the round header. A scores-only sheet — running
- * cumulative totals (with the current round folded in if we're on the
- * scoring screen). All voting lives on the round-end RoundScoreboard.
+ * The "burger menu" on the round header: running cumulative totals (with
+ * the current round folded in if we're on the scoring screen), the Sound
+ * switch and "Leave game" (2026-10-20), which asks first and then lets the
+ * others play on. All voting lives on the round-end RoundScoreboard.
  */
 export function GameMenu({ room, myName }: Props) {
   const [open, setOpen] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [leaveError, setLeaveError] = useState(false);
+  const navigate = useNavigate();
   const soundOn = useSoundEnabled();
   const [anchor, setAnchor] = useState<{
     left: number;
@@ -91,7 +99,10 @@ export function GameMenu({ room, myName }: Props) {
       <button
         ref={buttonRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => !v);
+          setConfirmLeave(false);
+        }}
         aria-label="Scores"
         className="ml-1 w-7 h-7 shrink-0 rounded-full bg-[rgba(20,26,44,.8)] border border-gold-300/40 flex items-center justify-center text-xs text-cream active:scale-95 transition"
       >
@@ -145,7 +156,7 @@ export function GameMenu({ room, myName }: Props) {
                 const bid = room.bids[name];
                 const won = room.tricksWon[name] ?? 0;
                 const isMe = name === myName;
-                const c = playerColor(name, room.playerOrder);
+                const c = playerColor(name, colorOrder(room));
                 return (
                   <li
                     key={name}
@@ -209,6 +220,55 @@ export function GameMenu({ room, myName }: Props) {
                 />
               </span>
             </button>
+
+            {room.status !== 'finished' &&
+              (confirmLeave ? (
+                <div className="pt-2.5 border-t border-gold-700/20 space-y-2">
+                  <p className="text-[13px] leading-snug text-cream whitespace-normal break-words">
+                    Leave for good? You can't come back to this game. The others keep playing
+                    without you, and it won't count in your History.
+                  </p>
+                  {leaveError && (
+                    <p className="text-[12px] text-rose-300">Couldn't leave. Check your connection.</p>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmLeave(false)}
+                      className="flex-1 btn-secondary py-2 text-sm"
+                    >
+                      Stay
+                    </button>
+                    <button
+                      type="button"
+                      disabled={leaving}
+                      onClick={async () => {
+                        setLeaving(true);
+                        setLeaveError(false);
+                        try {
+                          await leaveGame(room.code);
+                          setActiveRoomCode(null);
+                          navigate('/');
+                        } catch {
+                          setLeaveError(true);
+                          setLeaving(false);
+                        }
+                      }}
+                      className="flex-1 btn-danger py-2 text-sm disabled:opacity-60"
+                    >
+                      {leaving ? 'Leaving…' : 'Leave game'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmLeave(true)}
+                  className="w-full text-left pt-2.5 border-t border-gold-700/20 text-sm text-rose-300"
+                >
+                  Leave game
+                </button>
+              ))}
           </div>
         </>
       )}

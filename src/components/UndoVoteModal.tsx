@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { requestUndo, resolveExpiredUndo, voteUndo } from '../lib/gameFlow';
 import { isBot } from '../lib/rooms';
-import { colorForViewer } from '../lib/playerColors';
+import { colorForViewer , colorOrder } from '../lib/playerColors';
 import { CardImage } from './CardImage';
 import { VoteModal } from './VoteModal';
 import { UNDO_VOTE_TTL_MS } from '../lib/types';
@@ -49,7 +49,7 @@ function UndoVoteDialog({ room, myName }: Props) {
     (n) => !yes.includes(n) && !no.includes(n),
   );
   const actionWord = pu.kind === 'bid' ? 'bid' : 'card';
-  const actorColor = colorForViewer(pu.actor, myName, room.playerOrder);
+  const actorColor = colorForViewer(pu.actor, myName, colorOrder(room));
 
   async function onVote(voteYes: boolean) {
     if (busy) return;

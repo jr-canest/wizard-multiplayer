@@ -10,6 +10,8 @@ type Play = { playerName: string; card: Card; playOrder?: number };
 type Props = {
   plays: Play[];
   playerOrder: string[];
+  /** Seat colours (src/lib/playerColors.ts colorOrder). */
+  colorOrder?: string[];
   trumpSuit: Suit | null;
   isMyTurn: boolean;
   myName: string;
@@ -81,22 +83,9 @@ const TrickCard = memo(function TrickCard({
         <div
           className={`relative rounded-md ring-2 ${color.ring} bg-navy-900 shadow-[0_8px_18px_rgba(0,0,0,0.5)]`}
         >
-          <CardImage card={card} size="md" />
+          <CardImage card={card} size="trick" />
           {isWinning && (
             <div className="absolute inset-0 rounded-md pointer-events-none animate-winning-inner z-[5]" />
-          )}
-          {isWinning && (
-            <div
-              className="absolute -top-[10px] -right-2 z-10 w-7 h-7 rounded-full flex items-center justify-center animate-crown-pop pointer-events-none select-none"
-              style={{
-                background: 'linear-gradient(180deg,#f0dda0 0%,#c9a141 45%,#9c7a26 100%)',
-                border: '1px solid #e2c579',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
-              }}
-              title="Winning card"
-            >
-              <span className="text-[#2a2010] text-lg leading-none">♛</span>
-            </div>
           )}
         </div>
       </div>
@@ -105,9 +94,37 @@ const TrickCard = memo(function TrickCard({
   );
 });
 
+/**
+ * The winning card's crown, centred on that card and drawn above every
+ * card on the felt (2026-10-20): on its old top-right corner a card played
+ * later could cover it. Keyed by the winner so it pops again when the lead
+ * changes hands.
+ */
+function WinnerCrown({ slotX, slotY }: { slotX: number; slotY: number }) {
+  return (
+    <div
+      className="absolute left-1/2 top-1/2 pointer-events-none"
+      style={{ transform: `translate(calc(-50% + ${slotX}px), calc(-50% + ${slotY}px))`, zIndex: 150 }}
+    >
+      <div
+        className="w-7 h-7 rounded-full flex items-center justify-center animate-crown-pop select-none"
+        style={{
+          background: 'linear-gradient(180deg,#f0dda0 0%,#c9a141 45%,#9c7a26 100%)',
+          border: '1px solid #e2c579',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.6)',
+        }}
+        title="Winning card"
+      >
+        <span className="text-[#2a2010] text-lg leading-none">♛</span>
+      </div>
+    </div>
+  );
+}
+
 export function TrickArea({
   plays,
   playerOrder,
+  colorOrder: colorSeats,
   trumpSuit,
   isMyTurn,
   myName,
@@ -168,7 +185,8 @@ export function TrickArea({
                 fanH,
               );
             })();
-            return plays.map((p, i) => {
+            let crown: React.ReactNode = null;
+            const cards = plays.map((p, i) => {
               // Slot is determined by the player's seat (which side of
               // the table they sit on, viewer-rotated). Stacking still
               // uses play order so the most recent card sits on top.
@@ -190,6 +208,9 @@ export function TrickArea({
                 y: base.y,
                 rot: base.rot + noise(seedBase * 3) * 3,
               };
+              if (i === winnerIdx && !isLeaving) {
+                crown = <WinnerCrown key={`crown-${p.playerName}`} slotX={slot.x} slotY={slot.y} />;
+              }
               const leaveDx = winnerSlot ? winnerSlot.x - slot.x : 0;
               const leaveDy = winnerSlot ? winnerSlot.y - slot.y : 0;
               return (
@@ -200,7 +221,7 @@ export function TrickArea({
                   slotY={slot.y}
                   slotRot={slot.rot}
                   zIndex={100 + i}
-                  color={colorForViewer(p.playerName, myName, playerOrder)}
+                  color={colorForViewer(p.playerName, myName, colorSeats ?? playerOrder)}
                   isWinning={i === winnerIdx}
                   isLeaving={isLeaving}
                   leaveDx={leaveDx}
@@ -208,6 +229,7 @@ export function TrickArea({
                 />
               );
             });
+            return [...cards, crown];
           })()}
         </div>
       )}

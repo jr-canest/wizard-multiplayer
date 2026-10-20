@@ -650,3 +650,21 @@ button:focus-visible {
 /* Sideways-scrolling rows (chat quick buttons) without a scrollbar. */
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Typing hint (2026-10-20): three small dots breathing in turn. Used on an
+   opponent's tile mid-game and under the chat lists. */
+.typing-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: currentColor;
+  opacity: 0.35;
+  animation: typing-dot 1.1s ease-in-out infinite;
+}
+@keyframes typing-dot {
+  0%, 60%, 100% { opacity: 0.35; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-1.5px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .typing-dot { animation: none; opacity: 0.8; }
+}

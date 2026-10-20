@@ -91,6 +91,11 @@ export async function removeBot(code: string, _host: string, botName: string): P
   await act(code, 'removeBot', botName);
 }
 
+/** Leave a game that has started; the others play on (engine leaveGame). */
+export async function leaveGame(code: string): Promise<void> {
+  await act(code, 'leaveGame');
+}
+
 export async function leaveRoom(code: string, _playerName: string): Promise<void> {
   await act(code, 'leave');
 }

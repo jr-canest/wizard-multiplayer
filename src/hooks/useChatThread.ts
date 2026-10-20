@@ -63,5 +63,9 @@ export function useChatThread(room: RoomSnapshot, myName: string, scope: 'window
     [room.code, windowKey, myName],
   );
 
-  return { lines: [...serverLines, ...pending], send };
+  const lines: (ChatMessage & { pending?: boolean })[] = [
+    ...serverLines,
+    ...pending.map((o) => ({ ...o, pending: true })),
+  ];
+  return { lines, send };
 }

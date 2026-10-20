@@ -13,9 +13,12 @@ export { type Env };
 // client → server
 //   { t: 'hello', token, join?: boolean }         first message on a socket
 //   { t: 'act', id, action, args }                 one game action, acked
+//   { t: 'typing', on }                            chat box has a draft (not stored)
 // server → client
 //   { t: 'state', seq, room, hand, players, chat? }  full snapshot (+chat on hello)
 //   { t: 'chat', msg }                              one new chat line
+//   { t: 'chatEdit', msg }                          a line's reactions changed
+//   { t: 'typing', name, on }                       someone else's draft
 //   { t: 'ack', id, ok: true, result? } | { t: 'ack', id, ok: false, code }
 //   { t: 'error', code }                            hello failed; socket closes
 
@@ -148,6 +151,13 @@ export class RoomDO {
       return;
     }
 
+    // Typing is a hint, not game state: relayed to the other sockets and
+    // never stored, so it costs nothing when nobody is chatting.
+    if (msg.t === 'typing') {
+      this.sendOthers(name, { t: 'typing', name, on: Boolean((msg as { on?: unknown }).on) });
+      return;
+    }
+
     if (msg.t === 'act' && typeof msg.id === 'string' && typeof msg.action === 'string') {
       const args = Array.isArray(msg.args) ? msg.args : [];
       try {
@@ -167,7 +177,10 @@ export class RoomDO {
   async webSocketClose(ws: WebSocket): Promise<void> {
     await this.ready;
     const att = ws.deserializeAttachment() as { name: string | null };
-    if (att.name) this.lastSeen.set(att.name, Date.now());
+    if (att.name) {
+      this.lastSeen.set(att.name, Date.now());
+      this.sendOthers(att.name, { t: 'typing', name: att.name, on: false });
+    }
     await this.persist();
     this.broadcast();
   }
@@ -204,7 +217,17 @@ export class RoomDO {
       case 'postReaction': E.postReaction(s, name, str(0), now); return null;
       case 'sendChat': {
         const msg = E.sendChat(s, name, str(0), now, Number.isFinite(num(1)) ? num(1) : undefined);
-        if (msg) for (const ws of this.ctx.getWebSockets()) { try { ws.send(JSON.stringify({ t: 'chat', msg })); } catch { /* gone */ } }
+        if (msg) this.sendAll({ t: 'chat', msg });
+        return null;
+      }
+      case 'reactChat': {
+        const msg = E.reactChat(s, name, str(0), num(1), str(2));
+        if (msg) this.sendAll({ t: 'chatEdit', msg });
+        return null;
+      }
+      case 'leaveGame': {
+        const msg = E.leaveGame(s, name, now);
+        if (msg) this.sendAll({ t: 'chat', msg });
         return null;
       }
       case 'setVoteKick': {
@@ -293,6 +316,20 @@ export class RoomDO {
       const att = ws.deserializeAttachment() as { name: string | null; authed: boolean };
       if (!att.authed || !att.name || att.name === except) continue;
       try { ws.send(JSON.stringify(this.snapshotFor(att.name))); } catch { /* gone */ }
+    }
+  }
+
+  private sendAll(frame: unknown): void {
+    const data = JSON.stringify(frame);
+    for (const ws of this.ctx.getWebSockets()) { try { ws.send(data); } catch { /* gone */ } }
+  }
+
+  private sendOthers(name: string, frame: unknown): void {
+    const data = JSON.stringify(frame);
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = ws.deserializeAttachment() as { name: string | null; authed: boolean };
+      if (!att.authed || att.name === name) continue;
+      try { ws.send(data); } catch { /* gone */ }
     }
   }
 

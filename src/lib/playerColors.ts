@@ -101,6 +101,11 @@ const PALETTE: PlayerColor[] = [
   },
 ];
 
+/** The order seat colours come from: the dealt-in order, kept through a leave. */
+export function colorOrder(room: { playerOrder: string[]; colorOrder?: string[] | null }): string[] {
+  return room.colorOrder ?? room.playerOrder;
+}
+
 export function playerColor(name: string, playerOrder: string[]): PlayerColor {
   const idx = playerOrder.indexOf(name);
   if (idx < 0) return PALETTE[0];

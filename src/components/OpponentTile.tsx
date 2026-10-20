@@ -1,8 +1,10 @@
-import { colorForViewer } from '../lib/playerColors';
+import { colorForViewer , colorOrder } from '../lib/playerColors';
 import { shortName } from '../lib/shortName';
 import { isConnected } from '../lib/presence';
 import { botDifficultyOf } from '../lib/rooms';
 import type { Suit } from '../lib/types';
+import { TypingDots } from './TypingDots';
+import { winningPlayIndex } from '../game/trickWinner';
 import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
 
 const SUIT_GLYPH: Record<Suit, string> = { H: '♥', D: '♦', C: '♣', S: '♠' };
@@ -20,6 +22,8 @@ type Props = {
   playerMeta: PlayerSnapshot | undefined;
   /** An undo vote is open: the table is stopped, so no turn cues. */
   paused?: boolean;
+  /** Has a chat line on the way: a small bubble of dots on the tile. */
+  typing?: boolean;
 };
 
 /**
@@ -34,6 +38,7 @@ export function OpponentTile({
   playerName,
   playerMeta,
   paused = false,
+  typing = false,
 }: Props) {
   const dealerName = room.playerOrder[room.dealerIndex];
   const isDealer = playerName === dealerName;
@@ -64,7 +69,7 @@ export function OpponentTile({
 
   const bid = room.bids[playerName];
   const won = room.tricksWon[playerName] ?? 0;
-  const color = colorForViewer(playerName, myName, room.playerOrder);
+  const color = colorForViewer(playerName, myName, colorOrder(room));
   const offline = playerMeta ? !isConnected(playerMeta) : false;
 
   const acted =
@@ -77,6 +82,12 @@ export function OpponentTile({
   const inTrick = room.trickInProgress.find(
     (p) => p.playerName === playerName,
   );
+  // Their card is the one currently taking the trick: the chip gets the
+  // same gold crown as the card on the felt (2026-10-20).
+  const winningNow =
+    !!inTrick &&
+    room.trickInProgress.length > 1 &&
+    room.trickInProgress[winningPlayIndex(room.trickInProgress, room.trumpSuit)]?.playerName === playerName;
   const playedChip = (() => {
     if (!inTrick) return null;
     const c = inTrick.card;
@@ -190,10 +201,27 @@ export function OpponentTile({
       )}
       {playedChip && (
         <span
-          className={`absolute -bottom-2 -right-1.5 bg-navy-900/95 ${playedChip.tone} text-[10px] font-bold rounded px-1 py-0.5 shadow-md ring-1 ring-gold-700/60 leading-none`}
-          title="Played card"
+          className={`absolute -bottom-2 -right-1.5 bg-navy-900/95 ${playedChip.tone} text-[10px] font-bold rounded px-1 py-0.5 shadow-md ring-1 leading-none inline-flex items-center gap-[3px] ${
+            winningNow ? 'ring-gold-300' : 'ring-gold-700/60'
+          }`}
+          title={winningNow ? 'Played card, winning the trick' : 'Played card'}
         >
+          {winningNow && (
+            <span className="text-[9px] text-gold-200" aria-hidden="true">
+              ♛
+            </span>
+          )}
           {playedChip.text}
+        </span>
+      )}
+      {typing && (
+        // Top-right corner, opposite the dealer badge: quiet enough to
+        // ignore mid-trick, there if you are waiting on a reply.
+        <span
+          className="absolute -top-[7px] -right-[7px] h-[14px] px-[5px] rounded-full rounded-bl-[3px] bg-navy-800 ring-1 ring-navy-300/60 text-navy-100 flex items-center shadow-md"
+          title={`${playerName} is typing`}
+        >
+          <TypingDots />
         </span>
       )}
       {offline && (

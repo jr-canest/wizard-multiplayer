@@ -24,7 +24,7 @@ import { DealAnimation } from './DealAnimation';
 import { playCard } from '../lib/gameFlow';
 import { bidGridLayout } from '../lib/bidLayout';
 import { legalIndices } from '../game/legalMoves';
-import { playerColor } from '../lib/playerColors';
+import { playerColor , colorOrder } from '../lib/playerColors';
 import { sortHandWithIndex } from '../lib/sortHand';
 import type { Card } from '../lib/types';
 
@@ -270,7 +270,7 @@ export function GameView({ room, players, myName }: Props) {
   }, [room.trickInProgress, room.trickHistory.length, myName, optimisticPlay]);
 
   const winnerColor = winBanner
-    ? playerColor(winBanner.winner, room.playerOrder)
+    ? playerColor(winBanner.winner, colorOrder(room))
     : null;
 
   // Hold the just-completed trick visible from resolve until the win-banner
@@ -573,7 +573,7 @@ export function GameView({ room, players, myName }: Props) {
           const currentName = room.playerOrder[room.currentPlayerIndex];
           // Whoever is on the clock is named in their own seat colour.
           // Gold in this strip now means one thing only: it is my turn.
-          const currentColor = playerColor(currentName, room.playerOrder);
+          const currentColor = playerColor(currentName, colorOrder(room));
           const isPlayingTurn =
             room.status === 'playing' && isMyTurn && !playLocked;
           const isBiddingTurn =

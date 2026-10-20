@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { requestUndo } from '../lib/gameFlow';
-import { playerColor } from '../lib/playerColors';
+import { playerColor , colorOrder } from '../lib/playerColors';
 import { chatWindowKey } from '../lib/chat';
 import { useChat } from '../hooks/useChat';
 import type { RoomSnapshot } from '../hooks/useRoom';
+import { ReactionBadges } from './ChatLine';
+import { CHAT_REACTIONS, reactToChat } from '../lib/chat';
 
 type Props = {
   room: RoomSnapshot;
@@ -17,7 +19,7 @@ const MAX_SHOWN = 2;
 // Covers the .felt-msg-out fold in index.css.
 const EXIT_MS = 340;
 
-type FeltLine = { key: string; player: string; text: string; ts: number };
+type FeltLine = { key: string; player: string; text: string; ts: number; r?: Record<string, string>; sys?: boolean };
 type FeltItem = FeltLine & { leaving: boolean };
 
 /**
@@ -25,12 +27,12 @@ type FeltItem = FeltLine & { leaving: boolean };
  * MAX_SHOWN: chat lines (typed or quick buttons in the chat hub) plus a
  * reaction from a phone still on the old 📣 build (`room.lastReaction`).
  */
-function useLiveLines(room: RoomSnapshot): FeltLine[] {
+function useLiveLines(room: RoomSnapshot, hold: string | null): FeltLine[] {
   const chat = useChat(room.code);
   const windowKey = chatWindowKey(room);
   const lines: FeltLine[] = [];
   for (const m of chat) {
-    if (m.w === windowKey) lines.push({ key: `c-${m.player}-${m.ts}`, player: m.player, text: m.text, ts: m.ts });
+    if (m.w === windowKey) lines.push({ key: `c-${m.player}-${m.ts}`, player: m.player, text: m.text, ts: m.ts, r: m.r, sys: m.sys });
   }
   const r = room.lastReaction;
   if (r) lines.push({ key: `r-${r.player}-${r.ts}`, player: r.player, text: r.text, ts: r.ts });
@@ -40,11 +42,13 @@ function useLiveLines(room: RoomSnapshot): FeltLine[] {
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
   const live = lines
-    .filter((l) => now - l.ts <= TTL_MS)
+    // A line with its reaction picker open stays until the picker closes.
+    .filter((l) => now - l.ts <= TTL_MS || l.key === hold)
     .sort((a, b) => a.ts - b.ts)
     .slice(-MAX_SHOWN);
 
-  const nextExpiry = live.length > 0 ? live[0].ts + TTL_MS : null;
+  const expiring = live.filter((l) => l.key !== hold);
+  const nextExpiry = expiring.length > 0 ? expiring[0].ts + TTL_MS : null;
   const [, setTick] = useState(0);
   useEffect(() => {
     if (nextExpiry == null) return;
@@ -93,28 +97,90 @@ function useFeltItems(live: FeltLine[]): FeltItem[] {
  * undo affordance lives in the action strip above the user's hand
  * (UndoStripBar) so it sits inside the player's natural focus zone.
  */
-export function OverlayBanner({ room }: Props) {
-  const items = useFeltItems(useLiveLines(room));
+export function OverlayBanner({ room, myName }: Props) {
+  // The line whose reaction picker is open (2026-10-20: lines on the felt
+  // take a tap too, not only the chat hub).
+  const [picking, setPicking] = useState<string | null>(null);
+  const live = useLiveLines(room, picking);
+  const items = useFeltItems(live);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  // Any touch outside the line and its picker closes it, which includes
+  // starting to drag a card from the hand.
+  useEffect(() => {
+    if (!picking) return;
+    function onDown(e: PointerEvent) {
+      if (boxRef.current?.contains(e.target as Node)) return;
+      setPicking(null);
+    }
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, [picking]);
+  const pickingLive = picking !== null && live.some((l) => l.key === picking);
+  // Reactions read from the live lines, so one landing while a line is up
+  // shows on it at once (items hold a copy from when the line arrived).
+  const reactionsByKey = new Map(live.map((l) => [l.key, l.r]));
 
   if (items.length === 0) return null;
 
   return (
     <div
+      ref={boxRef}
       className="absolute top-1.5 left-1.5 right-1.5 z-[180] pointer-events-none flex flex-col items-start"
       aria-live="polite"
     >
-      {/* No pointer-events: this sits over the trick drop zone, and a
-          message popping up mid-drag must not swallow the card drop. */}
+      {/* Only the bubbles take touches, never the space around them. A
+          card dropped on a bubble still plays: the bubbles sit inside the
+          felt's [data-trick-area-frame], which is what the drop looks for. */}
       {items.map((it) => {
-        const c = playerColor(it.player, room.playerOrder);
+        const c = playerColor(it.player, colorOrder(room));
+        // Legacy 📣 lines (r-…) have no chat line to react to.
+        const reactable = !it.sys && !it.leaving && it.key.startsWith('c-');
+        const open = pickingLive && picking === it.key;
+        const r = reactionsByKey.get(it.key) ?? it.r;
         return (
           <div key={it.key} className={`felt-msg${it.leaving ? ' felt-msg-out' : ''}`}>
             <div>
-              <div className="animate-felt-msg-in mb-1 backdrop-blur rounded-md border border-gold-500/70 bg-navy-900/85 px-2 py-1 shadow-lg">
-                <p className="text-sm leading-snug line-clamp-2 break-words">
+              <div
+                onClick={reactable ? () => setPicking(open ? null : it.key) : undefined}
+                className={`relative animate-felt-msg-in mb-1 backdrop-blur rounded-md border bg-navy-900/85 px-2 py-1 shadow-lg ${
+                  reactable ? 'pointer-events-auto cursor-pointer' : ''
+                } ${open ? 'border-gold-300' : 'border-gold-500/70'}`}
+              >
+                <p className={`text-sm leading-snug line-clamp-2 break-words ${it.sys ? 'italic' : ''}`}>
                   <span className={`${c.text} font-bold`}>{it.player}</span>
-                  <span className="text-gold-100">: {it.text}</span>
+                  <span className={it.sys ? 'text-navy-200' : 'text-gold-100'}>{it.sys ? ` ${it.text}` : `: ${it.text}`}</span>
                 </p>
+                {open ? (
+                  // Small, docked on the bubble's bottom-right edge where the
+                  // reaction will land (Jorge, 2026-10-20).
+                  <div
+                    onClick={(ev) => ev.stopPropagation()}
+                    className="absolute -bottom-4 -right-1.5 z-10 inline-flex gap-0.5 rounded-full border border-gold-300/60 bg-navy-900 px-1 py-0.5 shadow-xl animate-overlay-banner-inline"
+                  >
+                    {CHAT_REACTIONS.map((e) => {
+                      const ts = Number(it.key.slice(it.key.lastIndexOf('-') + 1));
+                      return (
+                        <button
+                          key={e}
+                          type="button"
+                          aria-label={`React ${e}`}
+                          onClick={() => {
+                            setPicking(null);
+                            void reactToChat(room.code, { player: it.player, ts }, e).catch(() => {});
+                          }}
+                          className={`w-7 h-7 rounded-full text-[16px] leading-none flex items-center justify-center active:scale-90 transition ${
+                            r?.[myName] === e ? 'bg-gold-500/30 ring-1 ring-gold-300/70' : ''
+                          }`}
+                        >
+                          {e}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <ReactionBadges r={r} myName={myName} className="absolute -bottom-2 -right-1.5" />
+                )}
               </div>
             </div>
           </div>

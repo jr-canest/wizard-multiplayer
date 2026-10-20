@@ -4,10 +4,15 @@
  * keyed by chatWindowKey, so a round-end conversation does not spill over.
  */
 import { connectionFor } from './socket';
-export { chatWindowKey, CHAT_MAX_LEN } from '../game/engine';
+export { chatWindowKey, CHAT_MAX_LEN, CHAT_REACTIONS } from '../game/engine';
 export type { ChatLine as ChatMessage } from './socket';
 
 /** `ts` is the sender's clock; the server echoes it as `cts` on the line. */
 export async function sendChatMessage(code: string, _windowKey: string, _player: string, text: string, ts?: number): Promise<void> {
   await connectionFor(code).act('sendChat', text, ts);
+}
+
+/** Tapback on a line; the same emoji again takes yours off. */
+export async function reactToChat(code: string, line: { player: string; ts: number }, emoji: string): Promise<void> {
+  await connectionFor(code).act('reactChat', line.player, line.ts, emoji);
 }

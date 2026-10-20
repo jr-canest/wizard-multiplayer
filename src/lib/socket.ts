@@ -22,13 +22,15 @@ export type PlayerSnapshot = {
   lastSeen: number;
   voteKickAgainst: string | null;
 };
-export type ChatLine = { player: string; text: string; ts: number; w: string; cts?: number };
+export type ChatLine = { player: string; text: string; ts: number; w: string; cts?: number; r?: Record<string, string>; sys?: boolean };
 
 export type ConnectionState = {
   room: RoomSnapshot | null;
   hand: Card[] | null;
   players: PlayerSnapshot[];
   chat: ChatLine[];
+  /** Who has a chat draft going, name -> epoch ms the hint runs out. */
+  typing: Record<string, number>;
   /** 'connecting' until the first snapshot; 'online' while the socket is
    *  up; 'reconnecting' after it dropped; 'closed' after a fatal error. */
   link: 'connecting' | 'online' | 'reconnecting' | 'closed';
@@ -50,9 +52,13 @@ type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void; time
 const PING_EVERY_MS = 3000;
 const DEAD_AFTER_MS = 7000;
 const ACK_TIMEOUT_MS = 20_000;
+// A typing hint lapses on its own if the "stopped" never arrives (the
+// phone locked mid-word); the typist re-sends while still typing.
+export const TYPING_TTL_MS = 6000;
+const TYPING_RESEND_MS = 3000;
 
 export class RoomConnection {
-  state: ConnectionState = { room: null, hand: null, players: [], chat: [], link: 'connecting', error: null };
+  state: ConnectionState = { room: null, hand: null, players: [], chat: [], typing: {}, link: 'connecting', error: null };
   private ws: WebSocket | null = null;
   private listeners = new Set<Listener>();
   private pending = new Map<string, Pending>();
@@ -102,6 +108,17 @@ export class RoomConnection {
   }
   private queue: string[] = [];
 
+  /** Tell the table this phone has a chat draft going (or not). Fire and
+   *  forget, throttled; dropped when offline since it is only a hint. */
+  typing(on: boolean): void {
+    const now = Date.now();
+    if (on && this.typingSentAt && now - this.typingSentAt < TYPING_RESEND_MS) return;
+    if (!on && !this.typingSentAt) return;
+    this.typingSentAt = on ? now : 0;
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ t: 'typing', on }));
+  }
+  private typingSentAt = 0;
+
   close(): void {
     this.closed = true;
     if (this.pingTimer !== null) window.clearInterval(this.pingTimer);
@@ -150,7 +167,26 @@ export class RoomConnection {
         if (wasFirst) for (const f of this.queue.splice(0)) ws.send(f);
         return;
       }
-      if (msg.t === 'chat') { this.set({ chat: [...this.state.chat, msg.msg as ChatLine].slice(-200) }); return; }
+      if (msg.t === 'chat') {
+        const line = msg.msg as ChatLine;
+        // A line ends its sender's typing hint.
+        const typing = { ...this.state.typing };
+        delete typing[line.player];
+        this.set({ chat: [...this.state.chat, line].slice(-200), typing });
+        return;
+      }
+      if (msg.t === 'chatEdit') {
+        const line = msg.msg as ChatLine;
+        this.set({ chat: this.state.chat.map((m) => (m.player === line.player && m.ts === line.ts ? line : m)) });
+        return;
+      }
+      if (msg.t === 'typing') {
+        const typing = { ...this.state.typing };
+        if (msg.on) typing[String(msg.name)] = Date.now() + TYPING_TTL_MS;
+        else delete typing[String(msg.name)];
+        this.set({ typing });
+        return;
+      }
       if (msg.t === 'ack') {
         const p = this.pending.get(String(msg.id));
         if (!p) return;

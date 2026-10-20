@@ -51,7 +51,12 @@ export class EngineError extends Error {
 
 // cts = the sender's own Date.now() at send time, echoed back so that phone can
 // recognise its optimistic copy (ts is server time and never matches it).
-export type ChatMessage = { player: string; text: string; ts: number; w: string; cts?: number };
+// r = reactions, reactor name -> emoji (one each, tapback style). sys = a
+// table notice ("X left the game"), not something `player` typed.
+export type ChatMessage = { player: string; text: string; ts: number; w: string; cts?: number; r?: Record<string, string>; sys?: boolean };
+
+/** The reactions a chat line takes (tap a line to pick one). */
+export const CHAT_REACTIONS = ['😂', '👍', '❤️'] as const;
 
 /** Everything the server knows about one room. */
 export type EngineState = {
@@ -388,15 +393,20 @@ export function playCard(s: EngineState, name: string, cardIndex: number): void 
     r.log = [...r.log, playLog];
     return;
   }
-  // Trick complete.
-  const winnerIdx = winningPlayIndex(newTrick, r.trumpSuit);
-  const winner = newTrick[winnerIdx].playerName;
+  r.log = [...r.log, playLog];
+  completeTrick(r, newTrick);
+}
+
+/** Every seat has played: award the trick, then next trick or scoring. */
+function completeTrick(r: RoomDoc, trick: RoomDoc['trickInProgress']): void {
+  const winnerIdx = winningPlayIndex(trick, r.trumpSuit);
+  const winner = trick[winnerIdx].playerName;
   r.tricksWon = { ...r.tricksWon, [winner]: (r.tricksWon[winner] ?? 0) + 1 };
-  r.trickHistory = [...r.trickHistory, { round: r.currentRound, trickNum: r.currentTrick, plays: newTrick.map((p) => ({ playerName: p.playerName, card: p.card })), winner }];
+  r.trickHistory = [...r.trickHistory, { round: r.currentRound, trickNum: r.currentTrick, plays: trick.map((p) => ({ playerName: p.playerName, card: p.card })), winner }];
   const roundComplete = r.currentTrick >= r.currentRound;
   r.trickInProgress = [];
   r.leadSuit = null;
-  r.log = [...r.log, playLog, { t: 'trickWin', round: r.currentRound, trick: r.currentTrick, winner }];
+  r.log = [...r.log, { t: 'trickWin', round: r.currentRound, trick: r.currentTrick, winner }];
   r.currentPlayerIndex = r.playerOrder.indexOf(winner);
   if (roundComplete) r.status = 'scoring';
   else r.currentTrick += 1;
@@ -600,7 +610,7 @@ function resetForNewGame(s: EngineState): void {
     status: 'lobby', currentRound: 0, currentTrick: 0, totalRounds: 0, dealerIndex: 0, currentPlayerIndex: 0,
     trumpCard: null, trumpSuit: null, awaitingTrumpChoice: false, leadSuit: null, bids: {}, tricksWon: {}, cumulativeScores,
     trickInProgress: [], trickHistory: [], log: [], historyWritten: false, historyGameId: null, aiSummary: null,
-    aiSummaryRequested: false, playAgainVotes: [], nextRoundVotes: [], pendingVote: null, pendingUndo: null,
+    aiSummaryRequested: false, playAgainVotes: [], nextRoundVotes: [], pendingVote: null, pendingUndo: null, colorOrder: null,
     chatGen: (r.chatGen ?? 0) + 1,
   });
   s.hands = {};
@@ -660,6 +670,17 @@ export function sendChat(s: EngineState, name: string, text: string, now: number
   return msg;
 }
 
+/** Tapback on a chat line: picking your current one again takes it off. */
+export function reactChat(s: EngineState, name: string, player: string, ts: number, emoji: string): ChatMessage | null {
+  if (!(CHAT_REACTIONS as readonly string[]).includes(emoji)) return null;
+  const msg = s.chat.find((m) => m.player === player && m.ts === ts);
+  if (!msg || msg.sys) return null;
+  const r = { ...(msg.r ?? {}) };
+  if (r[name] === emoji) delete r[name]; else r[name] = emoji;
+  if (Object.keys(r).length) msg.r = r; else delete msg.r;
+  return msg;
+}
+
 export function postReaction(s: EngineState, name: string, text: string, now: number): void {
   s.room.lastReaction = { player: name, text, ts: now };
 }
@@ -679,42 +700,109 @@ export function kickTally(s: EngineState, target: string, presence: Presence): {
 }
 
 export function executeKick(s: EngineState, target: string): void {
+  removeSeat(s, target);
+}
+
+/**
+ * Leave a game for good (Jorge, 2026-10-20): in the lobby it is the old
+ * leave; once cards are out the seat goes the way a kick does and the
+ * others play on. A notice line goes into chat so the table sees why.
+ */
+export function leaveGame(s: EngineState, name: string, now: number): ChatMessage | null {
+  const r = s.room;
+  if (!r.playerOrder.includes(name)) return null;
+  if (r.status === 'lobby') { leave(s, name); return null; }
+  if (r.status === 'finished') return null;
+  removeSeat(s, name);
+  const msg: ChatMessage = { player: name, text: 'left the game', ts: now, w: chatWindowKey(r), sys: true };
+  s.chat.push(msg);
+  if (s.chat.length > 200) s.chat.splice(0, s.chat.length - 200);
+  return msg;
+}
+
+/** The seat after `idx` in `order` that is still in `keep`, as an index of keep. */
+function nextSeatIn(order: string[], idx: number, keep: string[]): number {
+  for (let k = 1; k <= order.length; k++) {
+    const i = keep.indexOf(order[(idx + k) % order.length]);
+    if (i !== -1) return i;
+  }
+  return 0;
+}
+
+/**
+ * Take a seat out of a running game. The round goes on with the cards
+ * already out: a trick in progress keeps everyone else's plays (their
+ * cards are already gone from their hands), and closes on the spot if the
+ * leaver was the only one still to play.
+ */
+function removeSeat(s: EngineState, target: string): void {
   const r = s.room;
   if (!r.playerOrder.includes(target)) return;
   const oldOrder = r.playerOrder;
   const newOrder = oldOrder.filter((n) => n !== target);
-  if (newOrder.length < 2) { r.status = 'finished'; r.playerOrder = newOrder; return; }
-  const oldDealer = oldOrder[r.dealerIndex];
-  const oldCurrent = oldOrder[r.currentPlayerIndex];
-  let dealerIndex = newOrder.indexOf(oldDealer);
-  if (dealerIndex === -1) dealerIndex = r.dealerIndex % newOrder.length;
-  let currentPlayerIndex = newOrder.indexOf(oldCurrent);
-  if (currentPlayerIndex === -1) currentPlayerIndex = (dealerIndex + 1) % newOrder.length;
+  // Colours follow seats; keep the dealt-in order so nobody's changes.
+  if (!r.colorOrder) r.colorOrder = oldOrder;
+  const done = () => {
+    delete s.hands[target];
+    s.seated = s.seated.filter((n) => n !== target);
+    for (const k of Object.keys(s.kickVotes)) s.kickVotes[k] = null;
+    delete s.kickVotes[target];
+  };
+  if (newOrder.length < 2 || newOrder.every((n) => isBot(r, n))) {
+    r.status = 'finished'; r.playerOrder = newOrder; s.hands = {}; done(); return;
+  }
+  const oldDealerIdx = r.dealerIndex;
+  const oldCurrentIdx = r.currentPlayerIndex;
+  const oldDealer = oldOrder[oldDealerIdx];
+  const oldCurrent = oldOrder[oldCurrentIdx];
+  // A leaving dealer hands the deal (and a pending trump call) to the next seat.
+  const dealerIndex = oldDealer === target ? nextSeatIn(oldOrder, oldDealerIdx, newOrder) : newOrder.indexOf(oldDealer);
+  const currentPlayerIndex = oldCurrent === target ? nextSeatIn(oldOrder, oldCurrentIdx, newOrder) : newOrder.indexOf(oldCurrent);
   const bids = { ...r.bids }; delete bids[target];
   const tricksWon = { ...r.tricksWon }; delete tricksWon[target];
   const cumulativeScores = { ...r.cumulativeScores }; delete cumulativeScores[target];
-  Object.assign(r, { playerOrder: newOrder, dealerIndex, currentPlayerIndex, bids, tricksWon, cumulativeScores });
-  if (r.status === 'playing' && r.trickInProgress.length > 0) {
-    const oldLeader = r.trickInProgress[0]?.playerName;
-    const leaderIdx = oldLeader ? newOrder.indexOf(oldLeader) : -1;
-    r.trickInProgress = [];
-    r.leadSuit = null;
-    r.currentPlayerIndex = leaderIdx >= 0 ? leaderIdx : (dealerIndex + 1) % newOrder.length;
+  const bots = r.bots ? { ...r.bots } : r.bots;
+  if (bots) delete bots[target];
+  Object.assign(r, { playerOrder: newOrder, dealerIndex, currentPlayerIndex, bids, tricksWon, cumulativeScores, bots });
+  if (r.hostPlayerName === target) r.hostPlayerName = newOrder.find((n) => !isBot(r, n)) ?? newOrder[0];
+  // An undo snapshot still has the leaver in it, and votes counted them.
+  r.pendingUndo = null;
+  r.nextRoundVotes = (r.nextRoundVotes ?? []).filter((n) => n !== target);
+  if (r.pendingVote) {
+    if (r.pendingVote.by === target) r.pendingVote = null;
+    else r.pendingVote = { ...r.pendingVote, yes: r.pendingVote.yes.filter((n) => n !== target), no: r.pendingVote.no.filter((n) => n !== target) };
+  }
+  r.playAgainVotes = (r.playAgainVotes ?? []).filter((n) => n !== target);
+
+  if (r.status === 'playing') {
+    const plays = r.trickInProgress.filter((p) => p.playerName !== target).map((p, i) => ({ ...p, playOrder: i }));
+    if (plays.length > 0 && plays.length >= newOrder.length) {
+      completeTrick(r, plays);
+    } else if (plays.length > 0) {
+      r.trickInProgress = plays;
+      r.leadSuit = getLeadInfo(plays).leadSuit;
+      r.currentPlayerIndex = (newOrder.indexOf(plays[0].playerName) + plays.length) % newOrder.length;
+    } else {
+      r.trickInProgress = [];
+      r.leadSuit = null;
+    }
   }
   if (r.status === 'bidding') {
     const allIn = newOrder.every((n) => bids[n] !== undefined);
     if (allIn) {
       Object.assign(r, { status: 'playing', currentTrick: 1, currentPlayerIndex: (dealerIndex + 1) % newOrder.length, leadSuit: null, trickInProgress: [] });
     } else {
-      let idx = currentPlayerIndex;
+      let idx = r.currentPlayerIndex;
       for (let i = 0; i < newOrder.length; i++) { if (bids[newOrder[idx]] === undefined) break; idx = (idx + 1) % newOrder.length; }
       r.currentPlayerIndex = idx;
     }
   }
-  delete s.hands[target];
-  s.seated = s.seated.filter((n) => n !== target);
-  for (const k of Object.keys(s.kickVotes)) s.kickVotes[k] = null;
-  delete s.kickVotes[target];
+  done();
+  // Everyone still here may already have ticked "Next round".
+  if (r.status === 'scoring' && (r.nextRoundVotes ?? []).length > 0) {
+    const [first] = r.nextRoundVotes!;
+    voteNextRound(s, first, true);
+  }
 }
 
 // ─── computer players ───────────────────────────────────────────────────
