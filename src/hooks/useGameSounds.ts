@@ -16,9 +16,12 @@ import {
 } from '../lib/sounds';
 import { LAST_TRICK_HOLD_MS } from '../lib/trickTiming';
 
-// The turn bell only rings for someone who seems to be looking away: no
-// tap on this phone for this long when the turn arrives, or none since.
-const TURN_IDLE_MS = 5000;
+// The turn bell is for someone who seems to be looking away: the turn sits
+// this long with no tap on the phone. Bidding gets longer, since reading a
+// new hand is hands-off (Jorge, 2026-10-27: at 5 s the bell rang while he
+// was still deciding his bid and read as a stray ping).
+const TURN_IDLE_BID_MS = 15000;
+const TURN_IDLE_PLAY_MS = 10000;
 
 /** The sound on/off setting, live. */
 export function useSoundEnabled(): boolean {
@@ -77,19 +80,22 @@ export function useGameSounds(room: RoomSnapshot, myName: string): void {
     turnName === myName &&
     !room.awaitingTrumpChoice &&
     (room.status === 'playing' || (room.status === 'bidding' && room.bids[myName] === undefined));
+  const bidding = room.status === 'bidding';
   useEffect(() => {
     if (!myTurn) return;
-    const start = Date.now();
-    if (start - lastTouchRef.current >= TURN_IDLE_MS) {
+    // Off screen: nobody is looking, ring now. On screen it never rings the
+    // moment the turn lands (sitting on the round-end screen while the
+    // others tick "Next round" is not looking away).
+    if (document.visibilityState === 'hidden') {
       playYourTurnSound();
       return;
     }
-    // Active a moment ago: ring only if the turn then sits untouched.
+    const start = Date.now();
     const id = window.setTimeout(() => {
       if (lastTouchRef.current < start) playYourTurnSound();
-    }, TURN_IDLE_MS);
+    }, bidding ? TURN_IDLE_BID_MS : TURN_IDLE_PLAY_MS);
     return () => window.clearTimeout(id);
-  }, [myTurn, room.currentRound, room.trickHistory.length]);
+  }, [myTurn, bidding, room.currentRound, room.trickHistory.length]);
 
   // ---- Round result: made your bid --------------------------------------
   // Lands as the round scoreboard comes up (after the last trick's hold).
