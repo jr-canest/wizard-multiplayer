@@ -25,6 +25,7 @@ import {
   getFallbackSummary,
 } from '../lib/gameSummary';
 import { playSparkleSound } from '../lib/sounds';
+import { CROWN_LANDS_MS, CountUp, CrownTitle, GoldWash, STANDINGS_START_MS, STANDINGS_STEP_MS } from './GameOverCrown';
 import { setActiveRoomCode } from '../hooks/useActiveRoom';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -37,95 +38,6 @@ type Props = {
 
 const MEDAL: Record<number, string> = { 1: '🥇', 2: '🥈', 3: '🥉' };
 const POSITIONS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th'];
-const SPARKLE_EMOJIS = ['🪄', '⭐', '✨'];
-
-function WhiteWipe() {
-  return (
-    <div className="fixed inset-0 z-[60] pointer-events-none">
-      <style>{`
-        @keyframes wm-wipe-in {
-          0% { transform: translateY(-100%); }
-          100% { transform: translateY(100%); }
-        }
-        .wm-white-wipe {
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(180deg,
-            transparent 0%,
-            rgba(255,255,255,0.3) 10%,
-            rgba(255,255,255,0.95) 30%,
-            white 50%,
-            rgba(255,255,255,0.95) 70%,
-            rgba(255,255,255,0.3) 90%,
-            transparent 100%
-          );
-          animation: wm-wipe-in 1s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
-        }
-      `}</style>
-      <div className="wm-white-wipe" />
-    </div>
-  );
-}
-
-function Sparkles() {
-  // Random positions/timings for the one-shot game-over sparkle layer.
-  // Memoized with [] so the impure Math.random() calls only run once
-  // on mount — re-randomizing on every render would make the
-  // animation restart.
-  const sparkles = useMemo(
-    () =>
-      Array.from({ length: 30 }, (_, i) => ({
-        id: i,
-        /* eslint-disable react-hooks/purity */
-        left: 5 + Math.random() * 90,
-        top: 5 + Math.random() * 85,
-        delay: Math.random() * 2,
-        duration: 0.6 + Math.random() * 0.8,
-        size: 20 + Math.random() * 24,
-        /* eslint-enable react-hooks/purity */
-        emoji: SPARKLE_EMOJIS[i % SPARKLE_EMOJIS.length],
-      })),
-    [],
-  );
-
-  return (
-    <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
-      <style>{`
-        @keyframes wm-sparkle-pop {
-          0% { transform: scale(0); opacity: 0; }
-          20% { transform: scale(1.3); opacity: 1; }
-          50% { transform: scale(0.9); opacity: 0.9; }
-          70% { transform: scale(1.1); opacity: 0.7; }
-          100% { transform: scale(0); opacity: 0; }
-        }
-        .wm-sparkle {
-          position: absolute;
-          animation: wm-sparkle-pop var(--dur) ease-in-out var(--delay) both;
-          animation-iteration-count: 2;
-          line-height: 1;
-        }
-      `}</style>
-      {sparkles.map((s) => (
-        <div
-          key={s.id}
-          className="wm-sparkle"
-          style={
-            {
-              left: `${s.left}%`,
-              top: `${s.top}%`,
-              fontSize: s.size,
-              '--delay': `${s.delay}s`,
-              '--dur': `${s.duration}s`,
-            } as React.CSSProperties
-          }
-        >
-          {s.emoji}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export function FinalScoreboard({ room, myName }: Props) {
   const navigate = useNavigate();
   const standings = computeStandings(room);
@@ -141,9 +53,25 @@ export function FinalScoreboard({ room, myName }: Props) {
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
 
-  const [showWipe, setShowWipe] = useState(true);
-  const [showSparkles, setShowSparkles] = useState(true);
   const [contentVisible, setContentVisible] = useState(false);
+  // The standings count up when they are actually on screen: on a phone
+  // they sit below the replay, recap and chat, and a count nobody sees is
+  // wasted. null = not seen yet; then the base delay for the last place.
+  const standingsRef = useRef<HTMLUListElement>(null);
+  const [standingsBase, setStandingsBase] = useState<number | null>(null);
+  const mountedAtRef = useRef(0);
+  useEffect(() => {
+    mountedAtRef.current = Date.now();
+    const el = standingsRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') { setStandingsBase(0); return; }
+    const io = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      io.disconnect();
+      setStandingsBase(Math.max(0, STANDINGS_START_MS - (Date.now() - mountedAtRef.current)));
+    }, { threshold: 0.25 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
 
   const gameIdRef = useRef<string | null>(room.historyGameId ?? null);
   // The save effect is keyed on the write flags only; it reads the latest
@@ -153,16 +81,14 @@ export function FinalScoreboard({ room, myName }: Props) {
     roomRef.current = room;
   });
 
-  // Wipe + sparkles + sound on mount.
+  // The crown moment (GameOverCrown.tsx): content fades in under the gold
+  // wash, the sparkle sound lands with the crown.
   useEffect(() => {
-    playSparkleSound();
-    const tContent = window.setTimeout(() => setContentVisible(true), 500);
-    const tWipe = window.setTimeout(() => setShowWipe(false), 1100);
-    const tSparkles = window.setTimeout(() => setShowSparkles(false), 3000);
+    const tContent = window.setTimeout(() => setContentVisible(true), 150);
+    const tSound = window.setTimeout(() => playSparkleSound(), CROWN_LANDS_MS - 60);
     return () => {
       window.clearTimeout(tContent);
-      window.clearTimeout(tWipe);
-      window.clearTimeout(tSparkles);
+      window.clearTimeout(tSound);
     };
   }, []);
 
@@ -295,23 +221,17 @@ export function FinalScoreboard({ room, myName }: Props) {
 
   return (
     <>
-      {showWipe && <WhiteWipe />}
-      {showSparkles && <Sparkles />}
+      <GoldWash />
 
       <div
-        className={`card-gold p-4 space-y-4 transition-opacity duration-700 ${
+        className={`card-gold p-4 space-y-4 transition-opacity duration-500 ${
           contentVisible ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        <div className="text-center">
-          <div className="eyebrow">Game over</div>
-          <div className="font-display font-semibold text-[30px] leading-none text-cream-bright mt-2.5">
-            {standings[0]?.name} wins!
-          </div>
-          <div className="ornament mt-3.5">
-            <span className="diamond" />
-          </div>
-        </div>
+        <CrownTitle
+          title={standings[0]?.name === myName ? 'You win!' : `${standings[0]?.name} wins!`}
+          iWon={standings[0]?.name === myName}
+        />
 
         {/* Wide screens: replay, recap and the round table on the left;
             standings, Play again and chat on the right, so the whole
@@ -393,16 +313,20 @@ export function FinalScoreboard({ room, myName }: Props) {
         </div>
 
         <div className="contents lg:flex lg:flex-col lg:gap-4">
-        <ul className="order-4 lg:order-none space-y-1.5">
-          {standings.map((s) => {
+        <ul ref={standingsRef} className="order-4 lg:order-none space-y-1.5">
+          {standings.map((s, idx) => {
             const isMe = s.name === myName;
+            // Last place lands first, the winner last (with a glow).
+            const enterAt = (standingsBase ?? 0) + (standings.length - 1 - idx) * STANDINGS_STEP_MS;
+            const seen = standingsBase !== null;
             const isFirst = s.rank === 1 && s.score > 0;
             const medal = MEDAL[s.rank] ?? POSITIONS[s.rank - 1] ?? `${s.rank}.`;
             return (
               <li
                 key={s.name}
+                style={{ animationDelay: isFirst ? `${enterAt}ms, ${enterAt + 300}ms` : `${enterAt}ms` }}
                 className={`card-gold-subtle flex items-center justify-between px-3 py-2 ${
-                  isFirst ? 'bg-gold-300/[.07]' : ''
+                  !seen ? 'opacity-0' : isFirst ? 'wm-row-glow bg-gold-300/[.07]' : 'wm-row-in'
                 }`}
               >
                 <span className="flex items-center gap-2">
@@ -431,7 +355,15 @@ export function FinalScoreboard({ room, myName }: Props) {
                         : 'text-cream'
                   }`}
                 >
-                  {s.score < 0 ? `−${Math.abs(s.score)}` : s.score}
+                  {seen ? (
+                    <CountUp
+                      value={s.score}
+                      delay={enterAt}
+                      format={(n) => (n < 0 ? `−${Math.abs(n)}` : String(n))}
+                    />
+                  ) : (
+                    0
+                  )}
                 </span>
               </li>
             );
