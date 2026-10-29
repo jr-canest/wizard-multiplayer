@@ -36,6 +36,13 @@
   --font-display: "Cormorant Garamond", Georgia, serif;
 }
 
+/* The page edge behind iPhone Safari's toolbar and its overscroll is the
+   html canvas, which showed white there (seen in the iOS Simulator,
+   2026-10-29; Chrome never showed it). The gradient's bottom shade. */
+html {
+  background-color: #040913;
+}
+
 body {
   margin: 0;
   background: linear-gradient(180deg, #0b1224 0%, #070d1c 55%, #040913 100%);
