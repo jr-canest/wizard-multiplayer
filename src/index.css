@@ -499,6 +499,35 @@ button:focus-visible {
 }
 
 /* Chat hub (GameChat) rises onto the keyboard. */
+/* Round results ↔ table (2026-10-29): the view that comes in fades up.
+   Opacity only on the big wrappers: a transform there would become the
+   containing block for the fixed bid picker / vote modals mid-animation.
+   Result rows (no fixed children) also rise a few px, one after another. */
+@keyframes view-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-view-in {
+  animation: view-in 320ms ease-out backwards;
+}
+/* The table, strip and hand fade out over the end of the round-end hold
+   (GameView sets data-round-end-fading). */
+[data-round-end-fading] .round-fade {
+  opacity: 0 !important;
+  transition: opacity 240ms ease-in;
+}
+
+@keyframes row-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-row-in {
+  animation: row-in 360ms cubic-bezier(.2,.7,.3,1) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-view-in, .animate-row-in { animation: none; }
+}
+
 @keyframes chat-hub-in {
   0%   { opacity: 0; transform: translateY(12px); }
   100% { opacity: 1; transform: translateY(0); }

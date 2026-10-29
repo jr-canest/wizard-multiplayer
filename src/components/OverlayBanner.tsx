@@ -15,6 +15,12 @@ type Props = {
 // Each line lingers long enough to be read and glanced at. The felt shows
 // the newest two, so a busy table pushes the older one out early.
 const TTL_MS = 7000;
+// A line sent on the round results (or lobby) just before the table came
+// back still shows on the felt, its 7 s counted from when the table
+// appeared, so a reply sent as the next round deals is not lost
+// (Jorge, 2026-10-29). Older than this when the table appears: the chat
+// hub has it.
+const CARRY_MS = 20000;
 const MAX_SHOWN = 2;
 // Covers the .felt-msg-out fold in index.css.
 const EXIT_MS = 340;
@@ -30,9 +36,14 @@ type FeltItem = FeltLine & { leaving: boolean };
 function useLiveLines(room: RoomSnapshot, hold: string | null): FeltLine[] {
   const chat = useChat(room.code);
   const windowKey = chatWindowKey(room);
+  const gamePrefix = `${room.chatGen ?? 0}:`;
+  // When this felt appeared (it mounts with each new round's table).
+  const [shownAt] = useState(() => Date.now());
   const lines: FeltLine[] = [];
   for (const m of chat) {
-    if (m.w === windowKey) lines.push({ key: `c-${m.player}-${m.ts}`, player: m.player, text: m.text, ts: m.ts, r: m.r, sys: m.sys });
+    const line = { key: `c-${m.player}-${m.ts}`, player: m.player, text: m.text, ts: m.ts, r: m.r, sys: m.sys };
+    if (m.w === windowKey) lines.push(line);
+    else if (m.w.startsWith(gamePrefix) && m.ts >= shownAt - CARRY_MS) lines.push({ ...line, ts: Math.max(m.ts, shownAt) });
   }
   const r = room.lastReaction;
   if (r) lines.push({ key: `r-${r.player}-${r.ts}`, player: r.player, text: r.text, ts: r.ts });

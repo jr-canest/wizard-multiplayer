@@ -108,7 +108,7 @@ export function Table({
   const rightCol = rightSlots;
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1 animate-view-in round-fade">
       {/* Top row of opponent tiles — centered, fixed-width like the side cols. */}
       {topRow.length > 0 && (
         <div className="flex justify-center gap-1">

@@ -30,6 +30,9 @@ import type { Card } from '../lib/types';
 
 import { LAST_TRICK_HOLD_MS, TRICK_HOLD_MS } from '../lib/trickTiming';
 
+// Covers the .round-fade transition in index.css.
+const ROUND_END_FADE_MS = 260;
+
 // One number per (round, trick) so keys stay unique across rounds even
 // though trickHistory is reset at every deal.
 const trickKey = (round: number, len: number) => round * 1000 + len;
@@ -62,6 +65,9 @@ export function GameView({ room, players, myName }: Props) {
   // scoring, so the Table never unmounts for a frame; cleared after
   // LAST_TRICK_HOLD_MS by the trick-history effect.
   const [holdingRoundEnd, setHoldingRoundEnd] = useState(false);
+  // The last ~quarter second of that hold: the table fades out so the
+  // round results fade in after it rather than cutting (2026-10-29).
+  const [roundEndFading, setRoundEndFading] = useState(false);
   // Synchronous prev-status tracking. Using setState during render so
   // the round-end hold flips in the SAME render as the status change
   // — otherwise the Table would unmount for one frame and the cards
@@ -73,6 +79,7 @@ export function GameView({ room, players, myName }: Props) {
       setHoldingRoundEnd(true);
     } else if (room.status !== 'scoring') {
       setHoldingRoundEnd(false);
+      setRoundEndFading(false);
     }
   }
 
@@ -160,6 +167,11 @@ export function GameView({ room, players, myName }: Props) {
         // separately — the showOpponents flag flips and the area unmounts.
         if (!isRoundEnd) setTrickClearedKey(key);
       }, duration);
+      // Not on the final round: its table stays up into the game-over screen.
+      const tFade =
+        isRoundEnd && room.currentRound < room.totalRounds
+          ? window.setTimeout(() => setRoundEndFading(true), LAST_TRICK_HOLD_MS - ROUND_END_FADE_MS)
+          : null;
       const tHold = isRoundEnd
         ? window.setTimeout(() => {
             // Round-end: skip the trick-leave animation. The Table is
@@ -172,6 +184,7 @@ export function GameView({ room, players, myName }: Props) {
             // future mid-round leaves animate the right trick.
             lastClearedKeyRef.current = key;
             setHoldingRoundEnd(false);
+            setRoundEndFading(false);
             setTrickClearedKey(key);
           }, LAST_TRICK_HOLD_MS)
         : null;
@@ -179,6 +192,7 @@ export function GameView({ room, players, myName }: Props) {
       return () => {
         window.clearTimeout(tBanner);
         if (tHold !== null) window.clearTimeout(tHold);
+        if (tFade !== null) window.clearTimeout(tFade);
       };
     }
     lastTrickLenRef.current = len;
@@ -375,7 +389,10 @@ export function GameView({ room, players, myName }: Props) {
     isMyBidTurn && bidGridLayout(bidValueCount).rows > 1;
 
   return (
-    <div className={`w-full max-w-md space-y-2 ${room.status === 'finished' ? 'lg:max-w-4xl' : ''}`}>
+    <div
+      data-round-end-fading={roundEndFading || undefined}
+      className={`w-full max-w-md space-y-2 ${room.status === 'finished' ? 'lg:max-w-4xl' : ''}`}
+    >
       {(() => {
         const isLastRoundNow =
           room.currentRound > 0 &&
@@ -742,7 +759,7 @@ export function GameView({ room, players, myName }: Props) {
           className={
             dealingActive
               ? 'opacity-0 pointer-events-none'
-              : 'opacity-100 transition-opacity duration-300'
+              : 'round-fade opacity-100 transition-opacity duration-300'
           }
         >
           <HandDisplay

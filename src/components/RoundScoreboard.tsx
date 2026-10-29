@@ -106,7 +106,7 @@ export function RoundScoreboard({ room, myName }: Props) {
   const showEndGame = !isFinalRound;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 animate-view-in">
     <RoundVoteModal room={room} myName={myName} />
     <Chat room={room} myName={myName} />
     <div className="card-gold p-4 space-y-4">
@@ -128,7 +128,7 @@ export function RoundScoreboard({ room, myName }: Props) {
           </tr>
         </thead>
         <tbody>
-          {sorted.map((name) => {
+          {sorted.map((name, rowIdx) => {
             const bid = room.bids[name] ?? 0;
             const won = room.tricksWon[name] ?? 0;
             const delta = deltas[name] ?? 0;
@@ -140,10 +140,11 @@ export function RoundScoreboard({ room, myName }: Props) {
             return (
               <tr
                 key={name}
+                style={{ animationDelay: `${120 + rowIdx * 55}ms` }}
                 className={
                   isWinner
-                    ? 'bg-gold-300/[.07]'
-                    : ''
+                    ? 'animate-row-in bg-gold-300/[.07]'
+                    : 'animate-row-in'
                 }
               >
                 <td
