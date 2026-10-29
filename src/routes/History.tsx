@@ -101,7 +101,7 @@ const SORT_COLUMNS: Array<{
 // sort arrow hangs outside the label (see the header button) so it never
 // widens a column, and the name column keeps the leftover.
 const STATS_GRID =
-  'grid grid-cols-[20px_minmax(0,1fr)_40px_40px_22px_24px_32px_34px] items-center';
+  'grid grid-cols-[26px_minmax(0,1fr)_40px_40px_22px_24px_32px_34px] items-center';
 
 function getPlayerSortValue(
   p: PlayerRow,
@@ -442,11 +442,7 @@ export function History() {
                         i === 0 ? 'bg-gold-300/[.07]' : ''
                       }`}
                     >
-                      <span
-                        className={`text-sm font-bold ${
-                          i === 0 ? 'text-gold-text' : 'text-navy-200'
-                        }`}
-                      >
+                      <span className={`pr-1.5 text-center text-[13px] font-bold tabular-nums ${i === 0 ? 'text-gold-text' : 'text-navy-200'}`}>
                         {medal || `${i + 1}.`}
                       </span>
                       <div className="min-w-0">
@@ -457,7 +453,7 @@ export function History() {
                           {p.name}
                         </div>
                         {((p.totalShamePoints ?? 0) > 0 || hasAliases) && (
-                          <div className="flex items-center gap-1 mt-0.5">
+                          <div className="flex flex-wrap items-center gap-1 mt-0.5">
                             {(p.totalShamePoints ?? 0) > 0 && (
                               <span className="shame-chip whitespace-nowrap">
                                 shame{(p.totalShamePoints ?? 0) > 1 ? ` ×${p.totalShamePoints}` : ''}
@@ -467,9 +463,10 @@ export function History() {
                               <span
                                 aria-label={`also known as ${p.aliases!.join(', ')}`}
                                 title={`Also: ${p.aliases!.join(', ')}`}
-                                className="shrink-0 text-[9px] leading-none px-1 py-0.5 rounded-full bg-[rgba(20,26,44,.8)] border border-gold-300/25 text-gold-text font-normal tabular-nums"
+                                className="shrink-0 inline-flex items-center gap-[3px] text-[9px] leading-none px-1 py-0.5 rounded-full bg-[rgba(20,26,44,.8)] border border-gold-300/25 text-gold-text font-normal tabular-nums"
                               >
-                                ⓘ {p.aliases!.length}
+                                <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="8" cy="8" r="6.5" /><path d="M8 7v4.5M8 4.6v.1" strokeLinecap="round" /></svg>
+                                {p.aliases!.length}
                               </span>
                             )}
                           </div>
