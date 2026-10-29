@@ -16,7 +16,7 @@ type Props = {
 };
 
 export function IdentityPrompt({ title, subtitle, onAuthed }: Props) {
-  const { setSession } = useSession();
+  const { setSession, restoring } = useSession();
   const [name, setName] = useState('');
   const [pin, setPin] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -48,6 +48,16 @@ export function IdentityPrompt({ title, subtitle, onAuthed }: Props) {
     setSubmitting(true);
     setError(null);
     try {
+      // Returning player: the game server checks the PIN and hands back the
+      // seat token the socket presents, in one request.
+      const seat = await fetchSeatToken(name.trim(), pin);
+      if (seat?.id) {
+        setSession({ playerId: seat.id, playerName: seat.name, token: seat.token });
+        onAuthed?.();
+        return;
+      }
+      // New name, or a scorekeeper player without a PIN yet: create or
+      // claim it here, then get the seat token for it.
       const result = await claimOrAuthPlayer(name, pin);
       if (!result.ok) {
         setError(
@@ -57,13 +67,12 @@ export function IdentityPrompt({ title, subtitle, onAuthed }: Props) {
         );
         return;
       }
-      // The game server verifies the same PIN and hands back a seat token
-      // the socket presents on every connection.
-      const token = await fetchSeatToken(result.player.name, pin);
+      const claimed = await fetchSeatToken(result.player.name, pin);
+      if (!claimed) throw new Error('Could not reach the game server.');
       setSession({
         playerId: result.player.id,
-        playerName: result.player.name,
-        token,
+        playerName: claimed.name,
+        token: claimed.token,
       });
       onAuthed?.();
     } catch (err) {
@@ -71,6 +80,13 @@ export function IdentityPrompt({ title, subtitle, onAuthed }: Props) {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // Getting a sign-in back from the remember cookie: no form flash.
+  if (restoring) {
+    return (
+      <div className="card-gold p-5 w-full max-w-sm text-center text-navy-200 text-sm">Signing you in…</div>
+    );
   }
 
   return (

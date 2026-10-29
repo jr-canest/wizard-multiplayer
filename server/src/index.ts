@@ -50,7 +50,8 @@ export default {
 
     // Name + PIN → seat token. The PIN check is the same SHA-256(salt:pin)
     // the app has always stored; the player doc must already exist (the
-    // app creates it on first sign-in, as before).
+    // app creates it on first sign-in, as before). The app sends the body
+    // as text/plain so the browser skips the CORS preflight round trip.
     if (url.pathname === '/session' && req.method === 'POST') {
       const body = (await req.json().catch(() => null)) as { name?: string; pin?: string } | null;
       const name = (body?.name ?? '').trim();
@@ -61,7 +62,8 @@ export default {
       if ((await hashPin(pin, player.pinSalt)) !== player.pinHash) return json({ error: 'wrongPin' }, 401, cors);
       // Use the canonical spelling from the player doc so seats match History.
       const canonical = player.name ?? name;
-      return json({ token: await mintToken(env, canonical), name: canonical }, 200, cors);
+      // id lets a returning player sign in with this one request (2026-10-29).
+      return json({ token: await mintToken(env, canonical), name: canonical, id: player.id }, 200, cors);
     }
 
     // Create a room. The DO for the new code initialises itself.

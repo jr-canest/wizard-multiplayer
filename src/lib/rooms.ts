@@ -45,15 +45,25 @@ export class RoomError extends Error {
 }
 
 /** Name + PIN → seat token from the game server (it re-checks the PIN). */
-export async function fetchSeatToken(name: string, pin: string): Promise<string> {
+export type SeatToken = { token: string; name: string; id?: string };
+
+/**
+ * Name + PIN to the game server, which checks the PIN and answers with the
+ * seat token, the canonical name and the player id. For a returning player
+ * that is the whole sign-in: one request (2026-10-29, it used to look the
+ * player up in Firestore from the phone first). `null` = no such player,
+ * or one from the scorekeeper with no PIN yet: the caller creates or claims.
+ * Sent as text/plain, a "simple" request, so there is no CORS preflight.
+ */
+export async function fetchSeatToken(name: string, pin: string): Promise<SeatToken | null> {
   const res = await fetch(`${GAME_SERVER_URL}/session`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'text/plain' },
     body: JSON.stringify({ name, pin }),
   });
+  if (res.status === 404) return null;
   if (!res.ok) throw new Error(res.status === 401 ? 'That PIN doesn’t match the name on file.' : 'Could not reach the game server.');
-  const data = (await res.json()) as { token: string };
-  return data.token;
+  return (await res.json()) as SeatToken;
 }
 
 export async function createRoom(

@@ -62,3 +62,75 @@ export const roomPage = onRequest(
     res.status(200).send(html);
   },
 );
+
+// ─── remember: the sign-in kept in a server-set cookie ─────────────────
+// Safari wipes everything a site stores for itself (localStorage included)
+// after 7 days without a visit, which signed the family out between game
+// nights (2026-10-29). A cookie set by the server in an HTTP response is
+// not part of that wipe, so the app keeps a copy of its sign-in here and
+// asks for it back when its own storage comes up empty. Firebase Hosting
+// only forwards a cookie named __session to functions, hence the name.
+//   GET    /api/remember  → { session } or { session: null }
+//   POST   /api/remember  body { playerId, playerName, token } → stores it
+//   DELETE /api/remember  → forgets it (sign out / switch player)
+const COOKIE = '__session';
+const COOKIE_MAX_AGE_S = 365 * 24 * 60 * 60;
+
+function readCookie(req) {
+  const raw = req.headers.cookie || '';
+  for (const part of raw.split(';')) {
+    const i = part.indexOf('=');
+    if (i > 0 && part.slice(0, i).trim() === COOKIE) return decodeURIComponent(part.slice(i + 1).trim());
+  }
+  return null;
+}
+
+function cookieHeader(value, maxAge) {
+  return `${COOKIE}=${encodeURIComponent(value)}; Max-Age=${maxAge}; Path=/; Secure; HttpOnly; SameSite=Lax`;
+}
+
+export const remember = onRequest(
+  { region: 'us-central1', memory: '128MiB', maxInstances: 3, cpu: 1 },
+  async (req, res) => {
+    // Per phone, never cached by the CDN.
+    res.set('Cache-Control', 'private, no-store');
+    if (req.method === 'GET') {
+      let session = null;
+      try {
+        const parsed = JSON.parse(Buffer.from(readCookie(req) || '', 'base64url').toString('utf8'));
+        if (typeof parsed?.playerId === 'string' && typeof parsed?.playerName === 'string' && typeof parsed?.token === 'string') {
+          session = { playerId: parsed.playerId, playerName: parsed.playerName, token: parsed.token };
+        }
+      } catch {
+        // no cookie, or not ours
+      }
+      res.status(200).json({ session });
+      return;
+    }
+    // Writes only from the app's own pages.
+    if (req.headers.origin !== ORIGIN) {
+      res.status(403).json({ error: 'origin' });
+      return;
+    }
+    if (req.method === 'DELETE') {
+      res.set('Set-Cookie', cookieHeader('', 0));
+      res.status(204).send('');
+      return;
+    }
+    if (req.method === 'POST') {
+      let body = req.body;
+      if (Buffer.isBuffer(body)) body = body.toString('utf8');
+      if (typeof body === 'string') { try { body = JSON.parse(body); } catch { body = null; } }
+      const { playerId, playerName, token } = body || {};
+      if (typeof playerId !== 'string' || typeof playerName !== 'string' || typeof token !== 'string' || token.length > 600 || playerName.length > 40) {
+        res.status(400).json({ error: 'bad' });
+        return;
+      }
+      const value = Buffer.from(JSON.stringify({ playerId, playerName, token }), 'utf8').toString('base64url');
+      res.set('Set-Cookie', cookieHeader(value, COOKIE_MAX_AGE_S));
+      res.status(204).send('');
+      return;
+    }
+    res.status(405).send('');
+  },
+);

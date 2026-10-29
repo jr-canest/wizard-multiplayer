@@ -13,7 +13,10 @@ export type Env = {
   SESSION_SECRET: string;
 };
 
-const TOKEN_TTL_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
+// A year: the family plays every week or two, and the phone also keeps a
+// copy in a server-set cookie (functions/ remember) so Safari's 7-day wipe
+// of site data does not sign anyone out (2026-10-29).
+const TOKEN_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 
 function hex(bytes: ArrayBuffer | Uint8Array): string {
   const u = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
@@ -33,7 +36,7 @@ async function hmac(secret: string, payload: string): Promise<string> {
 }
 
 /** Look up a player by name (case-insensitive) in the shared Firestore. */
-export async function lookupPlayer(env: Env, name: string): Promise<{ pinHash?: string; pinSalt?: string; name?: string } | null> {
+export async function lookupPlayer(env: Env, name: string): Promise<{ id: string; pinHash?: string; pinSalt?: string; name?: string } | null> {
   const url = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT}/databases/(default)/documents:runQuery?key=${env.FIREBASE_API_KEY}`;
   const body = {
     structuredQuery: {
@@ -44,10 +47,11 @@ export async function lookupPlayer(env: Env, name: string): Promise<{ pinHash?: 
   };
   const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(`firestore ${res.status}`);
-  const rows = (await res.json()) as Array<{ document?: { fields?: Record<string, { stringValue?: string }> } }>;
+  const rows = (await res.json()) as Array<{ document?: { name?: string; fields?: Record<string, { stringValue?: string }> } }>;
   const doc = rows.find((r) => r.document)?.document;
   if (!doc?.fields) return null;
-  return { pinHash: doc.fields.pinHash?.stringValue, pinSalt: doc.fields.pinSalt?.stringValue, name: doc.fields.name?.stringValue };
+  const id = (doc.name ?? '').split('/').pop() ?? '';
+  return { id, pinHash: doc.fields.pinHash?.stringValue, pinSalt: doc.fields.pinSalt?.stringValue, name: doc.fields.name?.stringValue };
 }
 
 export type Session = { name: string; exp: number };
