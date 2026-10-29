@@ -11,7 +11,7 @@ const OUT = process.argv[2];
 const BASE = process.argv[3] || 'http://localhost:5181';
 fs.mkdirSync(OUT, { recursive: true });
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-const SIZES = [['phone', 390, 844, true], ['bigphone', 430, 932, true], ['ipad', 820, 1180, true], ['desktop', 1440, 900, false]];
+const SIZES = [['phone', 390, 844, true], ['bigphone', 430, 932, true], ['ipad', 820, 1180, true], ['ipadland', 1180, 820, true], ['desktop', 1440, 900, false], ['wide', 1920, 1080, false]];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-first-run'] });
@@ -45,8 +45,9 @@ await waitFor(() => page.evaluate(() => !document.querySelector('input[placehold
 await capture('home');
 await clickText(/^Create room$/);
 await waitFor(() => page.evaluate(() => /\/room\//.test(location.pathname) && [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Start game')));
-// One round keeps the run short: round 1 is then the last round.
-await page.evaluate(() => { const sel = [...document.querySelectorAll('select')].find((s) => [...s.options].some((o) => /Auto/.test(o.text))); if (sel) { const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; setter.call(sel, '1'); sel.dispatchEvent(new Event('change', { bubbles: true })); } });
+// Two rounds: round 1 ends on the round scoreboard, round 2 (the last)
+// goes straight to the final screen (since 2026-10-09).
+await page.evaluate(() => { const sel = [...document.querySelectorAll('select')].find((s) => [...s.options].some((o) => /Auto/.test(o.text))); if (sel) { const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; setter.call(sel, '2'); sel.dispatchEvent(new Event('change', { bubbles: true })); } });
 await sleep(800);
 await capture('lobby');
 await clickText(/^Start game$/);
@@ -54,16 +55,28 @@ await waitFor(async () => { const r = await room(); return r && r.status === 'bi
 await sleep(2500);
 await capture('bidding');
 await page.evaluate(() => { const b = [...document.querySelectorAll('button.chip')].filter((x) => !x.disabled && /^\d+$/.test(x.textContent.trim())).sort((a, b) => +a.textContent - +b.textContent)[0]; b && b.click(); });
-await waitFor(async () => { const r = await room(); return r && r.status === 'playing' && r.turn === 'netA' && (await page.$('.animate-legal-glow')); });
+await waitFor(async () => { const r = await room(); return r && r.status === 'playing' && r.turn === 'netA' && (await page.$('.animate-legal-glow')); }, 60000).catch(async (e) => { console.log('state at timeout', JSON.stringify(await room())); throw e; });
 await sleep(1500);
 await capture('playing');
-const c = await page.evaluate(() => { const el = document.querySelector('.animate-legal-glow'); el.style.zIndex = '5000'; const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
-await page.mouse.click(c.x, c.y);
-await waitFor(async () => { const r = await room(); return r && r.status === 'scoring' && (await page.evaluate(() => [...document.querySelectorAll('button')].some((b) => /^(Next round|Finish game)/.test(b.textContent.trim())))); }, 30000);
+// Plays my legal card whenever it is my turn until `done` holds; bids the
+// lowest number when the picker is up.
+async function playUntil(done) {
+  await waitFor(async () => {
+    if (await done()) return true;
+    const r = await room();
+    if (r?.status === 'bidding' && r.turn === 'netA') await page.evaluate(() => { const b = [...document.querySelectorAll('button.chip')].filter((x) => !x.disabled && /^\d+$/.test(x.textContent.trim())).sort((a, b) => +a.textContent - +b.textContent)[0]; b && b.click(); });
+    if (r?.status === 'playing' && r.turn === 'netA') {
+      const c = await page.evaluate(() => { const el = document.querySelector('.animate-legal-glow'); if (!el) return null; el.style.zIndex = '5000'; const b = el.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; });
+      if (c) { await page.mouse.click(c.x, c.y); await sleep(2200); }
+    }
+    return false;
+  }, 90000);
+}
+await playUntil(async () => { const r = await room(); return r && r.status === 'scoring' && (await page.evaluate(() => [...document.querySelectorAll('button')].some((b) => /^Next round/.test(b.textContent.trim())))); });
 await sleep(1200);
 await capture('roundend');
-await clickText(/^(Finish game|Next round)/);
-await waitFor(async () => { const r = await room(); return r && r.status === 'finished'; });
+await clickText(/^Next round/);
+await playUntil(async () => (await room())?.status === 'finished');
 await sleep(7000); // replay graph (≤5 s) + recap settle
 await capture('final');
 fs.writeFileSync(path.join(OUT, 'results.json'), JSON.stringify(results, null, 2));

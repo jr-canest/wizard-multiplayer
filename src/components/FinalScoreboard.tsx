@@ -313,11 +313,19 @@ export function FinalScoreboard({ room, myName }: Props) {
           </div>
         </div>
 
-        <ScoreLineGraph room={room} />
+        {/* Wide screens: replay, recap and the round table on the left;
+            standings, Play again and chat on the right, so the whole
+            result fits one screen. Phones keep one column in the old order
+            (the column wrappers are `contents` there; order-* sets it). */}
+        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-5 lg:items-start">
+        <div className="contents lg:flex lg:flex-col lg:gap-4">
+        <div className="order-1 lg:order-none">
+          <ScoreLineGraph room={room} />
+        </div>
 
         {(stillAnalyzing || displayedSummary) && (
           <div
-            className={`card-gold-subtle px-4 py-3.5 text-center relative ${
+            className={`order-2 lg:order-none card-gold-subtle px-4 py-3.5 text-center relative ${
               stillAnalyzing ? 'wm-summary-shimmer' : ''
             }`}
           >
@@ -374,9 +382,18 @@ export function FinalScoreboard({ room, myName }: Props) {
           </div>
         )}
 
-        <Chat room={room} myName={myName} />
+        {breakdown.length > 0 && (
+          <div className="order-5 lg:order-none">
+            <RoundBreakdownTable
+              breakdown={breakdown}
+              playerOrder={room.playerOrder}
+            />
+          </div>
+        )}
+        </div>
 
-        <ul className="space-y-1.5">
+        <div className="contents lg:flex lg:flex-col lg:gap-4">
+        <ul className="order-4 lg:order-none space-y-1.5">
           {standings.map((s) => {
             const isMe = s.name === myName;
             const isFirst = s.rank === 1 && s.score > 0;
@@ -421,14 +438,7 @@ export function FinalScoreboard({ room, myName }: Props) {
           })}
         </ul>
 
-        {breakdown.length > 0 && (
-          <RoundBreakdownTable
-            breakdown={breakdown}
-            playerOrder={room.playerOrder}
-          />
-        )}
-
-        <p className="text-xs text-center text-navy-300">
+        <p className="order-6 lg:order-none text-xs text-center text-navy-300">
           {savingState === 'saving' && 'Saving to history…'}
           {savingState === 'saved' && '✓ Saved to history.'}
           {savingState === 'skipped' && 'History saving skipped (localhost).'}
@@ -439,7 +449,7 @@ export function FinalScoreboard({ room, myName }: Props) {
           type="button"
           onClick={handlePlayAgain}
           disabled={resetting}
-          className={`w-full h-12 rounded-lg font-bold border tabular-nums transition ${
+          className={`order-7 lg:order-none w-full h-12 rounded-lg font-bold border tabular-nums transition ${
             myPlayAgainVote
               ? 'bg-[rgba(6,78,59,.3)] border-[rgba(16,185,129,.6)] text-emerald-100'
               : 'btn-gold'
@@ -452,7 +462,7 @@ export function FinalScoreboard({ room, myName }: Props) {
               : `Play again ${playAgainVotes.length}/${playAgainThreshold}`}
         </button>
         {resetError && (
-          <p className="text-sm text-rose-300 text-center">{resetError}</p>
+          <p className="order-8 lg:order-none text-sm text-rose-300 text-center">{resetError}</p>
         )}
 
         <button
@@ -461,10 +471,16 @@ export function FinalScoreboard({ room, myName }: Props) {
             setActiveRoomCode(null);
             navigate('/');
           }}
-          className="w-full text-sm text-navy-200 underline underline-offset-2 hover:text-gold-200"
+          className="order-9 lg:order-none w-full text-sm text-navy-200 underline underline-offset-2 hover:text-gold-200"
         >
           Back to home
         </button>
+
+        <div className="order-3 lg:order-none">
+          <Chat room={room} myName={myName} />
+        </div>
+        </div>
+        </div>
       </div>
     </>
   );

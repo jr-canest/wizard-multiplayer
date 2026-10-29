@@ -11,6 +11,7 @@ import { GameView } from '../components/GameView';
 import { isValidRoomCode } from '../lib/codes';
 import { warmRecapFunction } from '../lib/firebase';
 import { isTestGame } from '../lib/history';
+import { BackIcon } from '../components/Icons';
 
 export function Room() {
   const { code: rawCode } = useParams<{ code: string }>();
@@ -110,9 +111,10 @@ export function Room() {
         <button
           type="button"
           onClick={() => navigate('/')}
-          className="self-start text-sm text-navy-200 mb-3"
+          className="self-start inline-flex items-center gap-1 text-sm text-navy-200 mb-3"
         >
-          ← Back
+          <BackIcon />
+          Back
         </button>
       )}
 
@@ -153,7 +155,7 @@ export function Room() {
       ) : (
         <>
           {!inGame && (
-            <div className="w-full max-w-md card-gold-subtle px-4 py-2 mb-3 flex items-center justify-between">
+            <div className="w-full max-w-md lg:max-w-4xl card-gold-subtle px-4 py-2 mb-3 flex items-center justify-between">
               <span className="text-sm text-navy-100">
                 Playing as{' '}
                 <strong className="font-display font-semibold text-[16px] text-cream-bright">{session.playerName}</strong>
@@ -181,9 +183,10 @@ export function Room() {
               <button
                 type="button"
                 onClick={() => navigate('/')}
-                className="hover:text-navy-200"
+                className="inline-flex items-center gap-0.5 hover:text-navy-200"
               >
-                ← back
+                <BackIcon size={10} />
+                back
               </button>
               <span className="text-navy-500">·</span>
               <span>

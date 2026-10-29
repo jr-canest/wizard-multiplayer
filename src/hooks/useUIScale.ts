@@ -10,10 +10,20 @@ const MIN_SCALE = 1;
 // blowing up desktop where the layout already fits comfortably.
 const MAX_SCALE = 1.5;
 
+// Computers (a mouse, not a finger) read the UI from further away with
+// nothing to tap, so the phone layout does not need blowing up to fill
+// the window: 1.25x at 1440x900 and 1.5x on a 1080p screen read as
+// massive (Jorge, 2026-10-29). They scale only by height, gently, and the
+// wide screens (lobby, final) get two columns instead (lg: in Tailwind).
+const DESKTOP_BASE_H = 800;
+const DESKTOP_MAX_SCALE = 1.15;
+
 function computeScale(): number {
   if (typeof window === 'undefined') return 1;
   const w = window.innerWidth;
   const h = window.innerHeight;
+  const desktop = window.matchMedia('(hover: hover) and (pointer: fine)').matches && w >= 900;
+  if (desktop) return Math.max(1, Math.min(h / DESKTOP_BASE_H, DESKTOP_MAX_SCALE));
   // Take the smaller axis ratio so the UI never overflows the viewport.
   const s = Math.min(w / BASE_W, h / BASE_H);
   return Math.max(MIN_SCALE, Math.min(s, MAX_SCALE));

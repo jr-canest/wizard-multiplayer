@@ -10,6 +10,7 @@ import { Chat } from './Chat';
 import { RoundVoteModal } from './RoundVoteModal';
 import type { RoundVoteKind } from '../lib/types';
 import type { RoomSnapshot } from '../hooks/useRoom';
+import { CheckIcon, RingIcon } from './Icons';
 
 type Props = {
   room: RoomSnapshot;
@@ -150,6 +151,9 @@ export function RoundScoreboard({ room, myName }: Props) {
                     isMe ? 'text-cream-bright font-bold' : 'text-cream'
                   }`}
                 >
+                  {/* Every row keeps the slot so names line up; computers
+                      have no tick to show. */}
+                  {!isReal && <span className="inline-block w-4 mr-1" />}
                   {isReal && (
                     <span
                       aria-label={hasVoted ? 'voted' : 'not voted'}
@@ -160,11 +164,11 @@ export function RoundScoreboard({ room, myName }: Props) {
                             }`
                           : `${name} hasn't voted yet`
                       }
-                      className={`inline-block w-3 mr-1 text-center tabular-nums ${
-                        hasVoted ? 'text-emerald-300' : 'text-navy-400/50'
+                      className={`inline-flex w-4 mr-1 justify-center align-middle -translate-y-px ${
+                        hasVoted ? 'text-emerald-300' : 'text-navy-400/60'
                       }`}
                     >
-                      {hasVoted ? '✓' : '·'}
+                      {hasVoted ? <CheckIcon size={12} /> : <RingIcon size={9} />}
                     </span>
                   )}
                   {name}
@@ -236,7 +240,9 @@ export function RoundScoreboard({ room, myName }: Props) {
 
       {(showEndEarly || showEndGame) && (
         <div className="border-t border-gold-700/30 pt-3 -mt-1 space-y-1.5">
-          <div className="grid grid-cols-2 gap-1.5">
+          {/* One button when only one vote is on offer (the round before
+              the last has no "next is last"): full width, not a half-empty row. */}
+          <div className={`grid gap-1.5 ${showEndEarly && showEndGame ? 'grid-cols-2' : 'grid-cols-1'}`}>
             {showEndEarly ? (
               <button
                 type="button"
@@ -249,9 +255,7 @@ export function RoundScoreboard({ room, myName }: Props) {
                   next round is last
                 </span>
               </button>
-            ) : (
-              <div />
-            )}
+            ) : null}
             {showEndGame ? (
               <button
                 type="button"
@@ -264,12 +268,10 @@ export function RoundScoreboard({ room, myName }: Props) {
                   end game now
                 </span>
               </button>
-            ) : (
-              <div />
-            )}
+            ) : null}
           </div>
           <p className="text-[11px] text-center text-navy-300">
-            Either one asks the whole table. Majority decides.
+            {showEndEarly && showEndGame ? 'Either one asks' : 'It asks'} the whole table. Majority decides.
           </p>
         </div>
       )}

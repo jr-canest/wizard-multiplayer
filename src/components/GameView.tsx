@@ -375,7 +375,7 @@ export function GameView({ room, players, myName }: Props) {
     isMyBidTurn && bidGridLayout(bidValueCount).rows > 1;
 
   return (
-    <div className="w-full max-w-md space-y-2">
+    <div className={`w-full max-w-md space-y-2 ${room.status === 'finished' ? 'lg:max-w-4xl' : ''}`}>
       {(() => {
         const isLastRoundNow =
           room.currentRound > 0 &&

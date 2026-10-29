@@ -11,6 +11,7 @@ import type { RoomSnapshot } from '../hooks/useRoom';
 import { useNavigate } from 'react-router-dom';
 import { leaveGame } from '../lib/rooms';
 import { setActiveRoomCode } from '../hooks/useActiveRoom';
+import { CloseIcon, MenuIcon } from './Icons';
 
 type Props = {
   room: RoomSnapshot;
@@ -104,9 +105,9 @@ export function GameMenu({ room, myName }: Props) {
           setConfirmLeave(false);
         }}
         aria-label="Scores"
-        className="ml-1 w-7 h-7 shrink-0 rounded-full bg-[rgba(20,26,44,.8)] border border-gold-300/40 flex items-center justify-center text-xs text-cream active:scale-95 transition"
+        className="ml-1 w-7 h-7 shrink-0 rounded-full bg-[rgba(20,26,44,.8)] border border-gold-300/40 flex items-center justify-center text-cream active:scale-95 transition"
       >
-        ☰
+        <MenuIcon size={13} />
       </button>
 
       {open && (
@@ -144,9 +145,10 @@ export function GameMenu({ room, myName }: Props) {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="text-navy-300 text-sm px-2"
+                aria-label="Close"
+                className="-mr-1 w-7 h-7 flex items-center justify-center text-navy-300 hover:text-cream"
               >
-                ✕
+                <CloseIcon />
               </button>
             </div>
 

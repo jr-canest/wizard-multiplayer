@@ -53,7 +53,7 @@ export function CreateRoomPanel() {
           type="checkbox"
           checked={canadianRule}
           onChange={(e) => setCanadianRule(e.target.checked)}
-          className="h-5 w-5 accent-gold-300"
+          className="h-5 w-5 shrink-0 accent-gold-300"
         />
       </label>
 
@@ -69,7 +69,7 @@ export function CreateRoomPanel() {
             type="checkbox"
             checked={withBots}
             onChange={(e) => setWithBots(e.target.checked)}
-            className="h-5 w-5 accent-gold-300"
+            className="h-5 w-5 shrink-0 accent-gold-300"
           />
         </label>
       )}

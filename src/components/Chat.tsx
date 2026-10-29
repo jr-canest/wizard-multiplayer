@@ -59,9 +59,7 @@ export function Chat({ room, myName }: Props) {
   return (
     <div className="card-gold p-3 space-y-2">
       <div className="flex items-baseline justify-between">
-        <span className="text-xs uppercase tracking-wider text-navy-200">
-          Chat
-        </span>
+        <span className="section-label">Chat</span>
         {allMessages.length > VISIBLE_CHAT_COUNT && (
           <span className="text-[10px] text-navy-300 tabular-nums">
             showing {VISIBLE_CHAT_COUNT}/{allMessages.length}

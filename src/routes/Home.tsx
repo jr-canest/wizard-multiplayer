@@ -5,6 +5,7 @@ import { useActiveRoom } from '../hooks/useActiveRoom';
 import { IdentityPrompt } from '../components/IdentityPrompt';
 import { formatVersion } from '../lib/appVersion';
 import { CreateRoomPanel } from '../components/CreateRoomPanel';
+import { ExternalIcon, HistoryIcon, StatsIcon } from '../components/Icons';
 
 export function Home() {
   const navigate = useNavigate();
@@ -104,24 +105,27 @@ export function Home() {
           <button
             type="button"
             onClick={() => navigate('/me')}
-            className="btn-secondary w-full h-11 text-sm"
+            className="btn-secondary w-full h-11 text-sm inline-flex items-center justify-center gap-2"
           >
-            📊 My stats
+            <StatsIcon className="text-gold-200" />
+            My stats
           </button>
 
           <button
             type="button"
             onClick={() => navigate('/history')}
-            className="btn-secondary w-full h-11 text-sm"
+            className="btn-secondary w-full h-11 text-sm inline-flex items-center justify-center gap-2"
           >
-            📜 Game history
+            <HistoryIcon className="text-gold-200" />
+            Game history
           </button>
 
           <a
             href="https://wizard-scorekeeper.web.app/"
-            className="btn-secondary flex items-center justify-center w-full h-11 text-sm no-underline"
+            className="btn-secondary flex items-center justify-center gap-2 w-full h-11 text-sm no-underline"
           >
-            ↗ Open Score Keeper
+            <ExternalIcon className="text-gold-200" />
+            Open Score Keeper
           </a>
 
           {/* Build stamp (date · commit) so it's obvious which build a phone is on */}

@@ -28,6 +28,7 @@ import {
   type ReactionTally,
 } from '../lib/reactions';
 import type { LogEntry } from '../lib/types';
+import { BackIcon, CloseIcon } from '../components/Icons';
 
 type GameDoc = {
   log?: LogEntry[];
@@ -137,9 +138,10 @@ export function Me() {
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="text-navy-200 text-sm underline underline-offset-2"
+            className="inline-flex items-center gap-1 text-navy-200 text-sm underline underline-offset-2"
           >
-            ← Home
+            <BackIcon />
+            Home
           </button>
         </div>
 
@@ -680,7 +682,7 @@ function IdentityEditSection({
                   className="text-navy-300 hover:text-rose-300"
                   aria-label={`Remove alias ${a}`}
                 >
-                  ✕
+                  <CloseIcon size={10} />
                 </button>
               </span>
             ))}

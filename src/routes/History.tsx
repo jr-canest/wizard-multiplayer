@@ -25,6 +25,7 @@ import {
 import { readHistoryCache, writeHistoryCache } from '../lib/historyCache';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import type { LogEntry, RoomDoc } from '../lib/types';
+import { BackIcon, CloseIcon } from '../components/Icons';
 
 const MEDAL_EMOJIS = ['🥇', '🥈', '🥉'];
 
@@ -329,9 +330,10 @@ export function History() {
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="text-navy-200 text-sm underline underline-offset-2"
+            className="inline-flex items-center gap-1 text-navy-200 text-sm underline underline-offset-2"
           >
-            ← Home
+            <BackIcon />
+            Home
           </button>
         </div>
 
@@ -831,19 +833,20 @@ function PlayerDetailHeader({
           <button
             type="button"
             onClick={onBack}
-            className="text-navy-200 text-xs underline underline-offset-2"
+            className="inline-flex items-center gap-0.5 text-navy-200 text-xs underline underline-offset-2"
           >
-            ← back
+            <BackIcon size={10} />
+            back
           </button>
         )}
         {onClose && (
           <button
             type="button"
             onClick={onClose}
-            className="text-navy-200 text-sm px-2 py-0.5 rounded hover:bg-navy-700/60"
+            className="w-8 h-8 flex items-center justify-center text-navy-200 rounded hover:bg-navy-700/60"
             aria-label="Close"
           >
-            ✕
+            <CloseIcon />
           </button>
         )}
       </div>
@@ -1148,10 +1151,10 @@ function GameDetailOverlay({
             <button
               type="button"
               onClick={onClose}
-              className="text-navy-200 text-sm px-2 py-0.5 rounded hover:bg-navy-700/60"
+              className="w-8 h-8 flex items-center justify-center text-navy-200 rounded hover:bg-navy-700/60"
               aria-label="Close"
             >
-              ✕
+              <CloseIcon />
             </button>
           )}
         </div>

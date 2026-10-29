@@ -17,6 +17,7 @@ import { useAnonymousAuth } from '../hooks/useAnonymousAuth';
 import { Chat } from './Chat';
 import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
 import type { BotDifficulty } from '../lib/types';
+import { ChevronDownIcon } from './Icons';
 
 const DIFFICULTIES: BotDifficulty[] = ['easy', 'medium', 'expert'];
 
@@ -121,8 +122,13 @@ export function Lobby({ room, players, myName }: Props) {
   }
 
   return (
-    <div className="w-full max-w-md space-y-4">
-      <div className="card-gold p-4 space-y-3">
+    // Wide screens (iPad landscape, computers): room + players on the left,
+    // chat, computers, rounds and Start on the right. Phones keep one column
+    // in the old order: the column wrappers are `contents` there, and room
+    // code then chat move up with order-first.
+    <div className="w-full max-w-md lg:max-w-4xl flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start">
+      <div className="contents lg:flex lg:flex-col lg:gap-4">
+      <div className="card-gold p-4 space-y-3 order-first lg:order-none">
         <div className="flex items-baseline justify-between">
           <span className="section-label">Room code</span>
           <span className="font-display font-bold text-[30px] leading-none tracking-[0.3em] text-gold-text">
@@ -137,8 +143,6 @@ export function Lobby({ room, players, myName }: Props) {
           {copying ? 'Link copied!' : 'Copy invite link'}
         </button>
       </div>
-
-      <Chat room={room} myName={myName} />
 
       <div className="card-gold p-4 space-y-2">
         <div className="flex items-baseline justify-between mb-1">
@@ -220,6 +224,12 @@ export function Lobby({ room, players, myName }: Props) {
           </p>
         )}
       </div>
+      </div>
+
+      <div className="contents lg:flex lg:flex-col lg:gap-4">
+        <div className="order-first lg:order-none">
+          <Chat room={room} myName={myName} />
+        </div>
 
       {isHost && (
         <div className="card-gold p-3 space-y-2">
@@ -253,11 +263,14 @@ export function Lobby({ room, players, myName }: Props) {
               className="flex items-center justify-between text-sm"
             >
               <span className="text-cream font-semibold">Rounds</span>
+              {/* Own chevron with room around it: the browser's arrow sat
+                  jammed against the right edge (Jorge, 2026-10-29). */}
+              <span className="relative inline-flex items-center">
               <select
                 id="rounds"
                 value={displayedChosen === null ? '' : String(displayedChosen)}
                 onChange={handleRoundsChange}
-                className="h-[30px] rounded-lg bg-[rgba(20,26,44,.8)] border border-gold-300/40 px-2 text-cream text-xs font-semibold"
+                className="appearance-none h-[30px] rounded-lg bg-[rgba(20,26,44,.8)] border border-gold-300/40 pl-3 pr-8 text-cream text-xs font-semibold"
               >
                 <option value="">
                   Auto · max {maxRounds}
@@ -268,6 +281,8 @@ export function Lobby({ room, players, myName }: Props) {
                   </option>
                 ))}
               </select>
+              <ChevronDownIcon size={12} className="pointer-events-none absolute right-3 text-gold-200" />
+              </span>
             </label>
             <p className="text-[11px] text-navy-200">
               You can always vote to end sooner.
@@ -312,6 +327,7 @@ export function Lobby({ room, players, myName }: Props) {
       >
         {leaving ? 'Leaving…' : 'Leave room'}
       </button>
+      </div>
     </div>
   );
 }
