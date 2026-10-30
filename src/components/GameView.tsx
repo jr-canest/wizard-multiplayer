@@ -20,6 +20,7 @@ import { useGameSounds } from '../hooks/useGameSounds';
 import { GameMenu } from './GameMenu';
 import { UndoVoteModal } from './UndoVoteModal';
 import { Table } from './Table';
+import { FoldSlot } from './FoldSlot';
 import { DealAnimation } from './DealAnimation';
 import { playCard } from '../lib/gameFlow';
 import { bidGridLayout } from '../lib/bidLayout';
@@ -490,8 +491,10 @@ export function GameView({ room, players, myName }: Props) {
             // pointer-events stay OFF on the banners: the winner leads the
             // next trick while they cover the drop zone, so they must
             // never swallow a card drop (elementFromPoint skips them).
-            (room.awaitingTrumpChoice && isDealer) || (winBanner && winnerColor) || (commentary && showOpponents) ? (
-              <div className="flex flex-col items-center gap-2">
+            // Each sits in a FoldSlot so the other glides, not jumps, when
+            // one goes away (2026-10-29).
+            <div className="flex flex-col items-center">
+              <FoldSlot>
                 {room.awaitingTrumpChoice && isDealer ? (
                   <TrumpChooser code={room.code} callerName={myName} />
                 ) : winBanner && winnerColor ? (
@@ -525,9 +528,11 @@ export function GameView({ room, players, myName }: Props) {
                     )}
                   </div>
                 ) : null}
-                {commentary && <CommentaryCard key={commentary.id} a={commentary} />}
-              </div>
-            ) : null
+              </FoldSlot>
+              <FoldSlot>
+                {commentary && showOpponents ? <CommentaryCard key={commentary.id} a={commentary} /> : null}
+              </FoldSlot>
+            </div>
           }
         />
       )}

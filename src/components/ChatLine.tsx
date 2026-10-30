@@ -87,7 +87,7 @@ export function ChatLine({
           picking ? 'bg-navy-700/50' : ''
         }`}
       >
-        <p className="flex-1 min-w-0 break-words">
+        <p className="flex-1 min-w-0 [overflow-wrap:anywhere]">
           <span className={`${nameClass} font-bold`}>{line.player}</span>
           <span className={textClass}>: {line.text}</span>
         </p>

@@ -154,11 +154,11 @@ export function OverlayBanner({ room, myName }: Props) {
             <div>
               <div
                 onClick={reactable ? () => setPicking(open ? null : it.key) : undefined}
-                className={`relative animate-felt-msg-in mb-1 backdrop-blur rounded-md border bg-navy-900/85 px-2 py-1 shadow-lg ${
+                className={`relative max-w-full animate-felt-msg-in mb-1 backdrop-blur rounded-md border bg-navy-900/85 px-2 py-1 shadow-lg ${
                   reactable ? 'pointer-events-auto cursor-pointer' : ''
                 } ${open ? 'border-gold-300' : 'border-gold-500/70'}`}
               >
-                <p className={`text-sm leading-snug line-clamp-2 break-words ${it.sys ? 'italic' : ''}`}>
+                <p className={`text-sm leading-snug line-clamp-2 [overflow-wrap:anywhere] ${it.sys ? 'italic' : ''}`}>
                   <span className={`${c.text} font-bold`}>{it.player}</span>
                   <span className={it.sys ? 'text-navy-200' : 'text-gold-100'}>{it.sys ? ` ${it.text}` : `: ${it.text}`}</span>
                 </p>
