@@ -5,6 +5,8 @@
 // synthesized with Web Audio, no files. The phone's silent switch mutes
 // Web Audio on iOS, and the game menu has its own Sound toggle.
 
+import { configureAudio, getAudioContext } from './audioKeepAlive';
+
 const PREF_KEY = 'wizard-mp-sound';
 
 let enabled = (() => {
@@ -41,43 +43,28 @@ export function setSoundEnabled(on: boolean): void {
 
 // ─── Shared context ───
 // Sounds fire several times a second during play, so they share one
-// long-lived AudioContext (iOS Safari caps how many a page can open).
+// long-lived AudioContext (iOS Safari caps how many a page can open). It
+// comes from audioKeepAlive.ts (vendored from Apps/_shared, edit it there):
+// revived after the phone sleeps or the app comes back, and replaced inside
+// the next tap when iOS leaves it stuck.
 
 type Ctx = AudioContext;
-let tapCtx: Ctx | null = null;
 let noiseBuffer: AudioBuffer | null = null;
-
-function getTapContext(): Ctx | null {
-  const AudioCtx =
-    window.AudioContext ||
-    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioCtx) return null;
-  if (!tapCtx) tapCtx = new AudioCtx();
-  // Starts suspended under autoplay rules, and iOS suspends it when the
-  // tab is backgrounded; a tap is the gesture allowed to wake it.
-  if (tapCtx.state !== 'running') tapCtx.resume().catch(() => {});
-  return tapCtx;
-}
 
 /**
  * Most sounds here come from other players' moves, not from a tap on this
- * phone, so the context has to be woken by an earlier tap: the first
- * pointerdown anywhere (and every one after the tab was backgrounded)
- * resumes it.
+ * phone, so the context has to be made by an earlier tap: the first tap
+ * anywhere makes it, and audioKeepAlive wakes it after every return.
  */
 export function unlockAudioOnGesture(): () => void {
-  const wake = () => {
-    if (!enabled) return;
-    if (!tapCtx || tapCtx.state !== 'running') getTapContext();
-  };
-  window.addEventListener('pointerdown', wake, true);
-  return () => window.removeEventListener('pointerdown', wake, true);
+  configureAudio({ startOnFirstTap: true });
+  return () => {};
 }
 
 function play(voice: (ctx: Ctx, dest: AudioNode, t: number) => void): void {
   if (!enabled) return;
   try {
-    const ctx = getTapContext();
+    const ctx = getAudioContext();
     if (ctx && ctx.state === 'running') voice(ctx, ctx.destination, ctx.currentTime);
     else if (ctx) {
       // Just resumed by this very call (a tap): start once it is running.
