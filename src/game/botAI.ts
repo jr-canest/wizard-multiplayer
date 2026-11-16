@@ -13,9 +13,10 @@ import { calcRoundScore } from './scoring';
  *            legal card more often than not.
  *   medium — bids from hand strength, then plays to land the bid: chases
  *            tricks while short, sheds while on target.
- *   expert — medium plus card memory (everything played this round),
- *            seat awareness (last to act wins by the minimum), and bids
- *            that react to the table.
+ *   expert — simulates the rest of the round many times for every card
+ *            or bid it could choose (see "Expert: simulation" below);
+ *            without table info it falls back to medium plus card memory
+ *            and seat awareness.
  */
 
 type Play = { card: Card; playerName?: string };
@@ -63,6 +64,8 @@ export type PlayContext = {
   /** Players still to act after me in this trick. */
   playersAfterMe: number;
   table?: TableInfo;
+  /** Simulations only: the cards this player can't see, already worked out. */
+  unseen?: Card[];
 };
 
 const SUITS: Suit[] = ['H', 'D', 'C', 'S'];
@@ -352,7 +355,7 @@ export function chooseBotCard(ctx: PlayContext, difficulty: BotDifficulty): numb
     arr.reduce((a, b) => (f(b) > f(a) ? b : a));
   const dump = (arr: number[]) => lowestBy(arr, cost);
 
-  const unseen = expert ? unseenCards(ctx) : [];
+  const unseen = expert ? (ctx.unseen ?? unseenCards(ctx)) : [];
   const hold = (i: number) => holdProbability(hand[i], plays, ctx, unseen);
   const isWizard = (i: number) => hand[i].kind === 'wizard';
 
@@ -412,22 +415,57 @@ export function chooseBotCard(ctx: PlayContext, difficulty: BotDifficulty): numb
 
 // ─── Expert: simulation ───
 //
-// Flat Monte Carlo over determinized deals. For every candidate (card or
-// bid) the unseen cards are dealt to the other seats — honouring suits a
-// player has shown they're void in — the round is played out with the
-// medium policy for everyone, and the candidate with the best average
-// round score wins. Medium plays each sampled world deterministically, so
-// the noise comes only from the deals.
+// Flat Monte Carlo over determinized deals. The unseen cards are dealt to
+// the other seats many times over (honouring suits a player has shown
+// they're void in, and trusting a deal more when each hand fits what its
+// owner bid). Every candidate card or bid is then played out on the SAME
+// set of deals, with every seat played by the rule-of-thumb expert, and
+// the candidate with the best average wins. "Best" is my round score less
+// half of what the others average, so the expert also plays to break bids.
+//
+// 2026-11-15, 120 games at 3 seats vs the previous expert (medium
+// playouts, own score only, fresh deals per candidate): see CLAUDE.md.
 
-/** Roughly how many playout decisions one choice may spend. */
-const PLAY_BUDGET = 14000;
-const BID_BUDGET = 14000;
-const MIN_SAMPLES = 6;
-const MAX_SAMPLES = 40;
+/**
+ * Tunables (exported so scripts/bot-sim can A/B them).
+ *   budget     — roughly how many playout decisions one choice may spend.
+ *   bidFit     — how strongly a sampled deal is trusted by how well each
+ *                opponent's hand matches what they bid (sigma, in tricks;
+ *                Infinity = every deal counts the same).
+ */
+export const EXPERT_TUNE = {
+  playBudget: 60000,
+  bidBudget: 80000,
+  minSamples: 16,
+  maxSamples: 120,
+  bidFitSigma: 1.1,
+  /** Who the imagined players are: 'medium' or 'sharp' (the rule-of-thumb expert). */
+  playout: 'sharp' as 'medium' | 'sharp',
+  /**
+   * How much the others' scores count against a choice (0 = only my own
+   * round score). Above 0 the expert also plays to break your bid.
+   */
+  rivalWeight: 0.5,
+};
 
 function samplesFor(budget: number, candidates: number, cardsLeft: number, seats: number): number {
   const perSample = Math.max(1, candidates * cardsLeft * seats);
-  return Math.max(MIN_SAMPLES, Math.min(MAX_SAMPLES, Math.floor(budget / perSample)));
+  return Math.max(
+    EXPERT_TUNE.minSamples,
+    Math.min(EXPERT_TUNE.maxSamples, Math.floor(budget / perSample)),
+  );
+}
+
+/**
+ * How believable a guessed hand is for a player who still needs `need`
+ * tricks: a player who bid 4 is far likelier to hold the Wizards than one
+ * who bid 0. Used to weight the sampled deals.
+ */
+function bidFit(hand: Card[], need: number, trumpSuit: Suit | null, seats: number): number {
+  const sigma = EXPERT_TUNE.bidFitSigma;
+  if (!Number.isFinite(sigma) || need < 0) return 1;
+  const d = estimateTricks(hand, trumpSuit, seats, false) - need;
+  return Math.exp(-(d * d) / (2 * sigma * sigma));
 }
 
 /**
@@ -490,11 +528,19 @@ function playoutRound(
   trumpCard: Card | null,
 ): void {
   const n = order.length;
+  const sharp = EXPERT_TUNE.playout === 'sharp';
   for (;;) {
     while (state.trick.length < n) {
       const name = order[state.nextIdx];
       const hand = state.hands[name];
       if (!hand || hand.length === 0) return;
+      let unseen: Card[] | undefined;
+      if (sharp) {
+        unseen = [];
+        for (const other of order) {
+          if (other !== name) for (const c of state.hands[other]) unseen.push(c);
+        }
+      }
       const idx = chooseBotCard(
         {
           hand,
@@ -505,8 +551,9 @@ function playoutRound(
           myBid: state.bids[name] ?? 0,
           myTricksWon: state.tricksWon[name] ?? 0,
           playersAfterMe: n - state.trick.length - 1,
+          unseen,
         },
-        'medium',
+        sharp ? 'expert' : 'medium',
       );
       const card = hand[idx];
       hand.splice(idx, 1);
@@ -520,6 +567,27 @@ function playoutRound(
     state.nextIdx = order.indexOf(winner);
     if (state.hands[winner].length === 0) return;
   }
+}
+
+/**
+ * What a finished playout is worth to `me`: my round score, less a share
+ * of what the others made (so breaking a rival's bid counts for something).
+ */
+function playoutValue(order: string[], me: string, state: SimState): number {
+  const mine = calcRoundScore(state.bids[me] ?? 0, state.tricksWon[me] ?? 0);
+  const k = EXPERT_TUNE.rivalWeight;
+  if (k <= 0 || order.length < 2) return mine;
+  let others = 0;
+  for (const name of order) {
+    if (name !== me) others += calcRoundScore(state.bids[name] ?? 0, state.tricksWon[name] ?? 0);
+  }
+  return mine - (k * others) / (order.length - 1);
+}
+
+function cloneHands(hands: Record<string, Card[]>): Record<string, Card[]> {
+  const out: Record<string, Card[]> = {};
+  for (const k in hands) out[k] = hands[k].slice();
+  return out;
 }
 
 function chooseCardBySimulation(ctx: PlayContext, table: TableInfo, legal: number[]): number {
@@ -537,30 +605,48 @@ function chooseCardBySimulation(ctx: PlayContext, table: TableInfo, legal: numbe
       count: Math.max(0, ctx.hand.length - (alreadyPlayed.has(name) ? 1 : 0)),
       voids: new Set(table.voids[name] ?? []),
     }));
-  const samples = samplesFor(PLAY_BUDGET, legal.length, ctx.hand.length, n);
+  const samples = samplesFor(EXPERT_TUNE.playBudget, legal.length, ctx.hand.length, n);
   const trick = ctx.trickInProgress.map((p) => ({
     playerName: p.playerName ?? '?',
     card: p.card,
   }));
 
+  // The same guessed deals for every candidate card, so the comparison is
+  // between the cards and not between lucky and unlucky deals.
+  const worlds: Array<{ hands: Record<string, Card[]>; w: number }> = [];
+  for (let s = 0; s < samples; s++) {
+    const hands = dealUnseen(shuffle(unseen), needs);
+    let w = 1;
+    for (const need of needs) {
+      const bid = table.bids[need.name];
+      if (bid === undefined) continue;
+      w *= bidFit(hands[need.name], bid - (table.tricksWon[need.name] ?? 0), ctx.trumpSuit, n);
+    }
+    worlds.push({ hands, w: w + 1e-6 });
+  }
+
+  // Ties go to the card the rule-of-thumb expert would play.
+  const fallback = chooseBotCard({ ...ctx, table: undefined }, 'expert');
   let bestIdx = legal[0];
   let bestAvg = -Infinity;
   for (const i of legal) {
     let total = 0;
-    for (let s = 0; s < samples; s++) {
-      const dealt = dealUnseen(shuffle(unseen), needs);
-      const hands: Record<string, Card[]> = { ...dealt, [me]: ctx.hand.filter((_, k) => k !== i) };
+    let weight = 0;
+    for (const world of worlds) {
+      const hands = cloneHands(world.hands);
+      hands[me] = ctx.hand.filter((_, k) => k !== i);
       const state: SimState = {
         hands,
         tricksWon: { ...table.tricksWon },
-        bids: table.bids,
+        bids: { ...table.bids, [me]: ctx.myBid },
         trick: [...trick, { playerName: me, card: ctx.hand[i] }],
         nextIdx: (myIdx + 1) % n,
       };
       playoutRound(order, state, ctx.trumpSuit, ctx.trumpCard);
-      total += calcRoundScore(ctx.myBid, state.tricksWon[me] ?? 0);
+      total += world.w * playoutValue(order, me, state);
+      weight += world.w;
     }
-    const avg = total / samples;
+    const avg = total / weight + (i === fallback ? 0.01 : 0);
     if (avg > bestAvg + 1e-9) {
       bestAvg = avg;
       bestIdx = i;
@@ -580,35 +666,50 @@ function chooseBidBySimulation(ctx: BidContext, table: TableInfo): number {
   const needs: Need[] = order
     .filter((name) => name !== me)
     .map((name) => ({ name, count: ctx.hand.length, voids: new Set<Suit>() }));
-  const samples = samplesFor(BID_BUDGET, ctx.legalBids.length, ctx.hand.length, n);
+  const samples = samplesFor(EXPERT_TUNE.bidBudget, ctx.legalBids.length, ctx.hand.length, n);
   const leader = (table.dealerIndex + 1) % n;
+
+  // One set of guessed deals, shared by every candidate bid.
+  const worlds: Array<{ hands: Record<string, Card[]>; bids: Record<string, number>; w: number }> = [];
+  for (let s = 0; s < samples; s++) {
+    const hands = dealUnseen(shuffle(unseen), needs);
+    const bids: Record<string, number> = { ...table.bids };
+    let w = 1;
+    for (const name of order) {
+      if (name === me) continue;
+      if (bids[name] !== undefined) {
+        w *= bidFit(hands[name], bids[name], ctx.trumpSuit, n);
+        continue;
+      }
+      // Seats that haven't bid yet: assume they bid what medium would.
+      bids[name] = Math.max(
+        0,
+        Math.min(ctx.cardsThisRound, Math.round(estimateTricks(hands[name], ctx.trumpSuit, n, false))),
+      );
+    }
+    worlds.push({ hands, bids, w: w + 1e-6 });
+  }
 
   let bestBid = ctx.legalBids[0];
   let bestAvg = -Infinity;
   for (const b of ctx.legalBids) {
     let total = 0;
-    for (let s = 0; s < samples; s++) {
-      const dealt = dealUnseen(shuffle(unseen), needs);
-      const bids: Record<string, number> = { ...table.bids, [me]: b };
-      for (const name of order) {
-        if (name === me || bids[name] !== undefined) continue;
-        // Seats that haven't bid yet: assume they bid what medium would.
-        bids[name] = Math.max(
-          0,
-          Math.min(ctx.cardsThisRound, Math.round(estimateTricks(dealt[name], ctx.trumpSuit, n, false))),
-        );
-      }
+    let weight = 0;
+    for (const world of worlds) {
+      const hands = cloneHands(world.hands);
+      hands[me] = ctx.hand.slice();
       const state: SimState = {
-        hands: { ...dealt, [me]: ctx.hand.slice() },
+        hands,
         tricksWon: {},
-        bids,
+        bids: { ...world.bids, [me]: b },
         trick: [],
         nextIdx: leader,
       };
       playoutRound(order, state, ctx.trumpSuit, ctx.trumpCard ?? null);
-      total += calcRoundScore(b, state.tricksWon[me] ?? 0);
+      total += world.w * playoutValue(order, me, state);
+      weight += world.w;
     }
-    const avg = total / samples;
+    const avg = total / weight;
     if (avg > bestAvg + 1e-9) {
       bestAvg = avg;
       bestBid = b;
