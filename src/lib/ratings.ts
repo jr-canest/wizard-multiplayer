@@ -37,6 +37,18 @@ export type PodiumStats = Record<
   { firsts: number; seconds: number; thirds: number; points: number; games: number }
 >;
 
+/**
+ * One person against computers only: a practice game. It is kept out of
+ * History and the ratings (Jorge, 2026-11-16); two or more people with a
+ * computer at the table is a real game and shows. New ones are not saved
+ * at all (history.ts), this covers any that were.
+ */
+export function isSoloComputerGame(game: RatableGame): boolean {
+  const results = Array.isArray(game?.results) ? game.results : [];
+  const computers = results.filter((r) => r.bot).length;
+  return computers > 0 && results.length - computers < 2;
+}
+
 function pointsForRank(rank: number, playerCount: number): number {
   if (rank >= playerCount) return 0; // last place never scores
   if (rank === 1) return 3;
@@ -95,6 +107,7 @@ export function computePodiumStats(
   };
 
   for (const game of games ?? []) {
+    if (isSoloComputerGame(game)) continue;
     const results = Array.isArray(game?.results) ? game.results : [];
     const playerCount = game.playerCount || results.length;
     for (const r of results) {

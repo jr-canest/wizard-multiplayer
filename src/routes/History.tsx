@@ -20,8 +20,7 @@ import { RoundBreakdownTable } from '../components/RoundBreakdownTable';
 import {
   computePodiumStats,
   ratingForPlayer,
-  type PodiumStats,
-} from '../lib/ratings';
+  type PodiumStats, isSoloComputerGame } from '../lib/ratings';
 import { readHistoryCache, writeHistoryCache } from '../lib/historyCache';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import type { LogEntry, RoomDoc } from '../lib/types';
@@ -217,10 +216,10 @@ export function History() {
       timeout,
     ])
       .then(([gSnap, pSnap]) => {
-        const allGames = gSnap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as GameDoc),
-        }));
+        const allGames = gSnap.docs
+          .map((d) => ({ id: d.id, ...(d.data() as GameDoc) }))
+          // One person vs computers is practice: not shown, not rated.
+          .filter((g) => !isSoloComputerGame(g));
         const freshPlayers = pSnap.docs.map((d) => ({
           id: d.id,
           ...(d.data() as Omit<PlayerRow, 'id'>),

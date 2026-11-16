@@ -11,7 +11,7 @@ import {
   setSharedAiSummary,
   votePlayAgain,
 } from '../lib/gameFlow';
-import { isTestGame } from '../lib/history';
+import { isPracticeGame, isTestGame } from '../lib/history';
 import { isBot } from '../lib/rooms';
 import { ScoreLineGraph } from './ScoreLineGraph';
 import { RoundBreakdownTable } from './RoundBreakdownTable';
@@ -48,7 +48,7 @@ export function FinalScoreboard({ room, myName }: Props) {
   const { log: fullLog } = useFullLog(room);
   const breakdown = useMemo(() => roundBreakdownFromLog(fullLog), [fullLog]);
   const [savingState, setSavingState] = useState<
-    'pending' | 'saving' | 'saved' | 'skipped' | 'error'
+    'pending' | 'saving' | 'saved' | 'skipped' | 'practice' | 'error'
   >('pending');
   const [resetting, setResetting] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -96,6 +96,11 @@ export function FinalScoreboard({ room, myName }: Props) {
   // synchronously when the room snapshot says the write already
   // happened — same async-resolution pattern as DisconnectBanner.
   useEffect(() => {
+    // One person vs computers: practice, never recorded.
+    if (isPracticeGame(roomRef.current)) {
+      setSavingState('practice');
+      return;
+    }
     if (room.historyWritten) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSavingState('saved');
@@ -374,6 +379,7 @@ export function FinalScoreboard({ room, myName }: Props) {
           {savingState === 'saving' && 'Saving to history…'}
           {savingState === 'saved' && '✓ Saved to history.'}
           {savingState === 'skipped' && 'History saving skipped (localhost).'}
+          {savingState === 'practice' && 'Practice game: not saved to history.'}
           {savingState === 'error' && '⚠ Could not save to history.'}
         </p>
 

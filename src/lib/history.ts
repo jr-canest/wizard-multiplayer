@@ -22,12 +22,24 @@ import { claimHistory, markHistorySaved } from './gameFlow';
  * Test/dev signals that should keep the game out of the shared history,
  * skip AI summary calls, etc:
  *   - any player named 'test' (the dev-mode trigger name)
- * Games with computer players ARE recorded (Jorge, 2026-09-09): the game
- * shows in Past Games with the computer seats flagged, but computers
- * never get a `players` doc, so All-time stats stay human-only.
+ * Games with computer players ARE recorded when two or more people
+ * played (Jorge, 2026-09-09): the game shows in Past Games with the
+ * computer seats flagged, but computers never get a `players` doc, so
+ * All-time stats stay human-only. One person against computers is
+ * practice and is not recorded: see isPracticeGame.
  */
 export function isTestGame(room: RoomDoc): boolean {
   return room.playerOrder.some((n) => n.trim().toLowerCase() === 'test');
+}
+
+/**
+ * One person against computers only (Jorge, 2026-11-16): nothing is
+ * written to History and no stats move. Two or more people with a
+ * computer at the table is a real game.
+ */
+export function isPracticeGame(room: Pick<RoomDoc, 'playerOrder' | 'bots'>): boolean {
+  const computers = room.playerOrder.filter((n) => botDifficultyOf(room, n)).length;
+  return computers > 0 && room.playerOrder.length - computers < 2;
 }
 
 /**
@@ -96,6 +108,7 @@ export async function saveMultiplayerGame(
 ): Promise<string | null> {
   if (!isProduction()) return null;
   if (room.status !== 'finished') return null;
+  if (isPracticeGame(room)) return null;
 
   // Exactly once per game: the game server hands the write to the first
   // client that asks and remembers the id for everyone else.
@@ -103,7 +116,7 @@ export async function saveMultiplayerGame(
   if (!claim.go) return claim.existingId ?? null;
   // Belt-and-braces: never write test games into the shared history,
   // even when running on the production URL.
-  if (isTestGame(room)) {
+  if (isTestGame(room) || isPracticeGame(room)) {
     await markHistorySaved(room.code, null).catch(() => {});
     return null;
   }
