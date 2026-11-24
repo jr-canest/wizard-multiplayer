@@ -99,8 +99,9 @@ export function GameChat({ room, myName }: Props) {
  * The hub (2026-10-06): opens with the text box focused so the phone
  * keyboard comes straight up, and sits right on top of the keyboard (the
  * visual viewport's bottom edge) with the text box last, so the top of the
- * table stays visible above it. It takes at most ~60% of what the keyboard
- * leaves and never more than half the screen: the message list scrolls
+ * table stays visible above it. With the keyboard up it may fill all the
+ * keyboard leaves (the table is hidden anyway); without one it takes at
+ * most ~60% and never more than half the screen: the message list scrolls
  * inside it while the quick buttons and text box stay put. Sits under the vote modals (z-[500]) so a vote that opens mid-chat
  * is still in front. Quick buttons and typed lines (Enter or Send) both
  * send and close (Jorge, 2026-09-28): the line shows on the felt anyway.
@@ -202,9 +203,14 @@ function ChatHub({
           <div
             className="pointer-events-auto rounded-[14px] p-3 pb-2.5 animate-chat-hub-in flex flex-col"
             style={{
-              // At most ~60% of what the keyboard leaves (and never past half
-              // the whole screen), so a slice of the table stays in view.
-              maxHeight: Math.min(view.height * 0.6, view.screenHalf),
+              // Keyboard up (2026-11-23, Jorge): the keyboard already hides
+              // the table, so the hub may grow to fill what is left, less a
+              // small gap at the top. No keyboard (computer, hardware
+              // keyboard): at most ~60% of the view and never past half the
+              // screen, so the table stays in view.
+              maxHeight: view.keyboardUp
+                ? Math.max(160, view.height - 14)
+                : Math.min(view.height * 0.6, view.screenHalf),
               border: '1px solid rgba(212,168,67,.5)',
               background: 'linear-gradient(180deg,rgba(22,29,52,.98),rgba(10,15,31,.98))',
               boxShadow: '0 -10px 34px rgba(0,0,0,.6)',

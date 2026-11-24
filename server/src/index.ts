@@ -5,7 +5,7 @@
 // carries the current round). Hands go to their owner only.
 import * as E from '../../src/game/engine';
 import type { EngineState, Presence } from '../../src/game/engine';
-import { hashPin, lookupPlayer, mintToken, verifyToken, type Env } from './auth';
+import { hashPin, lookupPlayer, mintToken, renewToken, verifyToken, type Env } from './auth';
 
 export { type Env };
 
@@ -64,6 +64,15 @@ export default {
       const canonical = player.name ?? name;
       // id lets a returning player sign in with this one request (2026-10-29).
       return json({ token: await mintToken(env, canonical), name: canonical, id: player.id }, 200, cors);
+    }
+
+    // Swap a seat token (even one past its end date, within the grace) for
+    // a fresh one. text/plain body, like /session: no CORS preflight.
+    if (url.pathname === '/session/renew' && req.method === 'POST') {
+      const body = (await req.json().catch(() => null)) as { token?: string } | null;
+      const fresh = await renewToken(env, typeof body?.token === 'string' ? body.token : null);
+      if (!fresh) return json({ error: 'unauthorized' }, 401, cors);
+      return json({ token: fresh }, 200, cors);
     }
 
     // Create a room. The DO for the new code initialises itself.

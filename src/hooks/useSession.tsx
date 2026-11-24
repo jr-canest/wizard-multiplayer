@@ -7,7 +7,8 @@ import {
   useState,
 } from 'react';
 
-import { SESSION_STORAGE_KEY as STORAGE_KEY } from '../lib/session';
+import { SESSION_STORAGE_KEY as STORAGE_KEY, TOKEN_RENEWED_EVENT, renewStoredToken, tokenExpiry } from '../lib/session';
+import { GAME_SERVER_URL } from '../lib/server';
 
 export type Session = {
   playerId: string;
@@ -92,6 +93,30 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       .finally(() => { window.clearTimeout(timer); setRestoring(false); });
     return () => { ctl.abort(); window.clearTimeout(timer); };
   }, []);
+
+  // Keep the seat token fresh (2026-11-23): one that has run out, or has
+  // under 300 days left, is swapped for a new year-long one as the app
+  // opens, so nobody meets "sign-in expired" in the middle of game night.
+  const token = session?.token;
+  useEffect(() => {
+    const onRenewed = (e: Event) => {
+      const fresh = (e as CustomEvent<string>).detail;
+      setSessionState((cur) => {
+        if (!cur || cur.token === fresh) return cur;
+        const next = { ...cur, token: fresh };
+        rememberOnServer(next);
+        return next;
+      });
+    };
+    window.addEventListener(TOKEN_RENEWED_EVENT, onRenewed);
+    return () => window.removeEventListener(TOKEN_RENEWED_EVENT, onRenewed);
+  }, []);
+  useEffect(() => {
+    if (!token) return;
+    const exp = tokenExpiry(token);
+    if (exp !== null && exp - Date.now() > 300 * 24 * 60 * 60 * 1000) return;
+    void renewStoredToken(GAME_SERVER_URL);
+  }, [token]);
 
   const setSession = useCallback((s: Session) => {
     setSessionState(s);

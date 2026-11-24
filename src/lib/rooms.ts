@@ -6,7 +6,7 @@
  */
 import { GAME_SERVER_URL } from './server';
 import { connectionFor, ActionError } from './socket';
-import { readToken } from './session';
+import { readToken, renewStoredToken } from './session';
 import type { BotDifficulty } from './types';
 
 export {
@@ -74,11 +74,18 @@ export async function createRoom(
 ): Promise<string> {
   const token = readToken();
   if (!token) throw new RoomError('unauthorized');
-  const res = await fetch(`${GAME_SERVER_URL}/rooms`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify({ canadianRule, withBots: !!options.withBots }),
-  });
+  const post = (t: string) =>
+    fetch(`${GAME_SERVER_URL}/rooms`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${t}` },
+      body: JSON.stringify({ canadianRule, withBots: !!options.withBots }),
+    });
+  let res = await post(token);
+  // A sign-in past its end date: get a fresh one and try once more.
+  if (res.status === 401) {
+    const fresh = await renewStoredToken(GAME_SERVER_URL);
+    if (fresh) res = await post(fresh);
+  }
   if (res.status === 401) throw new RoomError('unauthorized');
   if (!res.ok) throw new RoomError('failed');
   const data = (await res.json()) as { code: string };

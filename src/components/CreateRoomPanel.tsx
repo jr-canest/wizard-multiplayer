@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createRoom } from '../lib/rooms';
+import { createRoom, RoomError } from '../lib/rooms';
 import { useSession } from '../hooks/useSession';
 import { useAnonymousAuth } from '../hooks/useAnonymousAuth';
 import { setActiveRoomCode } from '../hooks/useActiveRoom';
@@ -35,7 +35,12 @@ export function CreateRoomPanel() {
       setActiveRoomCode(code);
       navigate(`/room/${code}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create room.');
+      const code = err instanceof RoomError ? err.code : null;
+      setError(
+        code === 'unauthorized'
+          ? 'Your sign-in has expired. Tap switch and sign in again.'
+          : 'Could not create the room. Check your connection and try again.',
+      );
       setSubmitting(false);
     }
   }

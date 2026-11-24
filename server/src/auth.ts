@@ -63,7 +63,21 @@ export async function mintToken(env: Env, name: string): Promise<string> {
   return btoa(payload) + '.' + sig;
 }
 
-export async function verifyToken(env: Env, token: string | null): Promise<Session | null> {
+// A pass that ran out can be swapped for a fresh one for this long after
+// its end date (2026-11-23): passes handed out between 2026-09-21 and
+// 2026-10-29 lasted 60 days and started lapsing mid-November, which showed
+// as "can't create a room" until the person signed out and in. The
+// signature still proves the PIN was checked once; a rotated SESSION_SECRET
+// still signs everyone out.
+const RENEW_GRACE_MS = 400 * 24 * 60 * 60 * 1000;
+
+/** A fresh token for a validly signed one, even one past its end date. */
+export async function renewToken(env: Env, token: string | null): Promise<string | null> {
+  const s = await verifyToken(env, token, RENEW_GRACE_MS);
+  return s ? mintToken(env, s.name) : null;
+}
+
+export async function verifyToken(env: Env, token: string | null, graceMs = 0): Promise<Session | null> {
   if (!token) return null;
   const dot = token.lastIndexOf('.');
   if (dot < 0) return null;
@@ -74,6 +88,6 @@ export async function verifyToken(env: Env, token: string | null): Promise<Sessi
   const bar = payload.lastIndexOf('|');
   const name = payload.slice(0, bar);
   const exp = Number(payload.slice(bar + 1));
-  if (!name || !Number.isFinite(exp) || exp < Date.now()) return null;
+  if (!name || !Number.isFinite(exp) || exp + graceMs < Date.now()) return null;
   return { name, exp };
 }
