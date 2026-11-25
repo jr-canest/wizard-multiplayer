@@ -204,8 +204,10 @@ export function Table({
           {/* Transient announcements (reactions, undo, votes, last-round)
               docked at top-left of the trick area. */}
           <OverlayBanner room={room} myName={myName} />
-          {/* Reactions aimed at you land at the bottom of the felt, by your hand. */}
-          <div className="absolute left-0 right-0 bottom-3 h-12 pointer-events-none">
+          {/* Reactions aimed at you land low on the felt, by your hand, but
+              clear of the bid picker that floats over its bottom edge
+              (seen in the iPhone simulator: at bottom-3 it hid behind it). */}
+          <div className="absolute left-0 right-0 bottom-[15%] h-12 z-[310] pointer-events-none">
             <CheerBurst cheers={cheersFor(myName)} playerOrder={room.playerOrder} myName={myName} big />
           </div>
           {picker && room.playerOrder.includes(picker.name) && (

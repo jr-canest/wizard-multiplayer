@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchFullLog } from '../lib/gameFlow';
 import { shortName } from '../lib/shortName';
-import { ChevronDownIcon } from './Icons';
+import { ChevronDownIcon, SuitIcon } from './Icons';
 import type { RoomSnapshot } from '../hooks/useRoom';
 import type { Card, LogEntry, Suit } from '../lib/types';
 
-// U+FE0E asks for the text glyph: iPhones otherwise draw suits as emoji.
-const SUIT_GLYPH: Record<Suit, string> = { H: '♥︎', D: '♦︎', C: '♣︎', S: '♠︎' };
 const SUIT_TONE: Record<Suit, string> = { H: 'text-rose-300', D: 'text-sky-300', C: 'text-emerald-300', S: 'text-navy-100' };
 const SUIT_NAME: Record<Suit, string> = { H: 'Hearts', D: 'Diamonds', C: 'Clubs', S: 'Spades' };
 
@@ -14,7 +12,7 @@ function CardText({ card }: { card: Card }) {
   if (card.kind === 'wizard') return <span className="font-bold text-sky-200">Wiz</span>;
   if (card.kind === 'jester') return <span className="font-bold text-amber-300">Jest</span>;
   const rank = card.rank > 10 ? ['J', 'Q', 'K', 'A'][card.rank - 11] : String(card.rank);
-  return <span className={`font-bold tabular-nums ${SUIT_TONE[card.suit]}`}>{rank}{SUIT_GLYPH[card.suit]}</span>;
+  return <span className={`font-bold tabular-nums ${SUIT_TONE[card.suit]}`}>{rank}<SuitIcon suit={card.suit} /></span>;
 }
 
 const ROW_LABEL = 'py-1 text-left text-[9px] font-bold uppercase tracking-[0.1em] text-navy-300';
@@ -110,7 +108,7 @@ export function GameLog({ room, myName }: { room: RoomSnapshot; myName: string }
               <span className="min-w-0 flex-1 truncate text-[11px] text-navy-300">
                 {v.trump && (
                   v.trump.suit ? (
-                    <span className={`font-bold ${SUIT_TONE[v.trump.suit]}`} aria-label={`Trump ${SUIT_NAME[v.trump.suit]}`}>{SUIT_GLYPH[v.trump.suit]}</span>
+                    <span className={`font-bold ${SUIT_TONE[v.trump.suit]}`} aria-label={`Trump ${SUIT_NAME[v.trump.suit]}`}><SuitIcon suit={v.trump.suit} /></span>
                   ) : 'NT'
                 )}
                 {v.trump && v.dealer ? ' · ' : ''}

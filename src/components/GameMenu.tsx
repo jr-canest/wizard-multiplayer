@@ -135,7 +135,17 @@ export function GameMenu({ room, myName }: Props) {
               // Solid: the kit's .card-gold is translucent, and the trick
               // cards showing through made the scores hard to read.
               background: 'linear-gradient(180deg,#1a2240,#0c1226)',
-              ...(anchor
+              // The log is a reading view: it takes the screen's width
+              // (the felt column is only ~230 px on a phone and wrapped
+              // every hand onto three lines).
+              ...(anchor && view === 'log'
+                ? {
+                    left: '50%',
+                    top: Math.max(8, anchor.top - 4),
+                    transform: 'translateX(-50%)',
+                    width: 'min(calc(100vw / var(--ui-zoom, 1) - 24px), 420px)',
+                  }
+                : anchor
                 ? {
                     left: anchor.left,
                     top: Math.max(8, anchor.top - 4),

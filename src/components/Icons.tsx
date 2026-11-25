@@ -48,3 +48,18 @@ export const CheckIcon = ({ size = 12, className }: P) => (
 export const RingIcon = ({ size = 10, className }: P) => (
   <svg {...base(size, className)} strokeWidth={1.8}><circle cx="8" cy="8" r="4.5" /></svg>
 );
+
+// Card suits, filled, sized in em so they sit in a line of text. Drawn
+// because the text glyphs differ wildly by platform: iPhones draw ♠ ♥ ♦ ♣
+// at about half the size Chrome does (seen in the simulator, 2026-11-25).
+const SUIT_PATH = {
+  H: 'M8 14.2S2.3 10.5 2.3 6.5A3.2 3.2 0 0 1 8 4.6a3.2 3.2 0 0 1 5.7 1.9c0 4-5.7 7.7-5.7 7.7z',
+  D: 'M8 1.4l5 6.6-5 6.6L3 8z',
+  S: 'M8 1.4s5.6 4.1 5.6 7.7a2.9 2.9 0 0 1-4.9 2.1c.2 1.2.7 2.2 1.6 3.3H5.7c.9-1.1 1.4-2.1 1.6-3.3a2.9 2.9 0 0 1-4.9-2.1C2.4 5.5 8 1.4 8 1.4z',
+  C: 'M8 1.6a2.9 2.9 0 0 1 2.5 4.4 2.9 2.9 0 1 1-1.8 5.1c.2 1.2.7 2.2 1.6 3.4H5.7c.9-1.2 1.4-2.2 1.6-3.4A2.9 2.9 0 1 1 5.5 6 2.9 2.9 0 0 1 8 1.6z',
+} as const;
+export const SuitIcon = ({ suit, className = '' }: { suit: 'H' | 'D' | 'C' | 'S'; className?: string }) => (
+  <svg viewBox="0 0 16 16" width="0.95em" height="0.95em" fill="currentColor" aria-hidden="true" className={`inline-block align-[-0.12em] ${className}`}>
+    <path d={SUIT_PATH[suit]} />
+  </svg>
+);
