@@ -23,7 +23,19 @@ export function RoundBreakdownTable({
         Round-by-round
       </p>
       <div className="overflow-x-auto -mx-0.5">
-        <table className="w-full text-[11px] tabular-nums">
+        {/* Fixed layout: every player column is the same width. With the
+            automatic layout a long name widened its own column and the
+            leftover space was shared unevenly (Jorge, 2026-11-25). */}
+        <table
+          className="w-full table-fixed text-[11px] tabular-nums"
+          style={{ minWidth: 22 + playerOrder.length * 44 }}
+        >
+          <colgroup>
+            <col style={{ width: 22 }} />
+            {playerOrder.map((n) => (
+              <col key={n} />
+            ))}
+          </colgroup>
           <thead>
             <tr className="text-navy-300">
               <th className="text-left font-normal pr-1 sticky left-0 bg-navy-900/50 z-10">
@@ -32,10 +44,10 @@ export function RoundBreakdownTable({
               {playerOrder.map((n) => (
                 <th
                   key={n}
-                  className="font-normal px-1 text-right truncate max-w-[60px]"
+                  className="font-normal px-1 text-right"
                   title={n}
                 >
-                  {shortName(n, playerOrder, 7)}
+                  <span className="block truncate">{shortName(n, playerOrder, 7)}</span>
                 </th>
               ))}
             </tr>
