@@ -1,9 +1,11 @@
-import type { ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { TrickArea } from './TrickArea';
 import { OpponentTile } from './OpponentTile';
 import { CardImage } from './CardImage';
 import { OverlayBanner } from './OverlayBanner';
 import { useTyping } from '../hooks/useChat';
+import { useCheers } from '../hooks/useCheers';
+import { CheerBurst, TileReactionPicker } from './TileReactions';
 import { distributeSeats, viewerSlotIndex } from '../lib/seats';
 import type { Suit, Card } from '../lib/types';
 import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
@@ -104,6 +106,14 @@ export function Table({
   // bottom-up, so reverse.
   const leftCol = [...leftSlots].reverse();
   const typing = useTyping(room.code, room.playerOrder, myName);
+  // Tap a tile for the reaction picker; reactions land on the tiles.
+  const cheers = useCheers(room.code, myName);
+  const [picker, setPicker] = useState<{ name: string; el: HTMLElement } | null>(null);
+  const onTileTap = useCallback((name: string, el: HTMLElement) => {
+    setPicker((p) => (p?.name === name ? null : { name, el }));
+  }, []);
+  const closePicker = useCallback(() => setPicker(null), []);
+  const cheersFor = (name: string) => cheers.filter((c) => c.to === name);
   const topRow = topSlots;
   const rightCol = rightSlots;
 
@@ -122,6 +132,8 @@ export function Table({
                   playerMeta={playersByName.get(name)}
                   paused={paused}
                   typing={typing.includes(name)}
+                  cheers={cheersFor(name)}
+                  onTap={onTileTap}
                 />
               </div>
             ) : (
@@ -146,6 +158,8 @@ export function Table({
                   playerMeta={playersByName.get(name)}
                   paused={paused}
                   typing={typing.includes(name)}
+                  cheers={cheersFor(name)}
+                  onTap={onTileTap}
                 />
               ) : (
                 <div key={`left-${i}`} />
@@ -190,6 +204,13 @@ export function Table({
           {/* Transient announcements (reactions, undo, votes, last-round)
               docked at top-left of the trick area. */}
           <OverlayBanner room={room} myName={myName} />
+          {/* Reactions aimed at you land at the bottom of the felt, by your hand. */}
+          <div className="absolute left-0 right-0 bottom-3 h-12 pointer-events-none">
+            <CheerBurst cheers={cheersFor(myName)} playerOrder={room.playerOrder} myName={myName} big />
+          </div>
+          {picker && room.playerOrder.includes(picker.name) && (
+            <TileReactionPicker room={room} target={picker.name} anchor={picker.el} onClose={closePicker} />
+          )}
           {/* Centered column: trump pick, "X won" banner, commentary. */}
           {centerBanner && (
             <div className="absolute inset-0 z-[300] flex items-center justify-center pointer-events-none">
@@ -211,6 +232,8 @@ export function Table({
                   playerMeta={playersByName.get(name)}
                   paused={paused}
                   typing={typing.includes(name)}
+                  cheers={cheersFor(name)}
+                  onTap={onTileTap}
                 />
               ) : (
                 <div key={`right-${i}`} />

@@ -4,6 +4,8 @@ import { isConnected } from '../lib/presence';
 import { botDifficultyOf } from '../lib/rooms';
 import type { Suit } from '../lib/types';
 import { TypingDots } from './TypingDots';
+import { CheerBurst } from './TileReactions';
+import type { Cheer } from '../lib/socket';
 import { winningPlayIndex } from '../game/trickWinner';
 import type { RoomSnapshot, PlayerSnapshot } from '../hooks/useRoom';
 
@@ -24,6 +26,10 @@ type Props = {
   paused?: boolean;
   /** Has a chat line on the way: a small bubble of dots on the tile. */
   typing?: boolean;
+  /** Reactions aimed at this player right now (clap, shock). */
+  cheers?: Cheer[];
+  /** Tapped: the table opens the reaction picker docked on this element. */
+  onTap?: (name: string, el: HTMLElement) => void;
 };
 
 /**
@@ -39,6 +45,8 @@ export function OpponentTile({
   playerMeta,
   paused = false,
   typing = false,
+  cheers,
+  onTap,
 }: Props) {
   const dealerName = room.playerOrder[room.dealerIndex];
   const isDealer = playerName === dealerName;
@@ -132,7 +140,12 @@ export function OpponentTile({
   }
 
   return (
-    <div className="flex flex-col items-stretch min-w-0">
+    <div
+      className={`relative flex flex-col items-stretch min-w-0 ${onTap ? 'cursor-pointer' : ''}`}
+      role={onTap ? 'button' : undefined}
+      aria-label={onTap ? `React to ${playerName}` : undefined}
+      onClick={onTap ? (e) => onTap(playerName, e.currentTarget) : undefined}
+    >
       <div
         className={`text-[10px] font-semibold truncate text-center leading-tight px-0.5 ${color.text}`}
         title={botDifficulty ? `${playerName} · computer (${botDifficulty})` : playerName}
@@ -231,6 +244,10 @@ export function OpponentTile({
         />
       )}
     </div>
+      {/* Outside the tile box: a waiting tile is dimmed, the reaction is not. */}
+      {cheers && cheers.length > 0 && (
+        <CheerBurst cheers={cheers} playerOrder={room.playerOrder} myName={myName} />
+      )}
     </div>
   );
 }

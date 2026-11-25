@@ -17,6 +17,8 @@ function CardText({ card }: { card: Card }) {
   return <span className={`font-bold tabular-nums ${SUIT_TONE[card.suit]}`}>{rank}{SUIT_GLYPH[card.suit]}</span>;
 }
 
+const ROW_LABEL = 'py-1 text-left text-[9px] font-bold uppercase tracking-[0.1em] text-navy-300';
+
 type Trick = { n: number; plays: Array<{ player: string; card: Card }>; winner?: string };
 type RoundView = {
   round: number;
@@ -58,9 +60,10 @@ function roundsFromLog(log: LogEntry[]): RoundView[] {
 }
 
 /**
- * The game log in the menu (2026-11-25): every round, newest first. The
- * round being played is open; finished rounds are one line (who made
- * their bid) and open on a tap to show each trick's cards. The room only
+ * The game log in the menu (2026-11-25): every round, newest first, each
+ * a small score sheet (a column per player; rows for the bid, each trick's
+ * cards, tricks won, points). The round being played is open; finished
+ * rounds show bid / won / points and open on a tap for the cards. The room only
  * carries the current round, so the whole log is asked from the server
  * when this opens and again whenever something new is logged.
  */
@@ -91,6 +94,12 @@ export function GameLog({ room, myName }: { room: RoomSnapshot; myName: string }
         const isOpen = open[v.round] ?? current;
         const won: Record<string, number> = {};
         for (const t of v.tricks) if (t.winner) won[t.winner] = (won[t.winner] ?? 0) + 1;
+        const bidOf: Record<string, number> = {};
+        for (const b of v.bids) bidOf[b.player] = b.bid;
+        // Columns: bid order (the seat after the dealer first), plus anyone
+        // who only shows up in a trick.
+        const cols = v.bids.map((b) => b.player);
+        for (const t of v.tricks) for (const p of t.plays) if (!cols.includes(p.player)) cols.push(p.player);
         return (
           <section key={v.round} className="border-t border-gold-700/20 pt-2 first:border-t-0 first:pt-0">
             <button
@@ -111,62 +120,97 @@ export function GameLog({ room, myName }: { room: RoomSnapshot; myName: string }
               <ChevronDownIcon size={11} className={`shrink-0 text-navy-300 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 
-            {/* One line per round: bid, tricks won, and the points once scored. */}
-            {v.bids.length > 0 && (
-              <p className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] leading-snug">
-                {v.bids.map((b) => {
-                  const delta = v.scores?.[b.player];
-                  return (
-                    <span key={b.player} className="whitespace-nowrap">
-                      <span className="text-cream">{name(b.player)}</span>{' '}
-                      <span className="tabular-nums font-semibold text-navy-200">
-                        {v.scores || v.tricks.length > 0 ? `${won[b.player] ?? 0}/${b.bid}` : `bid ${b.bid}`}
-                      </span>
-                      {delta !== undefined && (
-                        <span className={`tabular-nums font-bold ${delta > 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
-                          {' '}{delta > 0 ? `+${delta}` : delta}
-                        </span>
-                      )}
-                    </span>
-                  );
-                })}
-              </p>
+            {/* A score sheet per round: one column per player (in bid
+                order), a row for the bid, one per trick with the card each
+                played, then tricks won and the points. Closed rounds keep
+                the bid, won and points rows only. */}
+            {cols.length > 0 && (
+              <div className="mt-1.5 overflow-x-auto">
+                <table className="w-full table-fixed text-[12px] tabular-nums" style={{ minWidth: 30 + cols.length * 46 }}>
+                  <colgroup>
+                    <col style={{ width: 30 }} />
+                    {cols.map((n) => <col key={n} />)}
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th />
+                      {cols.map((n) => (
+                        <th key={n} className="px-0.5 pb-1 text-center font-semibold text-[11px] text-cream">
+                          <span className="block truncate">{name(n)}</span>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t border-gold-700/15">
+                      <td className={ROW_LABEL}>Bid</td>
+                      {cols.map((n) => (
+                        <td key={n} className="py-1 text-center font-semibold text-navy-100">{bidOf[n] ?? '·'}</td>
+                      ))}
+                    </tr>
+                    {isOpen && v.tricks.map((t) => (
+                      <tr key={t.n} className="border-t border-gold-700/15">
+                        <td className="py-1 text-left text-[11px] text-navy-400">{t.n}</td>
+                        {cols.map((n) => {
+                          const play = t.plays.find((p) => p.player === n);
+                          const led = t.plays[0]?.player === n;
+                          const took = t.winner === n;
+                          return (
+                            <td key={n} className="py-0.5 text-center">
+                              {play ? (
+                                <span className={`inline-block rounded px-1 py-0.5 leading-none ${took ? 'bg-gold-300/15 ring-1 ring-gold-300/60' : ''}`}>
+                                  {led && <span className="mr-0.5 text-navy-300" aria-label="led">•</span>}
+                                  <CardText card={play.card} />
+                                </span>
+                              ) : (
+                                <span className="text-navy-400">·</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                    {(v.tricks.length > 0 || v.scores) && (
+                      <tr className="border-t border-gold-700/15">
+                        <td className={ROW_LABEL}>Won</td>
+                        {cols.map((n) => {
+                          const w = won[n] ?? 0;
+                          const done = !!v.scores;
+                          const tone = bidOf[n] === undefined ? 'text-navy-100' : w === bidOf[n] ? (done ? 'text-emerald-300' : 'text-navy-100') : w > bidOf[n] ? 'text-rose-300' : done ? 'text-rose-300' : 'text-sky-300';
+                          return <td key={n} className={`py-1 text-center font-semibold ${tone}`}>{w}</td>;
+                        })}
+                      </tr>
+                    )}
+                    {v.scores && (
+                      <tr className="border-t border-gold-700/15">
+                        <td className={ROW_LABEL}>Pts</td>
+                        {cols.map((n) => {
+                          const d = v.scores?.[n];
+                          return (
+                            <td key={n} className={`py-1 text-center font-bold ${d === undefined ? 'text-navy-400' : d > 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                              {d === undefined ? '·' : d > 0 ? `+${d}` : d}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             )}
+            {cols.length === 0 && <p className="mt-1 text-[12px] text-navy-300">No bids yet.</p>}
 
             {v.shames.map((sh, i) => (
-              <p key={i} className="mt-1 text-[12px] leading-snug text-rose-300">
+              <p key={i} className="mt-1.5 text-[12px] leading-snug text-rose-300">
                 <span className="shame-chip mr-1.5">shame</span>
-                {name(sh.player)}, called by {name(sh.by).toLowerCase() === 'you' ? 'you' : name(sh.by)}
+                {name(sh.player)}, called by {name(sh.by) === 'You' ? 'you' : name(sh.by)}
               </p>
             ))}
-
-            {isOpen && v.tricks.length > 0 && (
-              <ol className="mt-1.5 space-y-1">
-                {v.tricks.map((t) => (
-                  <li key={t.n} className="flex gap-2 text-[12px] leading-snug">
-                    <span className="w-4 shrink-0 text-right tabular-nums text-navy-400">{t.n}</span>
-                    <span className="flex flex-wrap gap-x-2.5 gap-y-0.5">
-                      {t.plays.map((p, i) => (
-                        <span key={i} className="whitespace-nowrap">
-                          <span className={p.player === t.winner ? 'font-semibold text-gold-text' : 'text-navy-200'}>
-                            {name(p.player)}
-                          </span>{' '}
-                          <CardText card={p.card} />
-                        </span>
-                      ))}
-                    </span>
-                  </li>
-                ))}
-              </ol>
-            )}
-            {isOpen && v.tricks.length === 0 && v.bids.length === 0 && (
-              <p className="mt-1 text-[12px] text-navy-300">No bids yet.</p>
-            )}
           </section>
         );
       })}
-      <p className="text-[11px] text-navy-400 pt-1">
-        {failed && !log ? 'Earlier rounds could not load. ' : ''}Gold name = took the trick.
+      <p className="text-[11px] leading-snug text-navy-400 pt-1 whitespace-normal">
+        {failed && !log ? 'Earlier rounds could not load. ' : ''}Gold box = took the trick · dot = led it. Tap a round for its cards.
       </p>
     </div>
   );

@@ -24,6 +24,10 @@ export type PlayerSnapshot = {
 };
 export type ChatLine = { player: string; text: string; ts: number; w: string; cts?: number; r?: Record<string, string>; sys?: boolean };
 
+/** A reaction aimed at a player's tile; lives a few seconds on screen. */
+export type Cheer = { id: number; from: string; to: string; emoji: string; at: number };
+export const CHEER_SHOW_MS = 2600;
+
 export type ConnectionState = {
   room: RoomSnapshot | null;
   hand: Card[] | null;
@@ -31,6 +35,8 @@ export type ConnectionState = {
   chat: ChatLine[];
   /** Who has a chat draft going, name -> epoch ms the hint runs out. */
   typing: Record<string, number>;
+  /** Tile reactions still on screen, oldest first. */
+  cheers: Cheer[];
   /** 'connecting' until the first snapshot; 'online' while the socket is
    *  up; 'reconnecting' after it dropped; 'closed' after a fatal error. */
   link: 'connecting' | 'online' | 'reconnecting' | 'closed';
@@ -58,7 +64,7 @@ export const TYPING_TTL_MS = 6000;
 const TYPING_RESEND_MS = 3000;
 
 export class RoomConnection {
-  state: ConnectionState = { room: null, hand: null, players: [], chat: [], typing: {}, link: 'connecting', error: null };
+  state: ConnectionState = { room: null, hand: null, players: [], chat: [], typing: {}, cheers: [], link: 'connecting', error: null };
   private ws: WebSocket | null = null;
   private listeners = new Set<Listener>();
   private pending = new Map<string, Pending>();
@@ -118,6 +124,16 @@ export class RoomConnection {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ t: 'typing', on }));
   }
   private typingSentAt = 0;
+
+  /** Send a reaction at `to`'s tile. A hint like typing: no ack, dropped offline. */
+  cheer(to: string, emoji: string): void {
+    const now = Date.now();
+    if (now - this.cheerSentAt < 400) return;
+    this.cheerSentAt = now;
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ t: 'cheer', to, emoji }));
+  }
+  private cheerSentAt = 0;
+  private cheerSeq = 0;
 
   close(): void {
     this.closed = true;
@@ -185,6 +201,12 @@ export class RoomConnection {
         if (msg.on) typing[String(msg.name)] = Date.now() + TYPING_TTL_MS;
         else delete typing[String(msg.name)];
         this.set({ typing });
+        return;
+      }
+      if (msg.t === 'cheer') {
+        const now = Date.now();
+        const cheer: Cheer = { id: ++this.cheerSeq, from: String(msg.from), to: String(msg.to), emoji: String(msg.emoji), at: now };
+        this.set({ cheers: [...this.state.cheers.filter((c) => now - c.at < CHEER_SHOW_MS), cheer] });
         return;
       }
       if (msg.t === 'ack') {

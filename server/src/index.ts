@@ -14,11 +14,13 @@ export { type Env };
 //   { t: 'hello', token, join?: boolean }         first message on a socket
 //   { t: 'act', id, action, args }                 one game action, acked
 //   { t: 'typing', on }                            chat box has a draft (not stored)
+//   { t: 'cheer', to, emoji }                      reaction at a player's tile (not stored)
 // server → client
 //   { t: 'state', seq, room, hand, players, chat? }  full snapshot (+chat on hello)
 //   { t: 'chat', msg }                              one new chat line
 //   { t: 'chatEdit', msg }                          a line's reactions changed
 //   { t: 'typing', name, on }                       someone else's draft
+//   { t: 'cheer', from, to, emoji }                 a tile reaction, to everyone
 //   { t: 'ack', id, ok: true, result? } | { t: 'ack', id, ok: false, code }
 //   { t: 'error', code }                            hello failed; socket closes
 
@@ -166,6 +168,18 @@ export class RoomDO {
     // never stored, so it costs nothing when nobody is chatting.
     if (msg.t === 'typing') {
       this.sendOthers(name, { t: 'typing', name, on: Boolean((msg as { on?: unknown }).on) });
+      return;
+    }
+
+    // A tap-on-a-tile reaction (clap, shock): relayed to every socket,
+    // the sender's too, and never stored.
+    if (msg.t === 'cheer') {
+      const to = String((msg as { to?: unknown }).to ?? '');
+      const emoji = String((msg as { emoji?: unknown }).emoji ?? '');
+      const order = this.state.room.playerOrder;
+      if ((E.TILE_REACTIONS as readonly string[]).includes(emoji) && to !== name && order.includes(to) && order.includes(name)) {
+        this.sendAll({ t: 'cheer', from: name, to, emoji });
+      }
       return;
     }
 

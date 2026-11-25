@@ -60,6 +60,9 @@ export type ChatMessage = { player: string; text: string; ts: number; w: string;
 /** The reactions a chat line takes (tap a line to pick one). */
 export const CHAT_REACTIONS = ['😂', '👍', '❤️'] as const;
 
+/** Quick reactions sent at a player by tapping their tile (not stored). */
+export const TILE_REACTIONS = ['👏', '😱'] as const;
+
 /** Everything the server knows about one room. */
 export type EngineState = {
   room: RoomDoc & { code: string };
