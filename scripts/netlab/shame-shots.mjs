@@ -62,7 +62,7 @@ async function drive(until, ms = 120000) {
     return false;
   }, ms);
 }
-await drive((r) => r.round === 2 && r.status === 'playing' && r.trick === 2);
+await drive((r) => r.round === 3 && r.status === "playing" && r.trick === 3);
 await sleep(2200);
 
 console.log('menu + game log');
@@ -148,7 +148,7 @@ ok(/called by you/i.test(await text(A)), 'log records who called it');
 await A.click('button[aria-label="Close"]');
 
 console.log('play to the end: point reaches the final screen');
-await drive((r) => r.status === 'scoring' && r.round === 2);
+await drive((r) => r.status === "scoring" && r.round === 3);
 await clickText(A, /end game now/);
 for (const p of [B, C]) await clickText(p, /^Yes$/).catch(() => {});
 await waitFor(async () => (await room(A))?.status === 'finished', 20000);

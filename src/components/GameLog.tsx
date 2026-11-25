@@ -61,9 +61,9 @@ function roundsFromLog(log: LogEntry[]): RoundView[] {
 
 /**
  * The game log in the menu (2026-11-25): every round, newest first, each
- * a small score sheet (a column per player; rows for the bid, each trick's
- * cards, tricks won, points). The round being played is open; finished
- * rounds show bid / won / points and open on a tap for the cards. The room only
+ * a list of its hands (who took each one and with which card, then every
+ * card in play order; Jorge: the log is each hand, not a round summary)
+ * over a small bid / won / points table. A tap on a round folds its hands. The room only
  * carries the current round, so the whole log is asked from the server
  * when this opens and again whenever something new is logged.
  */
@@ -90,8 +90,7 @@ export function GameLog({ room, myName }: { room: RoomSnapshot; myName: string }
   return (
     <div className="space-y-2">
       {rounds.map((v) => {
-        const current = v.round === room.currentRound && room.status !== 'finished';
-        const isOpen = open[v.round] ?? current;
+        const isOpen = open[v.round] ?? true;
         const won: Record<string, number> = {};
         for (const t of v.tricks) if (t.winner) won[t.winner] = (won[t.winner] ?? 0) + 1;
         const bidOf: Record<string, number> = {};
@@ -120,10 +119,48 @@ export function GameLog({ room, myName }: { room: RoomSnapshot; myName: string }
               <ChevronDownIcon size={11} className={`shrink-0 text-navy-300 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 
-            {/* A score sheet per round: one column per player (in bid
-                order), a row for the bid, one per trick with the card each
-                played, then tricks won and the points. Closed rounds keep
-                the bid, won and points rows only. */}
+            {/* The round's totals: one column per player (in bid order),
+                rows for the bid, tricks won and the points. */}
+            {/* Every hand of the round, newest first: who took it and with
+                which card, then what each player put down, in play order. */}
+            {isOpen && v.tricks.length > 0 && (
+              <ol className="mt-1.5 divide-y divide-gold-700/10">
+                {[...v.tricks].reverse().map((t) => {
+                  const winning = t.plays.find((p) => p.player === t.winner);
+                  return (
+                    <li key={t.n} className="flex gap-2 py-1.5 whitespace-normal">
+                      <span className="w-[42px] shrink-0 pt-px text-[9px] font-bold uppercase tracking-[0.1em] text-navy-300 leading-[18px]">
+                        Hand {t.n}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13px] leading-[18px]">
+                          {t.winner && winning ? (
+                            <>
+                              <span className="font-semibold text-gold-text">{name(t.winner)}</span>
+                              <span className="text-navy-200"> won with </span>
+                              <CardText card={winning.card} />
+                            </>
+                          ) : (
+                            <span className="text-navy-200">In play</span>
+                          )}
+                        </span>
+                        <span className="mt-0.5 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] leading-snug">
+                          {t.plays.map((p, i) => (
+                            <span key={i} className="whitespace-nowrap">
+                              <span className={p.player === t.winner ? 'text-gold-text' : 'text-navy-300'}>
+                                {i === 0 ? 'led ' : ''}{name(p.player)}
+                              </span>{' '}
+                              <CardText card={p.card} />
+                            </span>
+                          ))}
+                        </span>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+
             {cols.length > 0 && (
               <div className="mt-1.5 overflow-x-auto">
                 <table className="w-full table-fixed text-[12px] tabular-nums" style={{ minWidth: 30 + cols.length * 46 }}>
@@ -148,28 +185,6 @@ export function GameLog({ room, myName }: { room: RoomSnapshot; myName: string }
                         <td key={n} className="py-1 text-center font-semibold text-navy-100">{bidOf[n] ?? '·'}</td>
                       ))}
                     </tr>
-                    {isOpen && v.tricks.map((t) => (
-                      <tr key={t.n} className="border-t border-gold-700/15">
-                        <td className="py-1 text-left text-[11px] text-navy-400">{t.n}</td>
-                        {cols.map((n) => {
-                          const play = t.plays.find((p) => p.player === n);
-                          const led = t.plays[0]?.player === n;
-                          const took = t.winner === n;
-                          return (
-                            <td key={n} className="py-0.5 text-center">
-                              {play ? (
-                                <span className={`inline-block rounded px-1 py-0.5 leading-none ${took ? 'bg-gold-300/15 ring-1 ring-gold-300/60' : ''}`}>
-                                  {led && <span className="mr-0.5 text-navy-300" aria-label="led">•</span>}
-                                  <CardText card={play.card} />
-                                </span>
-                              ) : (
-                                <span className="text-navy-400">·</span>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
                     {(v.tricks.length > 0 || v.scores) && (
                       <tr className="border-t border-gold-700/15">
                         <td className={ROW_LABEL}>Won</td>
@@ -210,7 +225,7 @@ export function GameLog({ room, myName }: { room: RoomSnapshot; myName: string }
         );
       })}
       <p className="text-[11px] leading-snug text-navy-400 pt-1 whitespace-normal">
-        {failed && !log ? 'Earlier rounds could not load. ' : ''}Gold box = took the trick · dot = led it. Tap a round for its cards.
+        {failed && !log ? 'Earlier rounds could not load. ' : ''}Each hand lists the cards in the order they were played. Tap a round to fold it.
       </p>
     </div>
   );
