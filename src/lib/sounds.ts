@@ -281,3 +281,39 @@ export function playSparkleSound(): void {
     shimmer.onended = () => bus.disconnect();
   });
 }
+
+/** Shame point: the scorekeeper's boo (two detuned saws sliding down). */
+export function playBooSound(): void {
+  play((ctx, dest, t) => {
+    const duration = 0.8;
+    const bus = tapBus(ctx, dest, 0.7);
+    const gain = ctx.createGain();
+    const distortion = ctx.createWaveShaper();
+    const curve = new Float32Array(256);
+    for (let i = 0; i < 256; i++) {
+      const x = (i * 2) / 256 - 1;
+      curve[i] = (Math.PI + 200 * x) / (Math.PI + 200 * Math.abs(x));
+    }
+    distortion.curve = curve;
+    const osc1 = ctx.createOscillator();
+    osc1.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(180, t);
+    osc1.frequency.exponentialRampToValueAtTime(80, t + duration);
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'square';
+    osc2.frequency.setValueAtTime(120, t);
+    osc2.frequency.exponentialRampToValueAtTime(60, t + duration);
+    gain.gain.setValueAtTime(0.6, t);
+    gain.gain.linearRampToValueAtTime(0.8, t + 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + duration);
+    osc1.connect(distortion);
+    osc2.connect(distortion);
+    distortion.connect(gain);
+    gain.connect(bus);
+    osc1.start(t);
+    osc2.start(t);
+    osc1.stop(t + duration);
+    osc2.stop(t + duration);
+    osc1.onended = () => bus.disconnect();
+  });
+}

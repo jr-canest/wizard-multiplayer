@@ -16,7 +16,7 @@ import {
 import { db, isProduction } from './firebase';
 import { botDifficultyOf } from './rooms';
 import type { BotDifficulty, LogEntry, RoomDoc } from './types';
-import { claimHistory, markHistorySaved } from './gameFlow';
+import { claimHistory, markHistorySaved, shameCounts } from './gameFlow';
 
 /**
  * Test/dev signals that should keep the game out of the shared history,
@@ -138,6 +138,7 @@ export async function saveMultiplayerGame(
   );
   const idsByName = new Map(idEntries);
 
+  const shames = shameCounts(room.log);
   const results: RankedResult[] = ranked.map((r) => {
     const bot = botDifficultyOf(room, r.name);
     return {
@@ -145,7 +146,7 @@ export async function saveMultiplayerGame(
       name: r.name,
       score: r.score,
       rank: r.rank,
-      shamePoints: 0,
+      shamePoints: shames[r.name] ?? 0,
       ...(bot ? { bot } : {}),
     };
   });
@@ -180,6 +181,7 @@ export async function saveMultiplayerGame(
         gamesPlayed: increment(1),
         totalScore: increment(r.score),
       };
+      if (r.shamePoints > 0) updates.totalShamePoints = increment(r.shamePoints);
       if (winners.some((w) => w.name === r.name)) {
         updates.wins = increment(1);
       }

@@ -2,7 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   computeRoundDeltas,
   cumulativeScoresFromLog,
+  openShameVote,
+  shameCounts,
 } from '../lib/gameFlow';
+import { isBot } from '../lib/rooms';
+import { GameLog } from './GameLog';
 import { playerColor , colorOrder } from '../lib/playerColors';
 import { getUIZoom } from '../hooks/useUIScale';
 import { useSoundEnabled } from '../hooks/useGameSounds';
@@ -11,7 +15,7 @@ import type { RoomSnapshot } from '../hooks/useRoom';
 import { useNavigate } from 'react-router-dom';
 import { leaveGame } from '../lib/rooms';
 import { setActiveRoomCode } from '../hooks/useActiveRoom';
-import { CloseIcon, MenuIcon } from './Icons';
+import { BackIcon, ChevronRightIcon, CloseIcon, MenuIcon } from './Icons';
 
 type Props = {
   room: RoomSnapshot;
@@ -22,10 +26,14 @@ type Props = {
  * The "burger menu" on the round header: running cumulative totals (with
  * the current round folded in if we're on the scoring screen), the Sound
  * switch and "Leave game" (2026-10-20), which asks first and then lets the
- * others play on. All voting lives on the round-end RoundScoreboard.
+ * others play on. Since 2026-11-25 also two side views: "Game log" (every
+ * round's bids and tricks, GameLog) and "Shame a player", which opens a
+ * table vote (ShameVoteModal). Round votes live on RoundScoreboard.
  */
 export function GameMenu({ room, myName }: Props) {
   const [open, setOpen] = useState(false);
+  const [view, setView] = useState<'main' | 'log' | 'shame'>('main');
+  const [shameBusy, setShameBusy] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [leaveError, setLeaveError] = useState(false);
@@ -94,6 +102,11 @@ export function GameMenu({ room, myName }: Props) {
   const standings = [...room.playerOrder].sort(
     (a, b) => liveTotal(b) - liveTotal(a),
   );
+  const shames = shameCounts(room.log);
+  const inGame = room.status !== 'finished' && room.status !== 'lobby';
+  // Anyone but yourself and the computers can be put to the vote.
+  const shameTargets = room.playerOrder.filter((n) => n !== myName && !isBot(room, n));
+  const voteOpen = Boolean(room.pendingShame || room.pendingVote || room.pendingUndo?.requested);
 
   return (
     <>
@@ -103,6 +116,7 @@ export function GameMenu({ room, myName }: Props) {
         onClick={() => {
           setOpen((v) => !v);
           setConfirmLeave(false);
+          setView('main');
         }}
         aria-label="Scores"
         className="ml-1 w-7 h-7 shrink-0 rounded-full bg-[rgba(20,26,44,.8)] border border-gold-300/40 flex items-center justify-center text-cream active:scale-95 transition"
@@ -136,12 +150,23 @@ export function GameMenu({ room, myName }: Props) {
             }}
           >
             <div className="flex items-center justify-between">
-              <span className="section-label">
-                Total scores
-              </span>
-              <span className="text-[11px] tabular-nums text-navy-300">
-                Round {room.currentRound}/{room.totalRounds}
-              </span>
+              {view === 'main' ? (
+                <span className="section-label">Total scores</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setView('main')}
+                  className="-ml-1 flex items-center gap-1 section-label"
+                >
+                  <BackIcon size={11} />
+                  {view === 'log' ? 'Game log' : 'Shame a player'}
+                </button>
+              )}
+              {view === 'main' && (
+                <span className="text-[11px] tabular-nums text-navy-300">
+                  Round {room.currentRound}/{room.totalRounds}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -152,6 +177,51 @@ export function GameMenu({ room, myName }: Props) {
               </button>
             </div>
 
+            {view === 'log' && (
+              <div
+                className="overflow-y-auto overscroll-contain -mr-1 pr-1"
+                style={{ maxHeight: 'calc(62svh / var(--ui-zoom, 1))' }}
+              >
+                <GameLog room={room} myName={myName} />
+              </div>
+            )}
+
+            {view === 'shame' && (
+              <div className="space-y-2">
+                <p className="text-[13px] leading-snug text-cream whitespace-normal">
+                  Who gets a shame point? {shameTargets.length > 1 ? 'The rest of the table votes.' : 'It lands right away.'}
+                </p>
+                {voteOpen && (
+                  <p className="text-[12px] text-navy-300 whitespace-normal">Another vote is open. Try again after it.</p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {shameTargets.map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      disabled={voteOpen || shameBusy}
+                      onClick={async () => {
+                        setShameBusy(true);
+                        try {
+                          await openShameVote(room.code, name);
+                          setOpen(false);
+                          setView('main');
+                        } catch {
+                          /* stays open; the table state shows why */
+                        } finally {
+                          setShameBusy(false);
+                        }
+                      }}
+                      className="btn-secondary px-3 py-2 font-display font-semibold text-[15px] disabled:opacity-50"
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {view === 'main' && (<>
             <ul className="divide-y divide-gold-700/20">
               {standings.map((name, i) => {
                 const score = liveTotal(name);
@@ -181,6 +251,11 @@ export function GameMenu({ room, myName }: Props) {
                           {won}/{bid}
                         </span>
                       )}
+                      {(shames[name] ?? 0) > 0 && (
+                        <span className="shame-chip whitespace-nowrap">
+                          shame{shames[name] > 1 ? ` ×${shames[name]}` : ''}
+                        </span>
+                      )}
                     </span>
                     <span
                       className={`tabular-nums font-bold text-lg ${
@@ -197,6 +272,26 @@ export function GameMenu({ room, myName }: Props) {
                 );
               })}
             </ul>
+
+            <button
+              type="button"
+              onClick={() => setView('log')}
+              className="w-full flex items-center justify-between pt-2.5 border-t border-gold-700/20 text-sm text-cream"
+            >
+              <span>Game log</span>
+              <ChevronRightIcon className="text-navy-300" />
+            </button>
+
+            {inGame && shameTargets.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setView('shame')}
+                className="w-full flex items-center justify-between pt-2.5 border-t border-gold-700/20 text-sm text-cream"
+              >
+                <span>Shame a player</span>
+                <ChevronRightIcon className="text-navy-300" />
+              </button>
+            )}
 
             {/* Sound on/off for this phone (the silent switch mutes it too). */}
             <button
@@ -271,6 +366,7 @@ export function GameMenu({ room, myName }: Props) {
                   Leave game
                 </button>
               ))}
+            </>)}
           </div>
         </>
       )}

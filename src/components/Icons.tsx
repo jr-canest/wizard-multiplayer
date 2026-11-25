@@ -26,6 +26,9 @@ export const CloseIcon = ({ size = 12, className }: P) => (
 export const BackIcon = ({ size = 12, className }: P) => (
   <svg {...base(size, className)}><path d="M9.5 3.5L5 8l4.5 4.5" /></svg>
 );
+export const ChevronRightIcon = ({ size = 12, className }: P) => (
+  <svg {...base(size, className)}><path d="M6 4l4 4-4 4" /></svg>
+);
 export const ChevronDownIcon = ({ size = 12, className }: P) => (
   <svg {...base(size, className)}><path d="M4 6l4 4 4-4" /></svg>
 );

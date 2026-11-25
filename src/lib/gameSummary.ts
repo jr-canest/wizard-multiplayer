@@ -1,6 +1,7 @@
 import type { RoomDoc } from './types';
 import type { AISummaryPayload } from './firebase';
 import { roundsPlayed } from './history';
+import { shameCounts } from '../game/engine';
 
 // Names are wrapped in <b> tags for bold rendering.
 function b(name: string): string {
@@ -263,12 +264,13 @@ export function buildAISummaryPayload(room: RoomDoc): AISummaryPayload {
     if (bestName !== null) finalRoundLeader = { name: bestName, delta: bestDelta };
   }
 
+  const shames = shameCounts(room.log);
   return {
     players: standings.map((s) => ({
       name: s.name,
       score: s.score,
       rank: s.rank,
-      shamePoints: 0,
+      shamePoints: shames[s.name] ?? 0,
     })),
     roundCount: roundsPlayed(room),
     canadianRules: !!room.canadianRule,

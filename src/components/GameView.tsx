@@ -19,6 +19,8 @@ import { playCardSound } from '../lib/sounds';
 import { useGameSounds } from '../hooks/useGameSounds';
 import { GameMenu } from './GameMenu';
 import { UndoVoteModal } from './UndoVoteModal';
+import { ShameVoteModal } from './ShameVoteModal';
+import { BooToast } from './BooToast';
 import { Table } from './Table';
 import { FoldSlot } from './FoldSlot';
 import { DealAnimation } from './DealAnimation';
@@ -462,6 +464,9 @@ export function GameView({ room, players, myName }: Props) {
 
       {/* Table-wide undo vote. Renders over everything and pauses play. */}
       <UndoVoteModal room={room} myName={myName} />
+      {/* Shame point vote (does not pause play) and its BOO when it carries. */}
+      <ShameVoteModal room={room} myName={myName} />
+      <BooToast room={room} />
 
 
       {showOpponents && (

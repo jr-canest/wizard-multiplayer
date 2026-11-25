@@ -236,6 +236,19 @@ export class RoomDO {
         if (msg) this.sendAll({ t: 'chatEdit', msg });
         return null;
       }
+      case 'openShameVote': {
+        const msg = E.openShameVote(s, name, str(0), now);
+        if (msg) this.sendAll({ t: 'chat', msg });
+        return null;
+      }
+      case 'castShameVote': {
+        const msg = E.castShameVote(s, name, bool(0), now);
+        if (msg) this.sendAll({ t: 'chat', msg });
+        return null;
+      }
+      case 'cancelShameVote': E.cancelShameVote(s, name); return null;
+      // The whole game so far, for the menu's game log (public plays only).
+      case 'fullLog': return E.fullLog(s);
       case 'leaveGame': {
         const msg = E.leaveGame(s, name, now);
         if (msg) this.sendAll({ t: 'chat', msg });

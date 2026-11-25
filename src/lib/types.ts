@@ -24,6 +24,9 @@ export type LogEntry =
   | { t: 'play'; round: number; trick: number; player: string; card: Card }
   | { t: 'trickWin'; round: number; trick: number; winner: string }
   | { t: 'roundScore'; round: number; scores: Record<string, number> }
+  // A shame point the table voted onto `player` (opened by `by`). Light:
+  // stays on the room for the whole game, so counts are always at hand.
+  | { t: 'shame'; round: number; player: string; by: string }
   | { t: 'gameOver'; finalScores: Record<string, number> };
 
 /**
@@ -129,6 +132,8 @@ export type RoomDoc = {
   // happens (overwritten with that action's snapshot) or when the round
   // is scored and the state is replaced wholesale.
   pendingUndo?: PendingUndo | null;
+  // A shame-point vote in flight (2026-11-25). Does NOT pause the game.
+  pendingShame?: PendingShame | null;
 };
 
 export type UndoSnapshot = {
@@ -197,6 +202,22 @@ export type PendingVote = {
   yes: string[];
   no: string[];
 };
+
+/**
+ * A vote to give `target` a shame point. Everyone but the target votes
+ * (asking is a yes); a majority of those voters carries it, enough no
+ * votes to put that out of reach drop it. The cards keep moving meanwhile.
+ */
+export type PendingShame = {
+  target: string;
+  by: string;
+  at: number;
+  yes: string[];
+  no: string[];
+};
+
+/** How long a shame vote stays open before the server clears it. */
+export const SHAME_VOTE_TTL_MS = 45_000;
 
 /** How long a round-end vote stays open before any client clears it. */
 export const ROUND_VOTE_TTL_MS = 60_000;

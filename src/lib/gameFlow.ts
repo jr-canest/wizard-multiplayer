@@ -8,13 +8,14 @@
  * reference only; nothing imports it.
  */
 import { connectionFor, ActionError } from './socket';
-import type { RoomDoc, RoundVoteKind, Suit, Card } from './types';
+import type { LogEntry, RoomDoc, RoundVoteKind, Suit, Card } from './types';
 export { violatesCanadianRule } from '../game/canadianRule';
 export {
   computeRoundDeltas,
   cumulativeScoresFromLog,
   pruneRoundFromLog,
   roundArchiveOf,
+  shameCounts,
 } from '../game/engine';
 
 export class FlowError extends Error {
@@ -73,6 +74,24 @@ export async function castRoundVote(code: string, _caller: string, voteYes: bool
 
 export async function cancelRoundVote(code: string, _caller: string): Promise<void> {
   await act(code, 'cancelRoundVote');
+}
+
+/** Ask the table to give `target` a shame point. */
+export async function openShameVote(code: string, target: string): Promise<void> {
+  await act(code, 'openShameVote', target);
+}
+
+export async function castShameVote(code: string, voteYes: boolean): Promise<void> {
+  await act(code, 'castShameVote', voteYes);
+}
+
+export async function cancelShameVote(code: string): Promise<void> {
+  await act(code, 'cancelShameVote');
+}
+
+/** Every bid, play and trick of the game so far (the menu's game log). */
+export async function fetchFullLog(code: string): Promise<LogEntry[]> {
+  return act<LogEntry[]>(code, 'fullLog');
 }
 
 /** The server runs the vote clocks itself now; kept so callers need no change. */

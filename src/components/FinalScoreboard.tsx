@@ -10,6 +10,7 @@ import {
   claimAiSummary,
   setSharedAiSummary,
   votePlayAgain,
+  shameCounts,
 } from '../lib/gameFlow';
 import { isPracticeGame, isTestGame } from '../lib/history';
 import { isBot } from '../lib/rooms';
@@ -41,6 +42,7 @@ const POSITIONS = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th'
 export function FinalScoreboard({ room, myName }: Props) {
   const navigate = useNavigate();
   const standings = computeStandings(room);
+  const shames = shameCounts(room.log);
   // Won/bid per round per player, same table the scorekeeper shows at
   // the end of a game and the History detail shows afterwards. Derived
   // from the WHOLE log (archived rounds included), so it is right even
@@ -350,6 +352,11 @@ export function FinalScoreboard({ room, myName }: Props) {
                     {s.name}
                     {isMe ? ' (you)' : ''}
                   </span>
+                  {(shames[s.name] ?? 0) > 0 && (
+                    <span className="shame-chip whitespace-nowrap">
+                      shame{shames[s.name] > 1 ? ` ×${shames[s.name]}` : ''}
+                    </span>
+                  )}
                 </span>
                 <span
                   className={`font-bold tabular-nums text-[22px] leading-none ${

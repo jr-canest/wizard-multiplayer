@@ -13,10 +13,12 @@ import { violatesCanadianRule } from './canadianRule';
 import { chooseBotBid, chooseBotCard, chooseBotTrump, inferVoids } from './botAI';
 import {
   ROUND_VOTE_TTL_MS,
+  SHAME_VOTE_TTL_MS,
   UNDO_VOTE_TTL_MS,
   type BotDifficulty,
   type Card,
   type LogEntry,
+  type PendingShame,
   type PendingUndo,
   type PendingVote,
   type RoomDoc,
@@ -128,6 +130,12 @@ export function cumulativeScoresFromLog(playerOrder: string[], log: LogEntry[]):
   for (const entry of log) {
     if (entry.t === 'roundScore') for (const name of playerOrder) out[name] = (out[name] ?? 0) + (entry.scores[name] ?? 0);
   }
+  return out;
+}
+/** Shame points voted so far, per player. */
+export function shameCounts(log: LogEntry[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const e of log) if (e.t === 'shame') out[e.player] = (out[e.player] ?? 0) + 1;
   return out;
 }
 export function computeRoundDeltas(playerOrder: string[], bids: Record<string, number>, tricksWon: Record<string, number>): Record<string, number> {
@@ -448,6 +456,7 @@ function finish(s: EngineState, final: Record<string, number>): void {
   r.status = 'finished';
   r.pendingUndo = null;
   r.pendingVote = null;
+  r.pendingShame = null;
   r.nextRoundVotes = [];
   s.hands = {};
 }
@@ -460,7 +469,7 @@ function finish(s: EngineState, final: Record<string, number>): void {
  */
 export function finalRoundAwaitingFinish(s: EngineState): boolean {
   const r = s.room;
-  return r.status === 'scoring' && r.currentRound >= r.totalRounds && !r.pendingUndo?.requested && !r.pendingVote;
+  return r.status === 'scoring' && r.currentRound >= r.totalRounds && !r.pendingUndo?.requested && !r.pendingVote && !r.pendingShame;
 }
 
 export function finishFinalRound(s: EngineState): boolean {
@@ -502,7 +511,7 @@ function applyRoundVote(s: EngineState, kind: RoundVoteKind): void {
 
 export function openRoundVote(s: EngineState, name: string, kind: RoundVoteKind, now: number): void {
   const r = s.room;
-  if (r.status !== 'scoring' || r.pendingVote) return;
+  if (r.status !== 'scoring' || r.pendingVote || r.pendingShame) return;
   const real = realPlayers(r);
   if (!real.includes(name)) return;
   if (majority(real.length) <= 1) {
@@ -543,6 +552,7 @@ export function expireVotes(s: EngineState, now: number): boolean {
   let changed = false;
   if (r.pendingVote && now - r.pendingVote.at >= ROUND_VOTE_TTL_MS) { r.pendingVote = null; changed = true; }
   if (r.pendingUndo?.requested && now - (r.pendingUndo.requestedAt ?? 0) >= UNDO_VOTE_TTL_MS) { r.pendingUndo = null; changed = true; }
+  if (r.pendingShame && now - r.pendingShame.at >= SHAME_VOTE_TTL_MS) { r.pendingShame = null; changed = true; }
   return changed;
 }
 
@@ -552,7 +562,62 @@ export function nextExpiry(s: EngineState): number | null {
   const due: number[] = [];
   if (r.pendingVote) due.push(r.pendingVote.at + ROUND_VOTE_TTL_MS);
   if (r.pendingUndo?.requested) due.push((r.pendingUndo.requestedAt ?? 0) + UNDO_VOTE_TTL_MS);
+  if (r.pendingShame) due.push(r.pendingShame.at + SHAME_VOTE_TTL_MS);
   return due.length ? Math.min(...due) : null;
+}
+
+// ─── shame points ───────────────────────────────────────────────────────
+// Any player can ask the table to give someone a shame point (Jorge,
+// 2026-11-25; the scorekeeper's shame button, made a vote). The game does
+// not pause for it. A carried vote adds a 'shame' log entry (History's
+// shamePoints are counted from those) and a notice line in chat.
+
+/** Who votes on shaming `target`: every real player but the target. */
+export function shameVoters(room: RoomDoc, target: string): string[] {
+  return realPlayers(room).filter((n) => n !== target);
+}
+
+function applyShame(s: EngineState, ps: Pick<PendingShame, 'target' | 'by'>, now: number): ChatMessage {
+  const r = s.room;
+  r.pendingShame = null;
+  r.log = [...r.log, { t: 'shame', round: r.currentRound, player: ps.target, by: ps.by }];
+  const msg: ChatMessage = { player: ps.target, text: 'gets a shame point', ts: now, w: chatWindowKey(r), sys: true };
+  s.chat.push(msg);
+  if (s.chat.length > 200) s.chat.splice(0, s.chat.length - 200);
+  return msg;
+}
+
+/** Returns the notice line when the shame point lands at once. */
+export function openShameVote(s: EngineState, name: string, target: string, now: number): ChatMessage | null {
+  const r = s.room;
+  if (r.status === 'lobby' || r.status === 'finished') return null;
+  if (r.pendingShame || r.pendingVote || r.pendingUndo?.requested) return null;
+  if (name === target || !r.playerOrder.includes(target) || isBot(r, target)) return null;
+  const voters = shameVoters(r, target);
+  if (!voters.includes(name)) return null;
+  if (majority(voters.length) <= 1) return applyShame(s, { target, by: name }, now);
+  r.pendingShame = { target, by: name, at: now, yes: [name], no: [] };
+  return null;
+}
+
+export function castShameVote(s: EngineState, name: string, yes: boolean, now: number): ChatMessage | null {
+  const r = s.room;
+  const ps = r.pendingShame;
+  if (!ps || name === ps.by) return null;
+  const voters = shameVoters(r, ps.target);
+  if (!voters.includes(name)) return null;
+  const y = new Set(ps.yes.filter((n) => voters.includes(n)));
+  const n = new Set(ps.no.filter((x) => voters.includes(x)));
+  if (yes) { y.add(name); n.delete(name); } else { n.add(name); y.delete(name); }
+  const threshold = majority(voters.length);
+  if (y.size >= threshold) return applyShame(s, ps, now);
+  if (voters.length - n.size < threshold) { r.pendingShame = null; return null; }
+  r.pendingShame = { ...ps, yes: [...y], no: [...n] };
+  return null;
+}
+
+export function cancelShameVote(s: EngineState, name: string): void {
+  if (s.room.pendingShame?.by === name) s.room.pendingShame = null;
 }
 
 // ─── undo ───────────────────────────────────────────────────────────────
@@ -560,6 +625,9 @@ export function nextExpiry(s: EngineState): number | null {
 function undoRestore(s: EngineState, pu: PendingUndo): void {
   const r = s.room;
   const snap = pu.snapshot;
+  // The undo rolls the log back; a shame point voted since then stays.
+  const keptLog = snap.log ?? r.log.slice(0, snap.logLen ?? r.log.length);
+  const shamesSince = r.log.slice(keptLog.length).filter((e) => e.t === 'shame');
   Object.assign(r, {
     bids: snap.bids,
     currentPlayerIndex: snap.currentPlayerIndex,
@@ -569,7 +637,7 @@ function undoRestore(s: EngineState, pu: PendingUndo): void {
     tricksWon: snap.tricksWon,
     trickHistory: snap.trickHistory ?? r.trickHistory.slice(0, snap.trickHistoryLen ?? r.trickHistory.length),
     currentTrick: snap.currentTrick,
-    log: snap.log ?? r.log.slice(0, snap.logLen ?? r.log.length),
+    log: [...keptLog, ...shamesSince],
     pendingUndo: null,
   });
   if (pu.kind === 'play' && snap.handCards) s.hands[pu.actor] = snap.handCards;
@@ -610,7 +678,7 @@ function resetForNewGame(s: EngineState): void {
     status: 'lobby', currentRound: 0, currentTrick: 0, totalRounds: 0, dealerIndex: 0, currentPlayerIndex: 0,
     trumpCard: null, trumpSuit: null, awaitingTrumpChoice: false, leadSuit: null, bids: {}, tricksWon: {}, cumulativeScores,
     trickInProgress: [], trickHistory: [], log: [], historyWritten: false, historyGameId: null, aiSummary: null,
-    aiSummaryRequested: false, playAgainVotes: [], nextRoundVotes: [], pendingVote: null, pendingUndo: null, colorOrder: null,
+    aiSummaryRequested: false, playAgainVotes: [], nextRoundVotes: [], pendingVote: null, pendingUndo: null, pendingShame: null, colorOrder: null,
     chatGen: (r.chatGen ?? 0) + 1,
   });
   s.hands = {};
@@ -773,6 +841,11 @@ function removeSeat(s: EngineState, target: string): void {
     else r.pendingVote = { ...r.pendingVote, yes: r.pendingVote.yes.filter((n) => n !== target), no: r.pendingVote.no.filter((n) => n !== target) };
   }
   r.playAgainVotes = (r.playAgainVotes ?? []).filter((n) => n !== target);
+  if (r.pendingShame) {
+    const ps = r.pendingShame;
+    if (ps.target === target || ps.by === target) r.pendingShame = null;
+    else r.pendingShame = { ...ps, yes: ps.yes.filter((n) => n !== target), no: ps.no.filter((n) => n !== target) };
+  }
 
   if (r.status === 'playing') {
     const plays = r.trickInProgress.filter((p) => p.playerName !== target).map((p, i) => ({ ...p, playOrder: i }));
