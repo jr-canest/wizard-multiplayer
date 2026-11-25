@@ -91,6 +91,9 @@ export function GameLog({ room, myName }: { room: RoomSnapshot; myName: string }
         const isOpen = open[v.round] ?? true;
         const won: Record<string, number> = {};
         for (const t of v.tricks) if (t.winner) won[t.winner] = (won[t.winner] ?? 0) + 1;
+        // The round still being played (not yet at its results).
+        const live = v.round === room.currentRound && (room.status === 'bidding' || room.status === 'playing' || room.status === 'dealing');
+        const lastDone = Math.max(0, ...v.tricks.filter((t) => t.winner).map((t) => t.n));
         const bidOf: Record<string, number> = {};
         for (const b of v.bids) bidOf[b.player] = b.bid;
         // Columns: bid order (the seat after the dealer first), plus anyone
@@ -109,7 +112,7 @@ export function GameLog({ room, myName }: { room: RoomSnapshot; myName: string }
                 {v.trump && (
                   v.trump.suit ? (
                     <span className={`font-bold ${SUIT_TONE[v.trump.suit]}`} aria-label={`Trump ${SUIT_NAME[v.trump.suit]}`}><SuitIcon suit={v.trump.suit} /></span>
-                  ) : 'NT'
+                  ) : 'No trump'
                 )}
                 {v.trump && v.dealer ? ' · ' : ''}
                 {v.dealer ? `Dealer ${name(v.dealer)}` : ''}
@@ -125,6 +128,26 @@ export function GameLog({ room, myName }: { room: RoomSnapshot; myName: string }
               <ol className="mt-1.5 divide-y divide-gold-700/10">
                 {[...v.tricks].reverse().map((t) => {
                   const winning = t.plays.find((p) => p.player === t.winner);
+                  // While a round is being played, only the hand in play
+                  // and the last finished one show their cards (like
+                  // turning the last trick back over at a real table).
+                  // Older hands of the round keep the winner and get their
+                  // cards back once the round is scored, so the log is not
+                  // a card counter (my call, Jorge left it to me 2026-11-25).
+                  if (live && t.winner && t.n < lastDone) {
+                    return (
+                      <li key={t.n} className="flex gap-2 py-1.5 whitespace-normal">
+                        <span className="w-[42px] shrink-0 pt-px text-[9px] font-bold uppercase tracking-[0.1em] text-navy-300 leading-[18px]">
+                          Hand {t.n}
+                        </span>
+                        <span className="min-w-0 flex-1 text-[13px] leading-[18px]">
+                          <span className="font-semibold text-gold-text">{name(t.winner)}</span>
+                          <span className="text-navy-200"> won</span>
+                          <span className="block mt-0.5 text-[11px] text-navy-400">Cards show when the round ends</span>
+                        </span>
+                      </li>
+                    );
+                  }
                   return (
                     <li key={t.n} className="flex gap-2 py-1.5 whitespace-normal">
                       <span className="w-[42px] shrink-0 pt-px text-[9px] font-bold uppercase tracking-[0.1em] text-navy-300 leading-[18px]">
