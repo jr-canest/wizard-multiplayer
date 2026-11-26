@@ -1,7 +1,7 @@
 import { computeRoundDeltas, cumulativeScoresFromLog } from '../lib/gameFlow';
 import { isBot } from '../lib/rooms';
 import { rankByTotal, roundCommentary, type CommentaryLine, type CommentaryPlayer } from '../lib/roundCommentary';
-import { useRolledNumber, useStandingsReveal, type RevealStage } from '../lib/standingsReveal';
+import { REVEAL_LINE_MS, useRolledNumber, useStandingsReveal, type RevealStage } from '../lib/standingsReveal';
 import { playQuip, playRevealMove, playRevealPoints, setRevealSoundGate } from '../lib/revealSounds';
 import { soundEnabled } from '../lib/sounds';
 import { CheckIcon, RingIcon } from './Icons';
@@ -74,7 +74,7 @@ export function RoundStandings({
     afterOrder,
     (st, rowsMove) => {
       // One sound per line, in step with the lines' own stagger.
-      if (st === 0) lines.forEach((l, i) => window.setTimeout(() => playQuip(l.tone), 120 + i * 420));
+      if (st === 0) lines.forEach((l, i) => window.setTimeout(() => playQuip(l.tone), REVEAL_LINE_MS[i] ?? 0));
       if (st === 1) playRevealPoints();
       if (st === 2 && rowsMove) playRevealMove();
     },
@@ -219,7 +219,7 @@ export function RoundCommentary({ lines, animate }: { lines: CommentaryLine[]; a
       {lines.map((l, i) => (
         <p
           key={i}
-          style={{ animationDelay: `${i * 420}ms` }}
+          style={{ animationDelay: `${REVEAL_LINE_MS[i] ?? 0}ms` }}
           className={`round-quip min-h-[26px] whitespace-normal ${animate ? 'round-quip-in' : ''}`}
         >
           <span className="font-display font-semibold text-[17px] leading-tight text-cream-bright">

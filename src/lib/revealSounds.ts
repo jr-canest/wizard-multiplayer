@@ -82,9 +82,10 @@ export function playRevealMove(): void {
 /** The cheer: a bright three-note rise. */
 export function playQuipCheer(): void {
   emit((ctx, dest, t) => {
+    // Done inside 0.45 s: the next sound is the second line's, 0.6 s on.
     [784, 988, 1319].forEach((f, i) => {
-      note(ctx, dest, 'triangle', f, t + i * 0.075, 0.13, i === 2 ? 0.5 : 0.2);
-      note(ctx, dest, 'sine', f * 2, t + i * 0.075, 0.035, 0.16);
+      note(ctx, dest, 'triangle', f, t + i * 0.07, 0.12, i === 2 ? 0.3 : 0.14);
+      note(ctx, dest, 'sine', f * 2, t + i * 0.07, 0.03, 0.12);
     });
   });
 }
@@ -96,16 +97,17 @@ export function playQuipRoast(): void {
     lp.type = 'lowpass';
     lp.frequency.value = 900;
     lp.connect(dest);
-    note(ctx, lp, 'sawtooth', 311, t, 0.11, 0.2, 294);
-    note(ctx, lp, 'sawtooth', 262, t + 0.2, 0.12, 0.5, 196);
+    // Done inside 0.5 s, before the points ping.
+    note(ctx, lp, 'sawtooth', 311, t, 0.1, 0.15, 294);
+    note(ctx, lp, 'sawtooth', 262, t + 0.16, 0.11, 0.32, 196);
   });
 }
 
 /** A line about the whole table: a neutral double blip. */
 export function playQuipTable(): void {
   emit((ctx, dest, t) => {
-    note(ctx, dest, 'sine', 659, t, 0.1, 0.14);
-    note(ctx, dest, 'sine', 659, t + 0.11, 0.1, 0.2);
+    note(ctx, dest, 'sine', 659, t, 0.1, 0.12);
+    note(ctx, dest, 'sine', 659, t + 0.11, 0.1, 0.18);
   });
 }
 

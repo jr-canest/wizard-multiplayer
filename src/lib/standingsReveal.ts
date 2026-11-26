@@ -11,9 +11,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
  *  · 2 rows moving to the new order · 3 settled: the glow and the shake. */
 export type RevealStage = 0 | 1 | 2 | 3;
 
-export const REVEAL_POINTS_MS = 850;
-export const REVEAL_MOVE_MS = 1750;
-export const REVEAL_DONE_MS = 2600;
+// Spaced so each step's sound is finished before the next one starts
+// (measured 2026-11-26: four sounds inside 0.75 s read as a pile-up).
+export const REVEAL_LINE_MS = [120, 720] as const; // the two commentary lines
+export const REVEAL_POINTS_MS = 1350;
+export const REVEAL_MOVE_MS = 2150;
+export const REVEAL_DONE_MS = 2950;
 const MOVE_MS = 780;
 
 // Rounds already revealed on this device: coming back to the screen (a

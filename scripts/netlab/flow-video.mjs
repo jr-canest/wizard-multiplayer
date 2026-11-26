@@ -23,7 +23,16 @@ async function clickText(page, re) { await waitFor(() => page.evaluate((src) => 
 async function phone(name, record = false) {
   const ctx = await browser.createBrowserContext();
   const page = await ctx.newPage();
-  if (record) await page.evaluateOnNewDocument(() => { window.__wizardSoundLog = []; });
+  if (record) await page.evaluateOnNewDocument(() => {
+    // Each entry gets the name of the play* function that asked for it.
+    const log = [];
+    const push = log.push.bind(log);
+    log.push = (e) => { e.name = (new Error().stack || '').match(/at (play\w+)/)?.[1] || '?'; return push(e); };
+    window.__wizardSoundLog = log;
+    // A full-screen white flash: the script finds it in the recording to
+    // line the rebuilt soundtrack up with the picture (start and end).
+    window.__flash = () => new Promise((res) => { const d = document.createElement('div'); d.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#fff'; document.body.appendChild(d); const at = performance.now(); setTimeout(() => { d.remove(); res(at); }, 160); });
+  });
   await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   await page.goto(`${BASE}/`, { waitUntil: 'networkidle2' });
   await page.waitForSelector('input[placeholder="Jorge"]');
@@ -43,9 +52,11 @@ await waitFor(() => A.evaluate(() => window.__wizardRoom.playerOrder.includes('n
 const C = await phone('netC'); await C.goto(`${BASE}/room/${code}`, { waitUntil: 'networkidle2' });
 await waitFor(() => A.evaluate(() => window.__wizardRoom.playerOrder.includes('netC')));
 const phones = { netA: A, netB: B, netC: C };
-const room = () => A.evaluate(() => { const r = window.__wizardRoom; return r && { status: r.status, round: r.currentRound, trick: r.currentTrick, inTrick: r.trickInProgress.length, turn: r.playerOrder[r.currentPlayerIndex] }; });
+const room = () => A.evaluate(() => { const r = window.__wizardRoom; return r && { status: r.status, round: r.currentRound, trick: r.currentTrick, inTrick: r.trickInProgress.length, bids: Object.keys(r.bids).length, turn: r.playerOrder[r.currentPlayerIndex] }; });
 const bidPick = { netA: 'low', netB: 'high', netC: 'mid' };
 async function step(r) {
+  // People look at their cards before the first bid (and the deal sound gets to finish).
+  if (r.status === 'bidding' && r.bids === 0) await sleep(1300);
   if (r.status === 'dealing') for (const p of [A, B, C]) await p.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => /Hearts/.test(x.textContent)); b && b.click(); });
   if (r.status === 'bidding') await phones[r.turn]?.evaluate((pick) => { const bs = [...document.querySelectorAll('button.chip')].filter((x) => !x.disabled && /^\d+$/.test(x.textContent.trim())).sort((a, b) => +a.textContent - +b.textContent); const b = pick === 'low' ? bs[0] : pick === 'high' ? bs[Math.min(bs.length - 1, 1)] : bs[Math.floor(bs.length / 2)]; b && b.click(); }, bidPick[r.turn]);
   if (r.status === 'playing') { const p = phones[r.turn]; const el = await p?.$('.animate-legal-glow'); const bb = el && await el.boundingBox(); if (bb) await p.touchscreen.tap(bb.x + bb.width / 2, bb.y + bb.height / 2); }
@@ -62,7 +73,9 @@ const cheer = (page, to, emoji) => page.evaluate(async (t, e) => { const { conne
 await A.bringToFront();
 const recorder = await A.screencast({ path: path.join(OUT, 'flow.webm') });
 const recT0 = await A.evaluate(() => performance.now());
-await sleep(1200);
+await sleep(700);
+const flash1 = await A.evaluate(() => window.__flash());
+await sleep(900);
 await clickText(A, /^Start game$/);
 
 // Round 1: one card each, then the first results (no places to swap yet).
@@ -104,6 +117,8 @@ await tapSel(A, 'button[aria-label="Close"]');
 await sleep(600);
 await playUntil((r) => r.round === 3 && r.status === 'scoring');
 await results(6000);
+const flash2 = await A.evaluate(() => window.__flash());
+await sleep(500);
 await recorder.stop();
 
 // ── soundtrack ────────────────────────────────────────────────────────
@@ -128,10 +143,32 @@ const wavB64 = await A.evaluate(async (t0, SR) => {
   const bytes = new Uint8Array(44 + pcm.byteLength);
   bytes.set(new Uint8Array(head.buffer), 0); bytes.set(new Uint8Array(pcm.buffer), 44);
   let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return { b64: btoa(bin), sounds: log.length, seconds: end };
+  return { b64: btoa(bin), sounds: log.length, seconds: end, timeline: log.map((e) => [Math.round(e.at - t0), e.name]) };
 }, recT0, SR);
 fs.writeFileSync(path.join(OUT, 'flow.wav'), Buffer.from(wavB64.b64, 'base64'));
+fs.writeFileSync(path.join(OUT, 'sounds.json'), JSON.stringify(wavB64.timeline));
 console.log('sounds in the mix:', wavB64.sounds, 'length', wavB64.seconds.toFixed(1), 's');
 await browser.close();
-execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', path.join(OUT, 'flow.webm'), '-i', path.join(OUT, 'flow.wav'), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22', '-pix_fmt', 'yuv420p', '-vf', 'scale=780:-2', '-c:a', 'aac', '-b:a', '128k', '-shortest', path.join(OUT, 'flow.mp4')]);
+
+// ── line the soundtrack up with the picture ───────────────────────────
+// Find the two white flashes in the recording (mean brightness per frame).
+const probe = execFileSync('ffprobe', ['-v', 'error', '-f', 'lavfi', '-i', `movie=${path.join(OUT, 'flow.webm').replace(/([:\\' ])/g, '\\$1')},signalstats`, '-show_entries', 'frame=pts_time:frame_tags=lavfi.signalstats.YAVG', '-of', 'csv=p=0'], { maxBuffer: 1 << 28 }).toString();
+const bright = probe.trim().split('\n').map((l) => l.split(',').map(Number)).filter(([, y]) => y > 200).map(([t]) => t);
+const videoFlash1 = bright.find((t) => t < 10);
+const videoFlash2 = bright.filter((t) => t > 10)[0];
+const pageFlash1 = (flash1 - recT0) / 1000;
+const pageFlash2 = (flash2 - recT0) / 1000;
+const offset = videoFlash1 - pageFlash1;                 // + = the picture runs behind the page clock
+const drift = (videoFlash2 - videoFlash1) - (pageFlash2 - pageFlash1);
+console.log(`flash 1: page ${pageFlash1.toFixed(2)} s, video ${videoFlash1?.toFixed(2)} s · flash 2: page ${pageFlash2.toFixed(2)} s, video ${videoFlash2?.toFixed(2)} s`);
+console.log(`sound offset ${offset.toFixed(3)} s, drift over the take ${drift.toFixed(3)} s`);
+fs.writeFileSync(path.join(OUT, 'sync.json'), JSON.stringify({ offset, drift, videoFlash1, videoFlash2, pageFlash1, pageFlash2 }));
+// Stretch the picture's clock to the page's (drift), shift the sound by the
+// offset, and cut from just after the first flash to just before the last.
+const rate = (pageFlash2 - pageFlash1) / (videoFlash2 - videoFlash1);
+const start = pageFlash1 + 0.35;
+const dur = pageFlash2 - 0.1 - start;
+execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', path.join(OUT, 'flow.webm'), '-i', path.join(OUT, 'flow.wav'),
+  '-filter_complex', `[0:v]setpts=(PTS-${videoFlash1}/TB)*${rate}+${pageFlash1}/TB,trim=start=${start}:duration=${dur},setpts=PTS-STARTPTS,scale=780:-2[v];[1:a]atrim=start=${start}:duration=${dur},asetpts=PTS-STARTPTS[a]`,
+  '-map', '[v]', '-map', '[a]', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22', '-pix_fmt', 'yuv420p', '-r', '30', '-c:a', 'aac', '-b:a', '128k', path.join(OUT, 'flow.mp4')]);
 console.log('wrote', path.join(OUT, 'flow.mp4'));

@@ -59,7 +59,9 @@ export function useGameSounds(room: RoomSnapshot, myName: string): void {
     chatSeenRef.current = Math.max(prev ?? 0, newestTs);
     if (prev === null) return;
     const fresh = chat.some(
-      (m) => m.ts > prev && m.player !== myName && Date.now() - m.ts < 15000,
+      // Table notices (left the game, shame point) are not chat: no bloop,
+      // and the shame one already comes with the boo.
+      (m) => m.ts > prev && m.player !== myName && !m.sys && Date.now() - m.ts < 15000,
     );
     if (fresh) playChatSound();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -98,7 +100,7 @@ export function useGameSounds(room: RoomSnapshot, myName: string): void {
   }, [myTurn, bidding, room.currentRound, room.trickHistory.length]);
 
   // ---- Round result: made your bid --------------------------------------
-  // Lands as the round scoreboard comes up (after the last trick's hold).
+  // Lands while the last trick is still held on the table.
   // A miss stays silent (Jorge: the boo is for booing, not for a miss). The
   // final round goes straight to the game-over sparkle instead.
   const prevStatusRef = useRef(room.status);
@@ -109,7 +111,10 @@ export function useGameSounds(room: RoomSnapshot, myName: string): void {
     const bid = room.bids[myName];
     if (bid === undefined) return;
     if ((room.tricksWon[myName] ?? 0) !== bid) return;
-    const id = window.setTimeout(playBidMadeSound, LAST_TRICK_HOLD_MS + 150);
+    // During the last trick's hold, clear of the trick-won note and done
+    // before the results screen brings its own sounds (it used to start
+    // 22 ms after the commentary's cheer and the two tunes ran together).
+    const id = window.setTimeout(playBidMadeSound, Math.min(550, LAST_TRICK_HOLD_MS - 600));
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.status, myName]);
