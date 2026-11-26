@@ -778,6 +778,8 @@ button:focus-visible {
   100% { opacity: 1; transform: none; }
 }
 .round-quip-in { animation: round-quip-in 460ms cubic-bezier(.2, .9, .3, 1.2) backwards; }
+.round-quip-in:nth-child(1) { animation-delay: 120ms !important; }
+.round-quip-in:nth-child(2) { animation-delay: 540ms !important; }
 .round-quip-emoji { display: inline-block; }
 .round-quip-in .round-quip-emoji { animation: standing-badge-in 520ms cubic-bezier(.3, 1.6, .5, 1) backwards; animation-delay: inherit; }
 @media (prefers-reduced-motion: reduce) {

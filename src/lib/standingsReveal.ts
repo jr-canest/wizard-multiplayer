@@ -1,16 +1,19 @@
-// The round-results reveal (Jorge, 2026-11-26): rows start where the table
-// stood BEFORE the round, the round's points land and the totals roll,
-// then the rows slide to their new places, and last the commentary pops.
+// The round-results reveal (Jorge, 2026-11-26). The commentary LEADS and
+// the table acts it out, so there is never an empty band waiting to fill:
+// the two lines pop in as the screen arrives, with the rows still where the
+// table stood BEFORE the round; then the round's points land and the totals
+// roll, the rows slide to their new places, and last the cheered row glows
+// and the roasted row shakes.
 // SHARED VERBATIM with the scorekeeper (src/utils/standingsReveal.ts).
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-/** 0 old order + old totals · 1 points in, totals rolling · 2 rows moving
- *  to the new order · 3 settled, commentary showing. */
+/** 0 commentary in, old order + old totals · 1 points in, totals rolling
+ *  · 2 rows moving to the new order · 3 settled: the glow and the shake. */
 export type RevealStage = 0 | 1 | 2 | 3;
 
-export const REVEAL_POINTS_MS = 450;
-export const REVEAL_MOVE_MS = 1450;
-export const REVEAL_DONE_MS = 2350;
+export const REVEAL_POINTS_MS = 850;
+export const REVEAL_MOVE_MS = 1750;
+export const REVEAL_DONE_MS = 2600;
 const MOVE_MS = 780;
 
 // Rounds already revealed on this device: coming back to the screen (a
@@ -31,10 +34,12 @@ export function useStandingsReveal(
   key: string,
   beforeOrder: string[],
   afterOrder: string[],
-  /** Called as each step starts (1 points, 2 rows move, 3 commentary): sounds hang off this. */
+  /** Called as each step starts (0 commentary, 1 points, 2 rows move, 3 settled): sounds hang off this. */
   onStage?: (stage: RevealStage, rowsMove: boolean) => void,
 ) {
   const [stage, setStage] = useState<RevealStage>(() => (SEEN.has(key) || reducedMotion() ? 3 : 0));
+  // Already settled at mount (seen before, or reduced motion): nothing animates.
+  const [instant] = useState(stage === 3);
   const listRef = useRef<HTMLDivElement | null>(null);
   const eachRow = (fn: (el: HTMLElement, id: string) => void) => {
     listRef.current?.querySelectorAll<HTMLElement>(':scope > [data-row-id]').forEach((el) => fn(el, el.dataset.rowId ?? ''));
@@ -50,6 +55,7 @@ export function useStandingsReveal(
     // with nothing to do and the first run's timers cleared.
     const rowsMove = beforeOrder.join('\n') !== afterOrder.join('\n');
     const timers = [
+      window.setTimeout(() => onStageRef.current?.(0, rowsMove), 0),
       window.setTimeout(() => { setStage(1); onStageRef.current?.(1, rowsMove); }, REVEAL_POINTS_MS),
       window.setTimeout(() => {
         const tops = new Map<string, number>();
@@ -93,7 +99,7 @@ export function useStandingsReveal(
     return () => window.clearTimeout(done);
   }, [stage]);
 
-  return { stage, order: stage >= 2 ? afterOrder : beforeOrder, listRef };
+  return { stage, instant, order: stage >= 2 ? afterOrder : beforeOrder, listRef };
 }
 
 /** A number that rolls from `from` to `to` once `run` turns true. */

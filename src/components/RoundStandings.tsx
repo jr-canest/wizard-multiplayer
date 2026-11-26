@@ -68,15 +68,15 @@ export function RoundStandings({
   });
   const lines = roundCommentary(room.code, room.currentRound, players);
 
-  const { stage, order, listRef } = useStandingsReveal(
+  const { stage, instant, order, listRef } = useStandingsReveal(
     `${room.code}:${room.chatGen ?? 0}:${room.currentRound}`,
     beforeOrder,
     afterOrder,
     (st, rowsMove) => {
+      // One sound per line, in step with the lines' own stagger.
+      if (st === 0) lines.forEach((l, i) => window.setTimeout(() => playQuip(l.tone), 120 + i * 420));
       if (st === 1) playRevealPoints();
       if (st === 2 && rowsMove) playRevealMove();
-      // One sound per line, in step with the lines' own stagger.
-      if (st === 3) lines.forEach((l, i) => window.setTimeout(() => playQuip(l.tone), i * 420));
     },
   );
   const bestDelta = Math.max(...Object.values(deltas));
@@ -86,7 +86,7 @@ export function RoundStandings({
   return (
     <>
       {/* The commentary is its own box above the results (Jorge, 2026-11-26). */}
-      <RoundCommentary lines={lines} show={stage >= 3} />
+      <RoundCommentary lines={lines} animate={!instant} />
       <div className="card-gold p-4 space-y-4">
       {header}
       <div>
@@ -205,21 +205,22 @@ export function MoveBadge({ move }: { move: number }) {
 }
 
 /**
- * The cheer and the roast, in a box of their own. The box holds its space
- * from the start (so nothing below jumps) and fades in with the lines.
+ * The cheer and the roast, in a box of their own. They are there from the
+ * first frame (popping in on the first showing only): the commentary leads
+ * and the table below then acts it out, so the box is never empty.
  */
-export function RoundCommentary({ lines, show }: { lines: CommentaryLine[]; show: boolean }) {
+export function RoundCommentary({ lines, animate }: { lines: CommentaryLine[]; animate: boolean }) {
   if (lines.length === 0) return null;
   return (
     <div
-      className={`round-quip-box card-gold px-3.5 py-3 space-y-1.5 transition-opacity duration-300 ${show ? 'opacity-100' : 'opacity-0'}`}
+      className="round-quip-box card-gold px-3.5 py-3 space-y-1.5"
       aria-live="polite"
     >
       {lines.map((l, i) => (
         <p
           key={i}
           style={{ animationDelay: `${i * 420}ms` }}
-          className={`round-quip min-h-[26px] whitespace-normal ${show ? 'round-quip-in' : 'opacity-0'}`}
+          className={`round-quip min-h-[26px] whitespace-normal ${animate ? 'round-quip-in' : ''}`}
         >
           <span className="font-display font-semibold text-[17px] leading-tight text-cream-bright">
             {l.segs.map((s, j) =>
