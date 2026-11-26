@@ -63,6 +63,8 @@ export function unlockAudioOnGesture(): () => void {
 
 function play(voice: (ctx: Ctx, dest: AudioNode, t: number) => void): void {
   if (!enabled) return;
+  // Test recordings collect every sound here to rebuild the soundtrack.
+  (globalThis as { __wizardSoundLog?: Array<{ at: number; voice: typeof voice }> }).__wizardSoundLog?.push({ at: performance.now(), voice });
   try {
     const ctx = getAudioContext();
     if (ctx && ctx.state === 'running') voice(ctx, ctx.destination, ctx.currentTime);
@@ -315,5 +317,25 @@ export function playBooSound(): void {
     osc1.stop(t + duration);
     osc2.stop(t + duration);
     osc1.onended = () => bus.disconnect();
+  });
+}
+
+/** A reaction lands on a tile (clap, shock): a quick rubbery pop. */
+export function playReactionSound(): void {
+  play((ctx, dest, t) => {
+    const bus = tapBus(ctx, dest, 0.3);
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(420, t);
+    osc.frequency.exponentialRampToValueAtTime(980, t + 0.07);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.7, t + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    osc.connect(gain);
+    gain.connect(bus);
+    osc.start(t);
+    osc.stop(t + 0.18);
+    tone(ctx, bus, 'triangle', 1568, t + 0.06, 0.18, 0.12).onended = () => bus.disconnect();
   });
 }

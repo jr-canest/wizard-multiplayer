@@ -27,30 +27,42 @@ function reducedMotion(): boolean {
  * each row carries `data-row-id`; rows are siblings (their offsetTop is
  * what gets animated, so page zoom is moot).
  */
-export function useStandingsReveal(key: string, beforeOrder: string[], afterOrder: string[]) {
+export function useStandingsReveal(
+  key: string,
+  beforeOrder: string[],
+  afterOrder: string[],
+  /** Called as each step starts (1 points, 2 rows move, 3 commentary): sounds hang off this. */
+  onStage?: (stage: RevealStage, rowsMove: boolean) => void,
+) {
   const [stage, setStage] = useState<RevealStage>(() => (SEEN.has(key) || reducedMotion() ? 3 : 0));
   const listRef = useRef<HTMLDivElement | null>(null);
   const eachRow = (fn: (el: HTMLElement, id: string) => void) => {
     listRef.current?.querySelectorAll<HTMLElement>(':scope > [data-row-id]').forEach((el) => fn(el, el.dataset.rowId ?? ''));
   };
   const firstTops = useRef<Map<string, number> | null>(null);
+  const onStageRef = useRef(onStage);
+  useEffect(() => { onStageRef.current = onStage; });
 
   useEffect(() => {
     if (SEEN.has(key) || reducedMotion()) return;
     // Marked as seen only when it has played through: React's dev mode
     // runs this effect twice, and marking up front left the second run
     // with nothing to do and the first run's timers cleared.
+    const rowsMove = beforeOrder.join('\n') !== afterOrder.join('\n');
     const timers = [
-      window.setTimeout(() => setStage(1), REVEAL_POINTS_MS),
+      window.setTimeout(() => { setStage(1); onStageRef.current?.(1, rowsMove); }, REVEAL_POINTS_MS),
       window.setTimeout(() => {
         const tops = new Map<string, number>();
         eachRow((el, id) => tops.set(id, el.offsetTop));
         firstTops.current = tops;
         setStage(2);
+        onStageRef.current?.(2, rowsMove);
       }, REVEAL_MOVE_MS),
-      window.setTimeout(() => { SEEN.add(key); setStage(3); }, REVEAL_DONE_MS),
+      window.setTimeout(() => { SEEN.add(key); setStage(3); onStageRef.current?.(3, rowsMove); }, REVEAL_DONE_MS),
     ];
     return () => timers.forEach((t) => window.clearTimeout(t));
+    // The orders are fixed for a round; only the key restarts the show.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   // FLIP: the rows are already in their new places in the document; put

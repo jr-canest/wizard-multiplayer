@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { acquireConnection, releaseConnection, CHEER_SHOW_MS, type Cheer } from '../lib/socket';
-import { playChatSound } from '../lib/sounds';
+import { playReactionSound } from '../lib/sounds';
 import { useSession } from './useSession';
 
 /**
  * Tile reactions on screen right now (a clap or a shock sent by tapping a
- * player's tile). Each one lives CHEER_SHOW_MS; one aimed at you plays
- * the soft chat bloop.
+ * player's tile). Each one lives CHEER_SHOW_MS and lands with a pop.
  */
 export function useCheers(code: string, myName: string): Cheer[] {
   const [cheers, setCheers] = useState<Cheer[]>([]);
@@ -33,10 +32,12 @@ export function useCheers(code: string, myName: string): Cheer[] {
     return () => window.clearTimeout(id);
   }, [soonest]);
 
-  const newestForMe = Math.max(0, ...live.filter((c) => c.to === myName).map((c) => c.id));
+  // Every reaction pops, whoever it is aimed at (myName kept for callers).
+  void myName;
+  const newest = Math.max(0, ...live.map((c) => c.id));
   useEffect(() => {
-    if (newestForMe > heard.current) { heard.current = newestForMe; playChatSound(); }
-  }, [newestForMe]);
+    if (newest > heard.current) { heard.current = newest; playReactionSound(); }
+  }, [newest]);
 
   return live;
 }

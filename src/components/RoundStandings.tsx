@@ -2,8 +2,13 @@ import { computeRoundDeltas, cumulativeScoresFromLog } from '../lib/gameFlow';
 import { isBot } from '../lib/rooms';
 import { rankByTotal, roundCommentary, type CommentaryLine, type CommentaryPlayer } from '../lib/roundCommentary';
 import { useRolledNumber, useStandingsReveal, type RevealStage } from '../lib/standingsReveal';
+import { playQuip, playRevealMove, playRevealPoints, setRevealSoundGate } from '../lib/revealSounds';
+import { soundEnabled } from '../lib/sounds';
 import { CheckIcon, RingIcon } from './Icons';
 import type { RoomSnapshot } from '../hooks/useRoom';
+
+// The reveal's sounds obey the game menu's Sound switch.
+setRevealSoundGate(soundEnabled);
 
 const fmt = (n: number) => (n < 0 ? `−${Math.abs(n)}` : `${n}`);
 const GRID = 'grid grid-cols-[minmax(0,1fr)_30px_34px_34px_52px] items-center';
@@ -63,7 +68,17 @@ export function RoundStandings({
   });
   const lines = roundCommentary(room.code, room.currentRound, players);
 
-  const { stage, order, listRef } = useStandingsReveal(`${room.code}:${room.chatGen ?? 0}:${room.currentRound}`, beforeOrder, afterOrder);
+  const { stage, order, listRef } = useStandingsReveal(
+    `${room.code}:${room.chatGen ?? 0}:${room.currentRound}`,
+    beforeOrder,
+    afterOrder,
+    (st, rowsMove) => {
+      if (st === 1) playRevealPoints();
+      if (st === 2 && rowsMove) playRevealMove();
+      // One sound per line, in step with the lines' own stagger.
+      if (st === 3) lines.forEach((l, i) => window.setTimeout(() => playQuip(l.tone), i * 420));
+    },
+  );
   const bestDelta = Math.max(...Object.values(deltas));
   const cheered = lines.find((l) => l.tone === 'up')?.player;
   const roasted = lines.find((l) => l.tone === 'down')?.player;
