@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import {
-  computeRoundDeltas,
-  cumulativeScoresFromLog,
   openRoundVote,
   voteNextRound,
 } from '../lib/gameFlow';
@@ -10,7 +8,7 @@ import { Chat } from './Chat';
 import { RoundVoteModal } from './RoundVoteModal';
 import type { RoundVoteKind } from '../lib/types';
 import type { RoomSnapshot } from '../hooks/useRoom';
-import { CheckIcon, RingIcon } from './Icons';
+import { RoundStandings } from './RoundStandings';
 
 type Props = {
   room: RoomSnapshot;
@@ -22,23 +20,6 @@ export function RoundScoreboard({ room, myName }: Props) {
   const [opening, setOpening] = useState<RoundVoteKind | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const deltas = computeRoundDeltas(
-    room.playerOrder,
-    room.bids,
-    room.tricksWon,
-  );
-  // Authoritative cumulative comes from the log — older rooms can have
-  // stale zeros in the doc (dealNextRound didn't persist between rounds).
-  const baseCumulative = cumulativeScoresFromLog(
-    room.playerOrder,
-    room.log,
-  );
-  const sorted = [...room.playerOrder].sort(
-    (a, b) =>
-      (baseCumulative[b] ?? 0) +
-      (deltas[b] ?? 0) -
-      ((baseCumulative[a] ?? 0) + (deltas[a] ?? 0)),
-  );
   const isFinalRound = room.currentRound >= room.totalRounds;
 
   const realPlayers = room.playerOrder.filter((n) => !isBot(room, n));
@@ -86,8 +67,6 @@ export function RoundScoreboard({ room, myName }: Props) {
     }
   }
 
-  const bestDelta = Math.max(...Object.values(deltas));
-
   // Next-up context (mirrors the scorekeeper's merged results screen):
   // the dealer rotates one seat left, cards = round number, and the
   // final round is played without trump (house rule).
@@ -117,92 +96,7 @@ export function RoundScoreboard({ room, myName }: Props) {
         </span>
       </div>
 
-      <table className="w-full text-sm">
-        <thead>
-          <tr>
-            <th className="section-label text-left font-bold pb-1.5">Player</th>
-            <th className="section-label text-right font-bold pb-1.5">Bid</th>
-            <th className="section-label text-right font-bold pb-1.5">Won</th>
-            <th className="section-label text-right font-bold pb-1.5">Δ</th>
-            <th className="section-label text-right font-bold pb-1.5">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((name, rowIdx) => {
-            const bid = room.bids[name] ?? 0;
-            const won = room.tricksWon[name] ?? 0;
-            const delta = deltas[name] ?? 0;
-            const total = (baseCumulative[name] ?? 0) + delta;
-            const isMe = name === myName;
-            const isWinner = delta === bestDelta && delta > 0;
-            const isReal = !isBot(room, name);
-            const hasVoted = nextVotes.includes(name);
-            return (
-              <tr
-                key={name}
-                style={{ animationDelay: `${120 + rowIdx * 55}ms` }}
-                className={
-                  isWinner
-                    ? 'animate-row-in bg-gold-300/[.07]'
-                    : 'animate-row-in'
-                }
-              >
-                <td
-                  className={`py-1.5 font-display font-semibold text-[17px] ${
-                    isMe ? 'text-cream-bright font-bold' : 'text-cream'
-                  }`}
-                >
-                  {/* Every row keeps the slot so names line up; computers
-                      have no tick to show. */}
-                  {!isReal && <span className="inline-block w-4 mr-1" />}
-                  {isReal && (
-                    <span
-                      aria-label={hasVoted ? 'voted' : 'not voted'}
-                      title={
-                        hasVoted
-                          ? `${name} voted to ${
-                              isFinalRound ? 'finish' : 'advance'
-                            }`
-                          : `${name} hasn't voted yet`
-                      }
-                      className={`inline-flex w-4 mr-1 justify-center align-middle -translate-y-px ${
-                        hasVoted ? 'text-emerald-300' : 'text-navy-400/60'
-                      }`}
-                    >
-                      {hasVoted ? <CheckIcon size={12} /> : <RingIcon size={9} />}
-                    </span>
-                  )}
-                  {name}
-                  {isMe ? ' (you)' : ''}
-                </td>
-                <td className="text-right tabular-nums font-semibold text-[14px] text-cream">{bid}</td>
-                <td
-                  className={`text-right tabular-nums font-semibold text-[14px] ${
-                    bid === won ? 'text-[#6ee7b7]' : 'text-[#fda4af]'
-                  }`}
-                >
-                  {won}
-                </td>
-                <td
-                  className={`text-right tabular-nums text-[10px] font-semibold ${
-                    delta > 0
-                      ? 'text-[#6ee7b7]'
-                      : delta < 0
-                        ? 'text-[#fda4af]'
-                        : 'text-navy-200'
-                  }`}
-                >
-                  {delta > 0 ? '+' : delta < 0 ? '−' : ''}
-                  {Math.abs(delta)}
-                </td>
-                <td className="text-right tabular-nums font-bold text-[16px] text-gold-text">
-                  {total < 0 ? `−${Math.abs(total)}` : total}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <RoundStandings key={room.currentRound} room={room} myName={myName} nextVotes={nextVotes} isFinalRound={isFinalRound} />
 
       <button
         type="button"
