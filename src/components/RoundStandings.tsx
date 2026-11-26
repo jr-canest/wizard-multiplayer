@@ -22,11 +22,16 @@ export function RoundStandings({
   myName,
   nextVotes,
   isFinalRound,
+  header,
+  children,
 }: {
   room: RoomSnapshot;
   myName: string;
   nextVotes: string[];
   isFinalRound: boolean;
+  /** The results card's title row and whatever follows the rows (buttons). */
+  header: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   const deltas = computeRoundDeltas(room.playerOrder, room.bids, room.tricksWon);
   const base = cumulativeScoresFromLog(room.playerOrder, room.log);
@@ -64,8 +69,12 @@ export function RoundStandings({
   const roasted = lines.find((l) => l.tone === 'down')?.player;
 
   return (
-    <div>
+    <>
+      {/* The commentary is its own box above the results (Jorge, 2026-11-26). */}
       <RoundCommentary lines={lines} show={stage >= 3} />
+      <div className="card-gold p-4 space-y-4">
+      {header}
+      <div>
       <div className={`${GRID} pb-1.5`}>
         <span className="section-label">Player</span>
         <span className="section-label text-right">Bid</span>
@@ -112,7 +121,10 @@ export function RoundStandings({
           );
         })}
       </div>
-    </div>
+      </div>
+      {children}
+      </div>
+    </>
   );
 }
 
@@ -178,18 +190,21 @@ export function MoveBadge({ move }: { move: number }) {
 }
 
 /**
- * The cheer and the roast. The space for two lines is held from the start
- * so nothing below jumps when they pop in.
+ * The cheer and the roast, in a box of their own. The box holds its space
+ * from the start (so nothing below jumps) and fades in with the lines.
  */
 export function RoundCommentary({ lines, show }: { lines: CommentaryLine[]; show: boolean }) {
   if (lines.length === 0) return null;
   return (
-    <div className="mb-3 space-y-1" aria-live="polite">
+    <div
+      className={`round-quip-box card-gold px-3.5 py-3 space-y-1.5 transition-opacity duration-300 ${show ? 'opacity-100' : 'opacity-0'}`}
+      aria-live="polite"
+    >
       {lines.map((l, i) => (
         <p
           key={i}
           style={{ animationDelay: `${i * 420}ms` }}
-          className={`round-quip flex items-center gap-2 min-h-[26px] whitespace-normal ${show ? 'round-quip-in' : 'opacity-0'}`}
+          className={`round-quip flex items-center gap-2.5 min-h-[26px] whitespace-normal ${show ? 'round-quip-in' : 'opacity-0'}`}
         >
           <span className="text-[20px] leading-none shrink-0" aria-hidden="true">{l.emoji}</span>
           <span className="font-display font-semibold text-[17px] leading-tight text-cream-bright">

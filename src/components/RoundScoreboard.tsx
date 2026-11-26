@@ -88,15 +88,21 @@ export function RoundScoreboard({ room, myName }: Props) {
     <div className="space-y-2 animate-view-in">
     <RoundVoteModal room={room} myName={myName} />
     <Chat room={room} myName={myName} />
-    <div className="card-gold p-4 space-y-4">
+    <RoundStandings
+      key={room.currentRound}
+      room={room}
+      myName={myName}
+      nextVotes={nextVotes}
+      isFinalRound={isFinalRound}
+      header={
       <div className="flex items-baseline justify-between">
         <span className="section-label">Round {room.currentRound} results</span>
         <span className="font-bold text-[13px] text-navy-300 tabular-nums">
           {room.currentRound}/{room.totalRounds}
         </span>
       </div>
-
-      <RoundStandings key={room.currentRound} room={room} myName={myName} nextVotes={nextVotes} isFinalRound={isFinalRound} />
+      }
+    >
 
       <button
         type="button"
@@ -174,7 +180,7 @@ export function RoundScoreboard({ room, myName }: Props) {
       {error && (
         <p className="text-sm text-rose-300 text-center">{error}</p>
       )}
-    </div>
+    </RoundStandings>
     </div>
   );
 }
