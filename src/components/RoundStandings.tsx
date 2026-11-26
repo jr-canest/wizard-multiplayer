@@ -204,9 +204,8 @@ export function RoundCommentary({ lines, show }: { lines: CommentaryLine[]; show
         <p
           key={i}
           style={{ animationDelay: `${i * 420}ms` }}
-          className={`round-quip flex items-center gap-2.5 min-h-[26px] whitespace-normal ${show ? 'round-quip-in' : 'opacity-0'}`}
+          className={`round-quip min-h-[26px] whitespace-normal ${show ? 'round-quip-in' : 'opacity-0'}`}
         >
-          <span className="text-[20px] leading-none shrink-0" aria-hidden="true">{l.emoji}</span>
           <span className="font-display font-semibold text-[17px] leading-tight text-cream-bright">
             {l.segs.map((s, j) =>
               s.name ? (
@@ -220,6 +219,8 @@ export function RoundCommentary({ lines, show }: { lines: CommentaryLine[]; show
                 </span>
               ),
             )}
+            {/* The emoji closes the sentence (Jorge: part of the line, not a bullet on the left). */}
+            <span className="round-quip-emoji font-sans text-[1.05em] ml-1.5" aria-hidden="true">{l.emoji}</span>
           </span>
         </p>
       ))}
